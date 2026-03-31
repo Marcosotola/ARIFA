@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
@@ -20,7 +20,7 @@ export default function LoginPage() {
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth || !auth.signInWithEmailAndPassword) {
+    if (!isFirebaseConfigured) {
       alert("Firebase no está configurado. Revisa tu archivo .env.local.");
       return;
     }
@@ -48,7 +48,7 @@ export default function LoginPage() {
 
   const handleGoogle = async () => {
     setLoading(true);
-    if (!auth || !auth.app) {
+    if (!isFirebaseConfigured) {
       alert("Firebase no está configurado. Revisa tu archivo .env.local.");
       setLoading(false);
       return;

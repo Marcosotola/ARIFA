@@ -12,7 +12,7 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const isConfigValid = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
+const isFirebaseConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
 
 // Initialize Firebase (Safely)
 let auth: any;
@@ -20,7 +20,7 @@ let db: any;
 let storage: any;
 let app: any;
 
-if (isConfigValid) {
+if (isFirebaseConfigured) {
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
@@ -34,4 +34,4 @@ if (isConfigValid) {
   storage = {};
 }
 
-export { app, auth, db, storage };
+export { app, auth, db, storage, isFirebaseConfigured };
