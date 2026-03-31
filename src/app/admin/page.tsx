@@ -27,7 +27,7 @@ export default function AdminDashboard() {
   const fetchStats = async (uid: string, email: string | null, role: string) => {
     try {
       setLoading(true);
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'tecnico') {
         const qUnread = query(collection(db, "consultas"), where("estado", "==", "nueva"));
         const unreadSnap = await getDocs(qUnread);
         const prodSnap = await getDocs(collection(db, "productos"));
@@ -39,6 +39,7 @@ export default function AdminDashboard() {
           usuarios: userSnap.size
         });
       } else {
+
         // Stats for client
         const qMyConsultas = query(collection(db, "consultas"), where("email", "==", email));
         const myConsSnap = await getDocs(qMyConsultas);
@@ -61,6 +62,7 @@ export default function AdminDashboard() {
   };
 
   const isClient = role === "cliente";
+  const isStaff = role === "admin" || role === "tecnico";
 
   const statCards = isClient ? [
     { label: "Mis Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📧", href: "/admin/consultas" },
@@ -79,9 +81,10 @@ export default function AdminDashboard() {
           {loading ? "Sincronizando..." : `Hola, ${user?.email?.split('@')[0]}`}
         </h1>
         <p style={{ color: "var(--text-muted)", marginTop: "5px", fontSize: "0.95rem" }}>
-          {isClient ? "Bienvenido a tu panel de cliente ARIFA." : "Panel de Gestión Administrativa."}
+          {isClient ? "Bienvenido a tu panel de cliente ARIFA." : isStaff ? "Panel de Gestión y Operaciones ARIFA." : "Acceso al Sistema."}
         </p>
       </header>
+
 
       {/* Stats Grid */}
       <div className="dashboard-grid-4" style={{ 

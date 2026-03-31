@@ -50,6 +50,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const isClient = role === "cliente";
   const isAdmin = role === "admin";
+  const isTecnico = role === "tecnico";
 
   const sidebarLinks = [
     { label: "Mi Panel", href: "/admin", icon: "📊" },
@@ -57,13 +58,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: isClient ? "Mis Órdenes" : "Órdenes de Trabajo", href: "/admin/ordenes", icon: "🛠️" },
   ];
 
-  if (isAdmin) {
+  if (isAdmin || isTecnico) {
     sidebarLinks.push(
-      { label: "Productos", href: "/admin/productos", icon: "🛒" },
-      { label: "Usuarios", href: "/admin/usuarios", icon: "👥" },
-      { label: "Configuración", href: "/admin/config", icon: "⚙️" }
+      { label: "Productos", href: "/admin/productos", icon: "🛒" }
     );
   }
+
+  if (isAdmin) {
+    sidebarLinks.push(
+      { label: "Usuarios", href: "/admin/usuarios", icon: "👥" }
+    );
+  }
+
+  // Everyone in admin panel sees Config
+  sidebarLinks.push(
+    { label: "Configuración", href: "/admin/config", icon: "⚙️" }
+  );
+
 
   return (
     <div className="admin-layout" style={{ display: "flex", minHeight: "100vh", background: "#f0f2f5", position: 'relative' }}>
