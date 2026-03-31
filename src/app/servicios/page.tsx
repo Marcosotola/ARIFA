@@ -67,7 +67,7 @@ export default function ServiciosPage() {
             </p>
           </div>
 
-          <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'28px'}}>
+          <div className="grid-3">
             {SERVICE_GROUPS.map((group, gi) => (
               <div key={gi} style={{background:'#fff', border:'1px solid var(--border-light)', borderRadius:'4px', overflow:'hidden', boxShadow:'0 4px 18px rgba(0,0,0,0.05)'}}>
                 <div style={{background:group.color, padding:'24px', color:'#fff'}}>
@@ -114,7 +114,7 @@ export default function ServiciosPage() {
             <h2>¿Cómo Trabajamos?</h2>
             <div className="section-line"></div>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(4, 1fr)', gap:'25px', textAlign:'center'}}>
+          <div className="grid-4">
             {[
               { n:'01', t:'Diagnóstico', d:'Evaluamos el estado actual de tu empresa y detectamos los riesgos existentes.' },
               { n:'02', t:'Propuesta', d:'Elaboramos una propuesta de solución a medida, adaptada a tu rubro y presupuesto.' },

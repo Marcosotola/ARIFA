@@ -102,7 +102,7 @@ export default function CertificacionesPage() {
             <h2>¿Por qué confiar en ARIFA?</h2>
             <div className="section-line"></div>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'30px', marginTop:'0'}}>
+          <div className="grid-3" style={{marginTop:'0'}}>
             {[
               { n:'✓', t:'Profesionales Habilitados', d:'Todo nuestro personal cuenta con las habilitaciones exigidas.' },
               { n:'✓', t:'Normativa Actualizada', d:'Nos mantenemos al día con todas las normativas vigentes.' },

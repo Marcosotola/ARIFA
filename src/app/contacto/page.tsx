@@ -81,7 +81,7 @@ export default function ContactoPage() {
               </div>
               <div className="contact-item-text">
                 <strong>Dirección</strong>
-                <span>Córdoba Capital, Argentina</span>
+                <span>Lorenzo Barcala 727, Córdoba</span>
               </div>
             </div>
 
@@ -202,9 +202,9 @@ export default function ContactoPage() {
         <div className="container">
           <div style={{background:'#ccc', height:'350px', borderRadius:'4px', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:'15px'}}>
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-            <p style={{color:'#666', fontWeight:600}}>Córdoba Capital, Argentina</p>
+            <p style={{color:'#666', fontWeight:600}}>Lorenzo Barcala 727, Córdoba</p>
             <a
-              href="https://www.google.com/maps/search/Córdoba+Capital+Argentina"
+              href="https://www.google.com/maps/search/Lorenzo+Barcala+727+Cordoba"
               target="_blank"
               rel="noopener noreferrer"
               className="btn-blue"

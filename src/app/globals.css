@@ -1278,9 +1278,15 @@ ul { list-style: none; }
   .mega-dropdown { width: 600px; }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 991px) {
+  .header-inner { height: 75px; }
+  .logo-text-dark { font-size: 1.7rem; }
   .main-nav { display: none; }
-  .hamburger { display: flex; }
+  .header-phone { display: none; }
+  .hamburger { display: flex; order: 3; }
+  .header-cta { order: 2; padding: 10px; border-radius: 50%; width: 42px; height: 42px; justify-content: center; min-width: 42px; }
+  .header-cta .cta-text { display: none; }
+  .header-cta svg { margin: 0; }
   .services-card-grid { grid-template-columns: repeat(2, 1fr); }
   .about-grid { grid-template-columns: 1fr; }
   .footer-grid { grid-template-columns: 1fr 1fr; }
@@ -1293,7 +1299,6 @@ ul { list-style: none; }
   .clients-grid { grid-template-columns: repeat(3, 1fr); }
   .service-detail-grid { grid-template-columns: 1fr; }
   .full-cta-inner { flex-direction: column; text-align: center; }
-  .header-phone { display: none; }
 }
 
 @media (max-width: 680px) {
@@ -1469,3 +1474,18 @@ ul { list-style: none; }
   transition: color 0.2s;
 }
 .prod-card:hover .prod-cta { color: var(--primary-red); }
+/* ======= RESPONSIVE GRID UTILITIES ======= */
+.grid-2, .grid-3, .grid-4 {
+  display: grid;
+  gap: 25px;
+}
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 991px) {
+  .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 580px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+}

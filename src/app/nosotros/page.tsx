@@ -67,7 +67,7 @@ export default function NosotrosPage() {
               <div className="timeline-content">
                 <div className="timeline-year">Los Comienzos</div>
                 <h3>Fundación de ARIFA</h3>
-                <p>ARIFA comenzó a operar como consultora de seguridad e higiene laboral, brindando asesoramiento a empresas de Córdoba Capital.</p>
+                <p>ARIFA comenzó a operar como consultora de seguridad e higiene laboral, brindando asesoramiento a empresas de Córdoba.</p>
               </div>
             </div>
             <div className="timeline-item">
@@ -105,7 +105,7 @@ export default function NosotrosPage() {
             <h2>Nuestros Valores</h2>
             <div className="section-line"></div>
           </div>
-          <div style={{display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:'28px'}}>
+          <div className="grid-3">
             {[
               { emoji:'🎯', title:'Compromiso', text:'Nos comprometemos con la seguridad de cada cliente como si fuera la nuestra propia.' },
               { emoji:'🔬', title:'Expertise Técnico', text:'Nuestro equipo está en constante capacitación para mantenerse al día con las normativas vigentes.' },
