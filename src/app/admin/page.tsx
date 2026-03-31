@@ -1,107 +1,173 @@
 "use client";
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
-import { collection, query, limit, getDocs, orderBy } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, query, getDocs, where, doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ consultas: 0, ordenes: 0, productos: 0, usuarios: 0 });
-  const [latestConsultas, setLatestConsultas] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
+  const [role, setRole] = useState<string | null>(null);
+  const [stats, setStats] = useState({ unread: 0, ordenes: 0, productos: 0, usuarios: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Fetch stats (In a real app, use a proper function or cloud function)
-    const fetchLatest = async () => {
-      try {
-        const q = query(collection(db, "consultas"), orderBy("fecha", "desc"), limit(5));
-        const querySnapshot = await getDocs(q);
-        const docs = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setLatestConsultas(docs);
-        setStats(prev => ({ ...prev, consultas: docs.length })); // Mock count
-      } catch (e) {
-        console.error("Error fetching admin stats:", e);
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (u) {
+        setUser(u);
+        const userDoc = await getDoc(doc(db, "usuarios", u.uid));
+        const roleData = userDoc.exists() ? userDoc.data().rol : "cliente";
+        setRole(roleData);
+        fetchStats(u.uid, u.email, roleData);
       }
-    };
-    fetchLatest();
+    });
+    return () => unsub();
   }, []);
 
-  const statCards = [
-    { label: "Consultas Nuevas", value: stats.consultas, color: "#2196F3", icon: "📧" },
-    { label: "Órdenes Activas", value: stats.ordenes, color: "#4CAF50", icon: "🛠️" },
-    { label: "Productos en Catálogo", value: stats.productos, color: "#FF9800", icon: "🛒" },
-    { label: "Total Usuarios", value: stats.usuarios, color: "#9C27B0", icon: "👥" },
+  const fetchStats = async (uid: string, email: string | null, role: string) => {
+    try {
+      setLoading(true);
+      if (role === 'admin') {
+        const qUnread = query(collection(db, "consultas"), where("estado", "==", "nueva"));
+        const unreadSnap = await getDocs(qUnread);
+        const prodSnap = await getDocs(collection(db, "productos"));
+        const userSnap = await getDocs(collection(db, "usuarios"));
+        setStats({
+          unread: unreadSnap.size,
+          ordenes: 0, 
+          productos: prodSnap.size,
+          usuarios: userSnap.size
+        });
+      } else {
+        // Stats for client
+        const qMyConsultas = query(collection(db, "consultas"), where("email", "==", email));
+        const myConsSnap = await getDocs(qMyConsultas);
+        // We'll need a "userId" field in ordenes too
+        const qMyOrdenes = query(collection(db, "ordenes"), where("userId", "==", uid));
+        const myOrdSnap = await getDocs(qMyOrdenes);
+        
+        setStats({
+          unread: myConsSnap.size,
+          ordenes: myOrdSnap.size,
+          productos: 0,
+          usuarios: 0
+        });
+      }
+    } catch (e) {
+      console.error("Error fetching stats:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isClient = role === "cliente";
+
+  const statCards = isClient ? [
+    { label: "Mis Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📧", href: "/admin/consultas" },
+    { label: "Mis Órdenes", value: stats.ordenes, color: "var(--primary-blue)", icon: "🛠️", href: "/admin/ordenes" },
+  ] : [
+    { label: "Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📬", href: "/admin/consultas" },
+    { label: "Órdenes", value: stats.ordenes, color: "#4CAF50", icon: "🛠️", href: "/admin/ordenes" },
+    { label: "Productos", value: stats.productos, color: "#FF9800", icon: "🛒", href: "/admin/productos" },
+    { label: "Usuarios", value: stats.usuarios, color: "#9C27B0", icon: "👥", href: "/admin/usuarios" },
   ];
 
   return (
-    <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+    <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
       <header style={{ marginBottom: "35px" }}>
-        <h1 style={{ fontSize: "2.1rem", fontWeight: 800, color: "var(--primary-blue)" }}>Panel de Control ARIFA</h1>
-        <p style={{ color: "var(--text-muted)", marginTop: "8px" }}>Resumen general de las operaciones de la empresa.</p>
+        <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
+          {loading ? "Sincronizando..." : `Hola, ${user?.email?.split('@')[0]}`}
+        </h1>
+        <p style={{ color: "var(--text-muted)", marginTop: "5px", fontSize: "0.95rem" }}>
+          {isClient ? "Bienvenido a tu panel de cliente ARIFA." : "Panel de Gestión Administrativa."}
+        </p>
       </header>
 
       {/* Stats Grid */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "25px", marginBottom: "40px" }}>
+      <div className="dashboard-grid-4" style={{ 
+        display: "grid", 
+        gridTemplateColumns: isClient ? "repeat(2, 1fr)" : "repeat(4, 1fr)", 
+        gap: "20px", 
+        marginBottom: "40px",
+        maxWidth: isClient ? "500px" : "100%" 
+      }}>
         {statCards.map((card) => (
-          <div key={card.label} style={{ background: "#fff", padding: "28px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.05)" }}>
-            <div style={{ fontSize: "1.8rem", marginBottom: "15px" }}>{card.icon}</div>
-            <div style={{ color: "var(--text-muted)", fontSize: "0.85rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{card.label}</div>
-            <div style={{ fontSize: "2.3rem", fontWeight: 800, color: card.color, marginTop: "8px" }}>{card.value}</div>
-          </div>
+          <Link href={card.href} key={card.label} 
+                className="stat-card-item"
+                style={{ 
+                  background: "#fff", 
+                  padding: "25px", 
+                  borderRadius: "12px", 
+                  boxShadow: "0 4px 15px rgba(0,0,0,0.04)", 
+                  border: !isClient && card.value > 0 && card.label === "Consultas" ? "2px solid var(--primary-red)" : "1px solid rgba(0,0,0,0.06)",
+                  transition: 'transform 0.2s',
+                  display: 'block',
+                  position: 'relative'
+                }}>
+            <div className="card-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div className="card-icon" style={{ fontSize: "1.8rem" }}>{card.icon}</div>
+              {!isClient && card.value > 0 && card.label === "Consultas" && (
+                <span className="card-badge" style={{ background: 'var(--primary-red)', color: '#fff', fontSize: '0.65rem', padding: '2px 8px', borderRadius: '10px', fontWeight: 800 }}>NUEVO</span>
+              )}
+            </div>
+            <div className="card-label" style={{ color: "var(--text-muted)", fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", marginTop: '15px' }}>{card.label}</div>
+            <div className="card-value" style={{ fontSize: "2rem", fontWeight: 900, color: card.color, marginTop: "5px" }}>{card.value}</div>
+          </Link>
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "30px" }}>
-        {/* Latest Consultas Table */}
-        <section style={{ background: "#fff", padding: "30px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.03)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px" }}>
-            <h2 style={{ fontSize: "1.3rem", fontWeight: 800 }}>Últimas Consultas / Cotizaciones</h2>
-            <Link href="/admin/consultas" style={{ color: "var(--primary-red)", fontWeight: 700, fontSize: "0.85rem" }}>Ver todas 🔗</Link>
-          </div>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead style={{ borderBottom: "1.5px solid var(--border-light)" }}>
-              <tr>
-                <th style={{ textAlign: "left", padding: "12px 10px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Fecha</th>
-                <th style={{ textAlign: "left", padding: "12px 10px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Nombre</th>
-                <th style={{ textAlign: "left", padding: "12px 10px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Asunto</th>
-                <th style={{ textAlign: "left", padding: "12px 10px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {latestConsultas.length > 0 ? latestConsultas.map((c) => (
-                <tr key={c.id} style={{ borderBottom: "1px solid #f2f5f9" }}>
-                  <td style={{ padding: "15px 10px", fontSize: "0.9rem" }}>{new Date(c.fecha?.seconds * 1000).toLocaleDateString()}</td>
-                  <td style={{ padding: "15px 10px", fontSize: "0.9rem", fontWeight: 600 }}>{c.nombre || "Sin nombre"}</td>
-                  <td style={{ padding: "15px 10px", fontSize: "0.9rem", color: "#555" }}>{c.servicio || "General"}</td>
-                  <td style={{ padding: "15px 10px" }}>
-                    <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "4px 10px", borderRadius: "20px", background: "#e3f2fd", color: "#1976d2", textTransform: "uppercase" }}>
-                      {c.estado || "Nueva"}
-                    </span>
-                  </td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}>No hay consultas recientes todavía.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      <div className="dashboard-flex-main" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: "25px" }}>
+        {/* Quick Actions Panel */}
+        <section style={{ background: isClient ? "var(--bg-light)" : "var(--primary-blue)", padding: "25px", borderRadius: "12px", color: isClient ? "var(--text-dark)" : "#fff", border: isClient ? "1px solid #ddd" : "none" }}>
+          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: "18px" }}>{isClient ? "Tus Datos" : "Operaciones Rápidas"}</h2>
+          {isClient ? (
+            <div style={{ fontSize: '0.9rem' }}>
+              <div style={{ marginBottom: '10px' }}><strong>Email:</strong> {user?.email}</div>
+              <div style={{ marginBottom: '10px' }}><strong>Rol:</strong> {role}</div>
+              <Link href="/admin/config" className="btn-blue" style={{ marginTop: '10px', fontSize: '0.8rem', padding: '8px 15px' }}>Editar Perfil</Link>
+            </div>
+          ) : (
+            <div className="grid-2-mobile" style={{ display: "grid", gridTemplateColumns: '1fr 1fr', gap: "10px" }}>
+              <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem' }}>🛠️ Nueva Orden</button>
+              <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem' }}>📦 Cargar Producto</button>
+              <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem' }}>👥 Usuarios</button>
+              <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem' }}>⚙️ Ajustes</button>
+            </div>
+          )}
         </section>
 
-        {/* Quick Actions */}
-        <section style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-          <div style={{ background: "var(--primary-blue)", padding: "25px", borderRadius: "12px", color: "#fff" }}>
-            <h2 style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: "15px" }}>Acciones Rápidas</h2>
-            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-              <button style={{ background: "rgba(255,255,255,0.15)", border: "none", padding: "12px", borderRadius: "6px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left" }}>➕ Crear Orden de Trabajo</button>
-              <button style={{ background: "rgba(255,255,255,0.15)", border: "none", padding: "12px", borderRadius: "6px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left" }}>📂 Cargar Nuevo Producto</button>
-              <button style={{ background: "rgba(255,255,255,0.15)", border: "none", padding: "12px", borderRadius: "6px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left" }}>👤 Ver Técnicos de Campo</button>
-            </div>
-          </div>
-          <div style={{ background: "#fff", padding: "25px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.03)", border: "1px solid rgba(0,0,0,0.05)" }}>
-             <h3 style={{ fontSize: "1rem", fontWeight: 800, marginBottom: "12px" }}>Ayuda Panel Admin</h3>
-             <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: "1.5" }}>Desde aquí podrás visualizar el flujo de trabajo de cada una de las áreas técnicas y comerciales.</p>
-          </div>
+        {/* Info Box */}
+        <section style={{ background: "#fff", padding: "25px", borderRadius: "12px", border: "1px solid #eee", display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div style={{ fontSize: '1.5rem', marginBottom: '10px' }}>{isClient ? "🔔" : "🚀"}</div>
+          <h3 style={{ fontSize: "1rem", fontWeight: 800, marginBottom: "8px", color: 'var(--primary-blue)' }}>
+            {isClient ? "Centro de Ayuda" : "Atención de Consultas"}
+          </h3>
+          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: "1.6" }}>
+            {isClient 
+              ? "¿Tenés dudas sobre tu servicio? Podés enviarnos una nueva consulta desde el catálogo o la página de contacto." 
+              : "Recordá que los clientes esperan una respuesta en menos de 24hs. Gestioná las solicitudes desde el módulo."}
+          </p>
         </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 991px) {
+          .dashboard-grid-4 { grid-template-columns: repeat(2, 1fr) !important; gap: 12px !important; }
+          .dashboard-flex-main { grid-template-columns: 1fr !important; }
+          .stat-card-item { padding: 15px !important; border-radius: 8px !important; }
+          .card-icon { font-size: 1.4rem !important; }
+          .card-value { font-size: 1.5rem !important; }
+          .card-label { font-size: 0.6rem !important; margin-top: 10px !important; }
+          .card-badge { font-size: 0.55rem !important; padding: 1px 5px !important; }
+        }
+        @media (max-width: 480px) {
+          .grid-2-mobile { grid-template-columns: 1fr !important; }
+        }
+        .stat-card-item:hover {
+          transform: translateY(-3px);
+          box-shadow: 0 8px 25px rgba(0,0,0,0.08) !important;
+        }
+      `}</style>
     </div>
   );
 }
