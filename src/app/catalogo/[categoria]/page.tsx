@@ -47,7 +47,7 @@ export default async function CategoriaPage({ params }: Props) {
 
       <section className="section-padding">
         <div className="container">
-          <div className="catalog-container" style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: "40px", alignItems: "start" }}>
+          <div className="catalog-container">
             {/* Sidebar categorías */}
             <aside className="catalog-sidebar">
               <div className="service-sidebar" style={{ background: '#fff', padding: '25px', borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
@@ -152,19 +152,6 @@ export default async function CategoriaPage({ params }: Props) {
               )}
             </div>
 
-            <style jsx>{`
-              @media (max-width: 991px) {
-                .catalog-container {
-                  grid-template-columns: 1fr !important;
-                }
-                .catalog-sidebar {
-                  order: 2;
-                }
-                .catalog-main {
-                  order: 1;
-                }
-              }
-            `}</style>
           </div>
         </div>
       </section>

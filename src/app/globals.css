@@ -1489,3 +1489,24 @@ ul { list-style: none; }
 @media (max-width: 580px) {
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
 }
+
+/* ======= CATALOG LAYOUT ======= */
+.catalog-container {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+@media (max-width: 991px) {
+  .catalog-container {
+    grid-template-columns: 1fr !important;
+  }
+  .catalog-sidebar {
+    order: 2;
+  }
+  .catalog-main {
+    order: 1;
+  }
+}
+
