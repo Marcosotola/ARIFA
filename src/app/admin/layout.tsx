@@ -128,7 +128,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           zIndex: 200,
           position: 'sticky',
           top: 0,
-          height: '100vh'
+          height: '100vh',
+          overflowY: 'auto'
         }} 
         className={`admin-aside ${sidebarOpen ? 'open' : ''}`}
       >
@@ -178,7 +179,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </ul>
         </nav>
         
-        <div style={{ marginTop: "auto", padding: "20px 0", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
+        <div style={{ marginTop: "auto", padding: "20px 0 40px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "20px" }}>
             <div style={{ 
               width: "38px", 
@@ -256,6 +257,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             position: fixed !important;
             transform: translateX(-100%);
             height: 100vh !important;
+            overflow-y: auto !important;
           }
           .admin-aside.open {
             transform: translateX(0);
