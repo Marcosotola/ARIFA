@@ -42,6 +42,36 @@ ul { list-style: none; }
   padding: 0 20px;
 }
 
+/* ======= FULL WIDTH CTA ======= */
+.full-cta {
+  background-color: var(--primary-blue);
+  color: #fff;
+  padding: 85px 0;
+  position: relative;
+  overflow: hidden;
+}
+.brand-watermark-dark::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: url('/logos/isotipo.svg') no-repeat center/contain;
+  opacity: 0.08;
+  pointer-events: none;
+  z-index: 0;
+}
+.full-cta-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 30px;
+  position: relative;
+  z-index: 1;
+}
+
 /* ======= TOP BAR ======= */
 .top-bar {
   background-color: var(--primary-blue);
@@ -94,37 +124,24 @@ ul { list-style: none; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 85px;
+  height: 110px;
   gap: 20px;
 }
 
 /* LOGO */
-.logo-container {
+.logo-link {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  height: 100%;
 }
-.logo-graphic {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
-  width: 38px;
-  height: 38px;
-  transform: rotate(45deg);
-  gap: 3px;
+.main-logo {
+  height: auto;
+  max-height: 95px; /* Se ajusta mejor al alto del navegador */
+  width: auto;
+  transition: transform 0.3s;
 }
-.logo-slice { border-radius: 3px; }
-.logo-graphic .tl { background-color: #196AA6; }
-.logo-graphic .tr { background-color: var(--primary-red); }
-.logo-graphic .bl { background-color: #148039; }
-.logo-graphic .br { background-color: #C48E1C; }
-.logo-text-dark {
-  font-size: 2.1rem;
-  font-weight: 900;
-  letter-spacing: 2.5px;
-  color: var(--primary-blue);
-  font-family: 'Roboto', 'Open Sans', sans-serif;
+.logo-link:hover .main-logo {
+  transform: scale(1.03);
 }
 
 /* ======= NAVIGATION WITH DROPDOWNS ======= */
@@ -134,7 +151,7 @@ ul { list-style: none; }
   list-style: none;
   gap: 0;
   align-items: stretch;
-  height: 85px;
+  height: 110px;
 }
 .nav-list > li {
   position: relative;
@@ -142,12 +159,12 @@ ul { list-style: none; }
   align-items: center;
 }
 .nav-list > li > a {
-  font-weight: 600;
-  font-size: 0.83rem;
+  font-weight: 700;
+  font-size: 0.93rem;
   color: var(--primary-blue);
   text-transform: uppercase;
-  letter-spacing: 1px;
-  padding: 0 14px;
+  letter-spacing: 0.8px;
+  padding: 0 16px;
   height: 100%;
   display: flex;
   align-items: center;
@@ -155,6 +172,11 @@ ul { list-style: none; }
   white-space: nowrap;
   transition: color 0.2s;
   gap: 4px;
+}
+
+@media (max-width: 991px) {
+  .header-inner { height: 90px; }
+  .main-logo { max-height: 75px; }
 }
 .nav-list > li > a::after {
   content: '';
@@ -648,9 +670,26 @@ ul { list-style: none; }
 /* ======= STATS / COUNTERS ======= */
 .stats-bar {
   background: var(--primary-blue);
-  padding: 50px 0;
+  padding: 60px 0;
+  position: relative;
+  overflow: hidden;
+}
+.stats-bar::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px;
+  height: 500px;
+  background: url('/logos/isotipo.svg') no-repeat center/contain;
+  opacity: 0.07;
+  pointer-events: none;
+  z-index: 0;
 }
 .stats-grid {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 30px;
@@ -725,6 +764,49 @@ ul { list-style: none; }
   border-radius: 4px;
   box-shadow: 12px 12px 0 var(--primary-red);
   display: block;
+}
+.about-seal {
+  position: absolute;
+  bottom: -20px;
+  right: -20px;
+  width: 100px;
+  height: 100px;
+  background: #fff;
+  padding: 0; /* Sin espacio interno para maximizar el logo */
+  border-radius: 50%;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  border: 1px solid #eee;
+  overflow: hidden; /* Cortamos cualquier exceso */
+}
+.about-seal img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  transform: scale(1.4); /* Zoom forzado para que el logo llene el círculo */
+}
+@media (max-width: 768px) {
+  .about-seal { width: 110px; height: 110px; bottom: -15px; right: -15px; padding: 18px; }
+}
+
+/* BRAND TEXTURE BACKGROUND */
+.bg-brand-texture {
+  position: relative;
+  z-index: 1;
+}
+.bg-brand-texture::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url('/logos/isotipo.svg');
+  background-size: 200px;
+  background-repeat: repeat;
+  opacity: 0.06; /* Un poco más visible pero sutil */
+  pointer-events: none;
+  z-index: -1;
 }
 .about-text h2 {
   font-size: 2rem;

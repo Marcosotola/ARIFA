@@ -67,7 +67,7 @@ export default function ServiciosPage() {
             </p>
           </div>
 
-          <div className="grid-3">
+          <div className="grid-3" style={{position:'relative', zIndex:'1'}}>
             {SERVICE_GROUPS.map((group, gi) => (
               <div key={gi} style={{background:'#fff', border:'1px solid var(--border-light)', borderRadius:'4px', overflow:'hidden', boxShadow:'0 4px 18px rgba(0,0,0,0.05)'}}>
                 <div style={{background:group.color, padding:'24px', color:'#fff'}}>
@@ -108,13 +108,13 @@ export default function ServiciosPage() {
       </section>
 
       {/* How we work */}
-      <section className="section-padding bg-gray">
+      <section className="section-padding bg-gray bg-brand-texture">
         <div className="container">
           <div className="section-title-wrap">
             <h2>¿Cómo Trabajamos?</h2>
             <div className="section-line"></div>
           </div>
-          <div className="grid-4">
+          <div className="grid-4" style={{position:'relative', zIndex:'1'}}>
             {[
               { n:'01', t:'Diagnóstico', d:'Evaluamos el estado actual de tu empresa y detectamos los riesgos existentes.' },
               { n:'02', t:'Propuesta', d:'Elaboramos una propuesta de solución a medida, adaptada a tu rubro y presupuesto.' },
@@ -131,8 +131,8 @@ export default function ServiciosPage() {
         </div>
       </section>
 
-      <section className="full-cta">
-        <div className="container full-cta-inner">
+      <section className="full-cta brand-watermark-dark">
+        <div className="container full-cta-inner" style={{position:'relative', zIndex:'2'}}>
           <div>
             <div className="full-cta-tag">Contactanos ahora y asesorate sin cargo</div>
             <h2>Envianos tu consulta y te respondemos a la brevedad</h2>

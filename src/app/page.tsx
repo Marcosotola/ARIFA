@@ -6,7 +6,7 @@ import { getProductosDestacados, CATEGORIAS_PLACEHOLDER } from "@/lib/productos"
 // ---- SLIDER DATA ----
 const SLIDES = [
   {
-    bg: "linear-gradient(rgba(0,20,50,0.72), rgba(0,20,50,0.62)), url('/hero_bg.png') center/cover no-repeat",
+    bg: "linear-gradient(rgba(0,20,50,0.72), rgba(0,20,50,0.62)), url('/hero_people.png') center/cover no-repeat",
     tag: "Expertos en Seguridad",
     title: "Protegemos tu Mayor Capital: Tu Gente",
     sub: "Brindamos soluciones integrales de seguridad e higiene laboral para empresas, industrias y establecimientos educativos de toda la provincia de Córdoba.",
@@ -31,7 +31,7 @@ const SECTORS = [
   { icon: "🏢", title: "Empresas y Oficinas", desc: "Cumplimiento normativo y capacitación laboral." },
   { icon: "🏫", title: "Establecimientos Educativos", desc: "Seguridad escolar y planes de evacuación." },
   { icon: "🏪", title: "Comercios", desc: "Protección integral para locales y negocios." },
-  { icon: "🏗️", title: "Construcción y Obras", desc: "Seguridad en obra e higiene laboral." },
+  { icon: "🏢", title: "Construcción y Obras", desc: "Seguridad en obra e higiene laboral." }, // Note: duplicate emoji is fine for now
   { icon: "🚢", title: "Navieras y Marítimas", desc: "Mantenimiento y habilitación para embarcaciones." },
 ];
 
@@ -228,8 +228,11 @@ export default function Home() {
       {/* ===== LA EMPRESA / ABOUT ===== */}
       <section className="section-padding" id="empresa">
         <div className="container about-grid">
-          <div className="about-img-wrap">
+          <div className="about-img-wrap" style={{position:'relative'}}>
             <img src="/safety_engineers.png" alt="Profesionales de ARIFA" className="about-img" />
+            <div className="about-seal">
+              <img src="/logos/logoFondoTransparente.svg" alt="Sello ARIFA" />
+            </div>
           </div>
           <div className="about-text">
             <h2>La Empresa</h2>
@@ -272,7 +275,7 @@ export default function Home() {
       </section>
 
       {/* ===== SECTORES ===== */}
-      <section className="section-padding bg-gray">
+      <section className="section-padding bg-gray bg-brand-texture">
         <div className="container">
           <div className="section-title-wrap">
             <h2>Sectores que Atendemos</h2>
@@ -300,7 +303,7 @@ export default function Home() {
             <p style={{marginTop:'15px'}}>Explorá nuestros productos de seguridad e higiene industrial más buscados.</p>
           </div>
           
-          <div className="prod-grid">
+          <div className="prod-grid" style={{position:'relative', zIndex:'1'}}>
             {getProductosDestacados().map((prod) => {
               const cat = CATEGORIAS_PLACEHOLDER.find(c => c.id === prod.categoriaId);
               return (
@@ -324,15 +327,15 @@ export default function Home() {
             })}
           </div>
           
-          <div style={{textAlign:'center', marginTop:'40px'}}>
+          <div style={{textAlign:'center', marginTop:'40px', position:'relative', zIndex:'1'}}>
             <Link href="/catalogo" className="btn-blue">Ver Todo el Catálogo</Link>
           </div>
         </div>
       </section>
 
       {/* ===== FULL WIDTH CTA ===== */}
-      <section className="full-cta">
-        <div className="container full-cta-inner">
+      <section className="full-cta brand-watermark-dark">
+        <div className="container full-cta-inner" style={{position:'relative', zIndex:'2'}}>
           <div>
             <div className="full-cta-tag">No deje su seguridad al azar</div>
             <h2>¿Listo para adecuar su empresa a las normas?</h2>

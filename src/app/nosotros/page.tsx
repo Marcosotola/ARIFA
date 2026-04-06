@@ -26,8 +26,11 @@ export default function NosotrosPage() {
       <section className="section-padding">
         <div className="container">
           <div className="about-grid">
-            <div className="about-img-wrap">
+            <div className="about-img-wrap" style={{position:'relative'}}>
               <img src="/safety_engineers.png" alt="Equipo ARIFA" className="about-img" />
+              <div className="about-seal">
+                <img src="/logos/logoFondoTransparente.svg" alt="Sello ARIFA" />
+              </div>
             </div>
             <div className="about-text">
               <h2>Nuestra Empresa</h2>
@@ -55,13 +58,13 @@ export default function NosotrosPage() {
       </section>
 
       {/* Trayectoria / Timeline */}
-      <section className="section-padding bg-gray">
+      <section className="section-padding bg-gray bg-brand-texture">
         <div className="container">
           <div className="section-title-wrap">
             <h2>Nuestra Trayectoria</h2>
             <div className="section-line"></div>
           </div>
-          <div className="timeline">
+          <div className="timeline" style={{position:'relative', zIndex:'1'}}>
             <div className="timeline-item">
               <div className="timeline-dot"></div>
               <div className="timeline-content">
@@ -105,7 +108,7 @@ export default function NosotrosPage() {
             <h2>Nuestros Valores</h2>
             <div className="section-line"></div>
           </div>
-          <div className="grid-3">
+          <div className="grid-3" style={{position:'relative', zIndex:'1'}}>
             {[
               { emoji:'🎯', title:'Compromiso', text:'Nos comprometemos con la seguridad de cada cliente como si fuera la nuestra propia.' },
               { emoji:'🔬', title:'Expertise Técnico', text:'Nuestro equipo está en constante capacitación para mantenerse al día con las normativas vigentes.' },
@@ -124,8 +127,8 @@ export default function NosotrosPage() {
         </div>
       </section>
 
-      <section className="full-cta">
-        <div className="container full-cta-inner">
+      <section className="full-cta brand-watermark-dark">
+        <div className="container full-cta-inner" style={{position:'relative', zIndex:'2'}}>
           <div>
             <div className="full-cta-tag">¿Querés saber más?</div>
             <h2>Consultanos sin compromiso</h2>

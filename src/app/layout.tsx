@@ -1,9 +1,7 @@
-"use client";
+import type { Metadata } from "next";
 import { Open_Sans } from "next/font/google";
 import "./globals.css";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import { usePathname } from "next/navigation";
+import ConditionalLayout from "@/components/ConditionalLayout";
 
 const openSans = Open_Sans({
   variable: "--font-main",
@@ -11,18 +9,23 @@ const openSans = Open_Sans({
   weight: ["300", "400", "500", "600", "700", "800"],
 });
 
+export const metadata: Metadata = {
+  title: "ARIFA | Seguridad e Higiene Laboral",
+  description: "Servicios integrales de seguridad e higiene laboral, protección contra incendios y capacitación.",
+  icons: {
+    icon: "/logos/favicon.png",
+    shortcut: "/logos/favicon.png",
+    apple: "/logos/180x180.png",
+  },
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const pathname = usePathname();
-  const isAdmin = pathname.startsWith("/admin");
-
   return (
     <html lang="es" className={openSans.variable}>
       <body>
-        {!isAdmin && <Header />}
-        <main>{children}</main>
-        {!isAdmin && <Footer />}
+        <ConditionalLayout>{children}</ConditionalLayout>
       </body>
     </html>
   );

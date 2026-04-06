@@ -180,14 +180,12 @@ export default function Header() {
       {/* MAIN HEADER */}
       <header className="main-header">
         <div className="container header-inner">
-          <Link href="/" className="logo-container">
-            <div className="logo-graphic">
-              <div className="logo-slice tl"></div>
-              <div className="logo-slice tr"></div>
-              <div className="logo-slice bl"></div>
-              <div className="logo-slice br"></div>
-            </div>
-            <span className="logo-text-dark">ARIFA</span>
+          <Link href="/" className="logo-link">
+            <img 
+              src="/logos/logoFondoTransparente.svg" 
+              alt="ARIFA Logo" 
+              className="main-logo"
+            />
           </Link>
 
           <nav className="main-nav">

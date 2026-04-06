@@ -34,15 +34,13 @@ export default function Footer() {
         <div className="container footer-grid">
           {/* Brand Col */}
           <div className="footer-col brand-col">
-            <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
-              <div className="logo-graphic" style={{transform:'rotate(45deg)', display:'grid', gridTemplateColumns:'1fr 1fr', gridTemplateRows:'1fr 1fr', width:'32px', height:'32px', gap:'3px'}}>
-                <div style={{backgroundColor:'#196AA6', borderRadius:'2px'}}></div>
-                <div style={{backgroundColor:'#D32F2F', borderRadius:'2px'}}></div>
-                <div style={{backgroundColor:'#148039', borderRadius:'2px'}}></div>
-                <div style={{backgroundColor:'#C48E1C', borderRadius:'2px'}}></div>
-              </div>
-              <span style={{fontSize:'1.8rem', fontWeight:900, letterSpacing:'2px', color:'#fff'}}>ARIFA</span>
-            </div>
+            <Link href="/" style={{display:'flex', alignItems:'center', gap:'10px'}}>
+              <img 
+                src="/logos/logoFondoTransparente.svg" 
+                alt="ARIFA Logo" 
+                style={{ height: '100px', width: 'auto', marginBottom: '20px' }}
+              />
+            </Link>
             <p className="footer-desc">
               En ARIFA desarrollamos un servicio integral de seguridad e higiene laboral, buscando detectar, prevenir y capacitar para posibles riesgos. Nos adaptamos a la particularidad de cada rubro o sector.
             </p>
