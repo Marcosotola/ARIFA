@@ -12,6 +12,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [planillasOpen, setPlanillasOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -46,16 +47,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setSidebarOpen(false);
   }, [pathname]);
 
+  // Auto-open planillas submenu when navigating to planillas/templates
+  useEffect(() => {
+    if (pathname.startsWith("/admin/planillas") || pathname.startsWith("/admin/templates")) {
+      setPlanillasOpen(true);
+    }
+  }, [pathname]);
+
   if (loading) return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontStyle:'italic', color:'var(--text-muted)'}}>Cargando Panel ARIFA...</div>;
 
   const isClient = role === "cliente";
   const isAdmin = role === "admin";
   const isTecnico = role === "tecnico";
 
+  const planillasSubItems = [
+    { label: "Detección", href: "/admin/planillas/deteccion", icon: "🔍" },
+    { label: "Extinción", href: "/admin/planillas/extincion", icon: "🧯" },
+  ];
+
   const sidebarLinks = [
     { label: "Mi Panel", href: "/admin", icon: "📊" },
     { label: isClient ? "Mis Consultas" : "Consultas", href: "/admin/consultas", icon: "📧", badge: !isClient && unreadCount > 0 ? unreadCount : null },
-    { label: isClient ? "Mis Órdenes" : "Órdenes de Trabajo", href: "/admin/ordenes", icon: "🛠️" },
   ];
 
   if (isAdmin || isTecnico) {
@@ -176,6 +188,96 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </li>
               );
             })}
+
+            {/* PLANILLAS - Expandable */}
+            <li style={{ marginBottom: "8px" }}>
+              <button
+                onClick={() => setPlanillasOpen(!planillasOpen)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "12px 15px",
+                  borderRadius: "8px",
+                  background: pathname.startsWith("/admin/planillas") ? "rgba(255,255,255,0.15)" : "transparent",
+                  color: pathname.startsWith("/admin/planillas") ? "#fff" : "rgba(255,255,255,0.7)",
+                  fontWeight: pathname.startsWith("/admin/planillas") ? 700 : 500,
+                  border: "none",
+                  cursor: "pointer",
+                  width: "100%",
+                  textAlign: "left",
+                  transition: "0.2s",
+                  fontSize: "1rem"
+                }}
+              >
+                <span style={{ fontSize: "1.2rem" }}>📋</span>
+                <span style={{ flex: 1 }}>Planillas</span>
+                <span style={{ 
+                  fontSize: "0.7rem", 
+                  opacity: 0.7,
+                  transform: planillasOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  transition: "transform 0.2s",
+                  display: "inline-block"
+                }}>▼</span>
+              </button>
+
+              {planillasOpen && (
+                <ul style={{ listStyle: "none", padding: "4px 0 4px 20px" }}>
+                  {planillasSubItems.map((sub) => {
+                    const subActive = pathname.startsWith(sub.href);
+                    return (
+                      <li key={sub.href} style={{ marginBottom: "4px" }}>
+                        <Link
+                          href={sub.href}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "10px",
+                            padding: "9px 12px",
+                            borderRadius: "6px",
+                            textDecoration: "none",
+                            color: subActive ? "#fff" : "rgba(255,255,255,0.6)",
+                            background: subActive ? "rgba(255,255,255,0.12)" : "transparent",
+                            fontWeight: subActive ? 700 : 400,
+                            fontSize: "0.88rem",
+                            transition: "0.2s"
+                          }}
+                        >
+                          <span>{sub.icon}</span>
+                          <span>{sub.label}</span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                  {/* Plantillas de inspección */}
+                  {(isAdmin || isTecnico) && (
+                    <li style={{ marginBottom: "4px" }}>
+                      <Link
+                        href="/admin/templates"
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          padding: "9px 12px",
+                          borderRadius: "6px",
+                          textDecoration: "none",
+                          color: pathname.startsWith("/admin/templates") ? "#fff" : "rgba(255,255,255,0.6)",
+                          background: pathname.startsWith("/admin/templates") ? "rgba(255,255,255,0.12)" : "transparent",
+                          fontWeight: pathname.startsWith("/admin/templates") ? 700 : 400,
+                          fontSize: "0.88rem",
+                          transition: "0.2s",
+                          borderTop: "1px solid rgba(255,255,255,0.1)",
+                          marginTop: "4px"
+                        }}
+                      >
+                        <span>⚙️</span>
+                        <span>Gestión de Plantillas</span>
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </li>
           </ul>
         </nav>
         

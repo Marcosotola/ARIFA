@@ -30,23 +30,20 @@ export default function AdminDashboard() {
       if (role === 'admin' || role === 'tecnico') {
         const qUnread = query(collection(db, "consultas"), where("estado", "==", "nueva"));
         const unreadSnap = await getDocs(qUnread);
+        const otSnap = await getDocs(collection(db, "ordenes_trabajo"));
         const prodSnap = await getDocs(collection(db, "productos"));
         const userSnap = await getDocs(collection(db, "usuarios"));
         setStats({
           unread: unreadSnap.size,
-          ordenes: 0, 
+          ordenes: otSnap.size,
           productos: prodSnap.size,
           usuarios: userSnap.size
         });
       } else {
-
-        // Stats for client
         const qMyConsultas = query(collection(db, "consultas"), where("email", "==", email));
         const myConsSnap = await getDocs(qMyConsultas);
-        // We'll need a "userId" field in ordenes too
-        const qMyOrdenes = query(collection(db, "ordenes"), where("userId", "==", uid));
+        const qMyOrdenes = query(collection(db, "ordenes_trabajo"), where("clienteId", "==", uid));
         const myOrdSnap = await getDocs(qMyOrdenes);
-        
         setStats({
           unread: myConsSnap.size,
           ordenes: myOrdSnap.size,
@@ -61,15 +58,16 @@ export default function AdminDashboard() {
     }
   };
 
+
   const isClient = role === "cliente";
   const isStaff = role === "admin" || role === "tecnico";
 
   const statCards = isClient ? [
     { label: "Mis Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📧", href: "/admin/consultas" },
-    { label: "Mis Órdenes", value: stats.ordenes, color: "var(--primary-blue)", icon: "🛠️", href: "/admin/ordenes" },
+    { label: "Mis Órdenes", value: stats.ordenes, color: "var(--primary-blue)", icon: "📋", href: "/admin/planillas/deteccion" },
   ] : [
-    { label: "Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📬", href: "/admin/consultas" },
-    { label: "Órdenes", value: stats.ordenes, color: "#4CAF50", icon: "🛠️", href: "/admin/ordenes" },
+    { label: "Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📧", href: "/admin/consultas" },
+    { label: "Planillas OT", value: stats.ordenes, color: "#4CAF50", icon: "📋", href: "/admin/planillas/deteccion" },
     { label: "Productos", value: stats.productos, color: "#FF9800", icon: "🛒", href: "/admin/productos" },
     { label: "Usuarios", value: stats.usuarios, color: "#9C27B0", icon: "👥", href: "/admin/usuarios" },
   ];
@@ -131,10 +129,10 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="grid-2-mobile" style={{ display: "grid", gridTemplateColumns: '1fr 1fr', gap: "10px" }}>
-              <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem' }}>🛠️ Nueva Orden</button>
-              <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem' }}>📦 Cargar Producto</button>
-              <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem' }}>👥 Usuarios</button>
-              <button style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem' }}>⚙️ Ajustes</button>
+              <Link href="/admin/planillas/deteccion/nueva" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📋 Nueva OT</Link>
+              <Link href="/admin/templates" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>⚙️ Plantillas</Link>
+              <Link href="/admin/productos" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📦 Productos</Link>
+              <Link href="/admin/usuarios" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>👥 Usuarios</Link>
             </div>
           )}
         </section>
