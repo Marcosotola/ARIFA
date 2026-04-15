@@ -2,13 +2,13 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, getDocs, where, doc, getDoc } from "firebase/firestore";
+import { collection, query, getDocs, where, doc, getDoc, orderBy } from "firebase/firestore";
 import Link from "next/link";
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [stats, setStats] = useState({ unread: 0, ordenes: 0, productos: 0, usuarios: 0 });
+  const [stats, setStats] = useState({ unread: 0, ordenes: 0, certificados: 0, productos: 0, usuarios: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,12 +30,14 @@ export default function AdminDashboard() {
       if (role === 'admin' || role === 'tecnico') {
         const qUnread = query(collection(db, "consultas"), where("estado", "==", "nueva"));
         const unreadSnap = await getDocs(qUnread);
-        const otSnap = await getDocs(collection(db, "ordenes_trabajo"));
+        const otSnap = await getDocs(query(collection(db, "ordenes_trabajo"), orderBy("createdAt", "desc")));
+        const certSnap = await getDocs(query(collection(db, "certificados"), orderBy("createdAt", "desc")));
         const prodSnap = await getDocs(collection(db, "productos"));
         const userSnap = await getDocs(collection(db, "usuarios"));
         setStats({
           unread: unreadSnap.size,
           ordenes: otSnap.size,
+          certificados: certSnap.size,
           productos: prodSnap.size,
           usuarios: userSnap.size
         });
@@ -60,14 +62,15 @@ export default function AdminDashboard() {
 
 
   const isClient = role === "cliente";
+  const isAdmin = role === "admin";
   const isStaff = role === "admin" || role === "tecnico";
 
   const statCards = isClient ? [
     { label: "Mis Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📧", href: "/admin/consultas" },
-    { label: "Mis Órdenes", value: stats.ordenes, color: "var(--primary-blue)", icon: "📋", href: "/admin/planillas/deteccion" },
+    { label: "Mis Planillas", value: stats.ordenes + stats.certificados, color: "var(--primary-blue)", icon: "📋", href: "/admin/planillas" },
   ] : [
     { label: "Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📧", href: "/admin/consultas" },
-    { label: "Planillas OT", value: stats.ordenes, color: "#4CAF50", icon: "📋", href: "/admin/planillas/deteccion" },
+    { label: "Total Planillas", value: stats.ordenes + stats.certificados, color: "#2b6cb0", icon: "📋", href: "/admin/planillas" },
     { label: "Productos", value: stats.productos, color: "#FF9800", icon: "🛒", href: "/admin/productos" },
     { label: "Usuarios", value: stats.usuarios, color: "#9C27B0", icon: "👥", href: "/admin/usuarios" },
   ];
@@ -87,10 +90,10 @@ export default function AdminDashboard() {
       {/* Stats Grid */}
       <div className="dashboard-grid-4" style={{ 
         display: "grid", 
-        gridTemplateColumns: isClient ? "repeat(2, 1fr)" : "repeat(4, 1fr)", 
+        gridTemplateColumns: isClient ? "repeat(2, 1fr)" : "repeat(auto-fit, minmax(180px, 1fr))", 
         gap: "20px", 
         marginBottom: "40px",
-        maxWidth: isClient ? "500px" : "100%" 
+        maxWidth: "100%" 
       }}>
         {statCards.map((card) => (
           <Link href={card.href} key={card.label} 
@@ -129,10 +132,10 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="grid-2-mobile" style={{ display: "grid", gridTemplateColumns: '1fr 1fr', gap: "10px" }}>
-              <Link href="/admin/planillas/deteccion/nueva" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📋 Nueva OT</Link>
-              <Link href="/admin/templates" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>⚙️ Plantillas</Link>
-              <Link href="/admin/productos" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📦 Productos</Link>
-              <Link href="/admin/usuarios" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>👥 Usuarios</Link>
+              <Link href="/admin/planillas" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📋 Gestionar Planillas</Link>
+              <Link href="/admin/productos" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📦 Catálogo & Prod.</Link>
+              <Link href="/admin/consultas" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📧 Consultas Recib.</Link>
+              {isAdmin && <Link href="/admin/usuarios" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>👥 Usuarios Sist.</Link>}
             </div>
           )}
         </section>

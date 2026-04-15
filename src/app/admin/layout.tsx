@@ -59,40 +59,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isClient = role === "cliente";
   const isAdmin = role === "admin";
   const isTecnico = role === "tecnico";
-
-  const planillasSubItems = [
-    { label: "Detección", href: "/admin/planillas/deteccion", icon: "🔍" },
-    { label: "Extinción", href: "/admin/planillas/extincion", icon: "🧯" },
-  ];
-
   const sidebarLinks = [
     { label: "Mi Panel", href: "/admin", icon: "📊" },
     { label: isClient ? "Mis Consultas" : "Consultas", href: "/admin/consultas", icon: "📧", badge: !isClient && unreadCount > 0 ? unreadCount : null },
   ];
 
   if (isAdmin || isTecnico) {
-    sidebarLinks.push(
-      { label: "Productos", href: "/admin/productos", icon: "🛒" }
-    );
-  }
-
-  if (isAdmin || isTecnico) {
-    sidebarLinks.push(
-      { label: "Certificados", href: "/admin/certificados", icon: "📜" }
-    );
+    sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: "🛒" });
   }
 
   if (isAdmin) {
-    sidebarLinks.push(
-      { label: "Usuarios", href: "/admin/usuarios", icon: "👥" },
-      { label: "Plantillas", href: "/admin/templates", icon: "🗂️" }
-    );
+    sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: "👥" });
   }
 
-  // Everyone in admin panel sees Config
-  sidebarLinks.push(
-    { label: "Configuración", href: "/admin/config", icon: "⚙️" }
-  );
+  // Planillas as a top-level item now
+  sidebarLinks.push({ label: "Planillas", href: "/admin/planillas", icon: "📋" });
+
+  const configLink = { label: "Configuración", href: "/admin/config", icon: "⚙️" };
 
 
   return (
@@ -196,94 +179,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               );
             })}
 
-            {/* PLANILLAS - Expandable */}
+            {/* Configuración - Final item in list */}
             <li style={{ marginBottom: "8px" }}>
-              <button
-                onClick={() => setPlanillasOpen(!planillasOpen)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  padding: "12px 15px",
+              <Link 
+                href={configLink.href} 
+                style={{ 
+                  display: "flex", 
+                  alignItems: "center", 
+                  gap: "12px", 
+                  padding: "12px 15px", 
                   borderRadius: "8px",
-                  background: pathname.startsWith("/admin/planillas") ? "rgba(255,255,255,0.15)" : "transparent",
-                  color: pathname.startsWith("/admin/planillas") ? "#fff" : "rgba(255,255,255,0.7)",
-                  fontWeight: pathname.startsWith("/admin/planillas") ? 700 : 500,
-                  border: "none",
-                  cursor: "pointer",
-                  width: "100%",
-                  textAlign: "left",
-                  transition: "0.2s",
-                  fontSize: "1rem"
+                  textDecoration: "none",
+                  color: pathname === configLink.href ? "#fff" : "rgba(255,255,255,0.7)",
+                  background: pathname === configLink.href ? "rgba(255,255,255,0.15)" : "transparent",
+                  fontWeight: pathname === configLink.href ? 700 : 500,
+                  transition: "0.2s"
                 }}
               >
-                <span style={{ fontSize: "1.2rem" }}>📋</span>
-                <span style={{ flex: 1 }}>Planillas</span>
-                <span style={{ 
-                  fontSize: "0.7rem", 
-                  opacity: 0.7,
-                  transform: planillasOpen ? "rotate(180deg)" : "rotate(0deg)",
-                  transition: "transform 0.2s",
-                  display: "inline-block"
-                }}>▼</span>
-              </button>
-
-              {planillasOpen && (
-                <ul style={{ listStyle: "none", padding: "4px 0 4px 20px" }}>
-                  {planillasSubItems.map((sub) => {
-                    const subActive = pathname.startsWith(sub.href);
-                    return (
-                      <li key={sub.href} style={{ marginBottom: "4px" }}>
-                        <Link
-                          href={sub.href}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "10px",
-                            padding: "9px 12px",
-                            borderRadius: "6px",
-                            textDecoration: "none",
-                            color: subActive ? "#fff" : "rgba(255,255,255,0.6)",
-                            background: subActive ? "rgba(255,255,255,0.12)" : "transparent",
-                            fontWeight: subActive ? 700 : 400,
-                            fontSize: "0.88rem",
-                            transition: "0.2s"
-                          }}
-                        >
-                          <span>{sub.icon}</span>
-                          <span>{sub.label}</span>
-                        </Link>
-                      </li>
-                    );
-                  })}
-                  {/* Plantillas de inspección */}
-                  {(isAdmin || isTecnico) && (
-                    <li style={{ marginBottom: "4px" }}>
-                      <Link
-                        href="/admin/templates"
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
-                          padding: "9px 12px",
-                          borderRadius: "6px",
-                          textDecoration: "none",
-                          color: pathname.startsWith("/admin/templates") ? "#fff" : "rgba(255,255,255,0.6)",
-                          background: pathname.startsWith("/admin/templates") ? "rgba(255,255,255,0.12)" : "transparent",
-                          fontWeight: pathname.startsWith("/admin/templates") ? 700 : 400,
-                          fontSize: "0.88rem",
-                          transition: "0.2s",
-                          borderTop: "1px solid rgba(255,255,255,0.1)",
-                          marginTop: "4px"
-                        }}
-                      >
-                        <span>⚙️</span>
-                        <span>Gestión de Plantillas</span>
-                      </Link>
-                    </li>
-                  )}
-                </ul>
-              )}
+                <span style={{ fontSize: "1.2rem" }}>{configLink.icon}</span>
+                <span style={{ flex: 1 }}>{configLink.label}</span>
+              </Link>
             </li>
           </ul>
         </nav>

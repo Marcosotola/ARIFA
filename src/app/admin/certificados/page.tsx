@@ -30,6 +30,11 @@ export default function CertificadosPage() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  // Filters
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -78,6 +83,29 @@ export default function CertificadosPage() {
 
   const isStaff = role === "admin" || role === "tecnico";
 
+  const filteredCerts = certs.filter(c => {
+    const matchesSearch = 
+      String(c.numero).includes(search) || 
+      c.clienteNombre?.toLowerCase().includes(search.toLowerCase()) ||
+      c.clienteEmpresa?.toLowerCase().includes(search.toLowerCase()) ||
+      c.sistemaCertificado?.toLowerCase().includes(search.toLowerCase());
+    
+    const certDate = c.fechaInspeccion ? new Date(c.fechaInspeccion) : null;
+    let matchesDate = true;
+    if (certDate) {
+      if (dateFrom && certDate < new Date(dateFrom)) matchesDate = false;
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (certDate > toDate) matchesDate = false;
+      }
+    } else if (dateFrom || dateTo) {
+      matchesDate = false;
+    }
+    
+    return matchesSearch && matchesDate;
+  });
+
   return (
     <div style={{ maxWidth: "1100px" }}>
       <header style={{ marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "15px" }}>
@@ -95,18 +123,52 @@ export default function CertificadosPage() {
         )}
       </header>
 
+      {/* FILTERS */}
+      <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
+        <div style={{ flex: 1, minWidth: "220px" }}>
+          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Buscar por Certificado o Cliente</label>
+          <input 
+            type="text" 
+            placeholder="N°, nombre, sistema..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.9rem" }}
+          />
+        </div>
+        <div style={{ width: "160px" }}>
+          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Inspección Desde</label>
+          <input 
+            type="date" 
+            value={dateFrom} 
+            onChange={e => setDateFrom(e.target.value)}
+            style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.85rem" }}
+          />
+        </div>
+        <div style={{ width: "160px" }}>
+          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Hasta</label>
+          <input 
+            type="date" 
+            value={dateTo} 
+            onChange={e => setDateTo(e.target.value)}
+            style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.85rem" }}
+          />
+        </div>
+        <button 
+          onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); }}
+          style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}
+        >
+          Limpiar
+        </button>
+      </div>
+
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>Cargando certificados...</div>
-        ) : certs.length === 0 ? (
+        ) : filteredCerts.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px" }}>
-            <div style={{ fontSize: "3rem", marginBottom: "15px" }}>📜</div>
-            <p style={{ color: "var(--text-muted)" }}>No hay certificados emitidos aún.</p>
-            {isStaff && (
-              <Link href="/admin/certificados/nuevo" className="btn-red" style={{ display: "inline-block", marginTop: "20px", padding: "12px 28px" }}>
-                Crear primer certificado
-              </Link>
-            )}
+            <div style={{ fontSize: "3.5rem", marginBottom: "15px", filter: "grayscale(1)", opacity: 0.3 }}>📜</div>
+            <h3 style={{ fontWeight: 800, color: "#999", marginBottom: "8px" }}>No se encontraron certificados</h3>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Ajustá los filtros para encontrar lo que buscás.</p>
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -119,7 +181,7 @@ export default function CertificadosPage() {
                 </tr>
               </thead>
               <tbody>
-                {certs.map(c => {
+                {filteredCerts.map(c => {
                   const ec = ESTADO_COLORS[c.estado] || ESTADO_COLORS.borrador;
                   const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento) : null;
                   const vencido = venc && venc < new Date();
