@@ -181,26 +181,29 @@ export default function CertificadoEditorPage() {
     const fInsp = fechaInspeccion ? new Date(fechaInspeccion).toLocaleDateString("es-AR") : "-";
     const fVenc = fechaVencimiento ? new Date(fechaVencimiento).toLocaleDateString("es-AR") : "-";
 
-    // Logo
+    // Logo — convert SVG → PNG via canvas
     let logoDataUrl: string | null = null;
     try {
       const resp = await fetch("/logos/logoFondoTransparente.svg");
-      const blob = await resp.blob();
-      logoDataUrl = await new Promise<string>(res => {
-        const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.readAsDataURL(blob);
-      });
+      const svgText = await resp.text();
+      const blob = new Blob([svgText], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+      const cnv = document.createElement("canvas");
+      cnv.width = img.naturalWidth || 300; cnv.height = img.naturalHeight || 150;
+      cnv.getContext("2d")!.drawImage(img, 0, 0);
+      logoDataUrl = cnv.toDataURL("image/png");
+      URL.revokeObjectURL(url);
     } catch { /* skip */ }
 
     const drawPageHeader = (pdf: any) => {
-      // Outer border
       pdf.setDrawColor(0, 34, 68);
       pdf.setLineWidth(0.5);
       pdf.rect(ML, 10, TW, 28);
-      // Logo cell
       pdf.setFillColor(255, 255, 255);
       pdf.rect(ML, 10, 35, 28, "F");
-      if (logoDataUrl) pdf.addImage(logoDataUrl, "SVG", ML + 2, 12, 31, 24);
-      // Center cell
+      if (logoDataUrl) pdf.addImage(logoDataUrl, "PNG", ML + 2, 12, 31, 24);
       pdf.setFillColor(255, 255, 255);
       pdf.line(ML + 35, 10, ML + 35, 38);
       pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9); pdf.setTextColor(0, 34, 68);
@@ -248,14 +251,7 @@ export default function CertificadoEditorPage() {
         [{ content: "Razón social:", styles: { fontStyle: "bold" } }, { content: cuit || ce || "-", colSpan: 3, styles: { halign: "center" } }],
         [{ content: "Domicilio:", styles: { fontStyle: "bold" } }, { content: cdir || "-", colSpan: 3 }],
         [{ content: "Responsable certificado:", styles: { fontStyle: "bold" } }, { content: responsableCertificado || "-", colSpan: 3 }],
-        [
-          { content: "Empresa Certificante:", styles: { fontStyle: "bold", rowSpan: 2 } },
-          {
-            content: "ARIFA\nINGENIERIA EN SEGURIDAD CONTRA INCENDIOS\nCUIT 20-35108395-7\nwww.arifa.com.ar",
-            colSpan: 3,
-            styles: { fontStyle: "bold", fontSize: 11, textColor: [0, 34, 68] },
-          },
-        ],
+        [{ content: "Empresa Certificante:", styles: { fontStyle: "bold" } }, { content: "ARIFA — INGENIERIA EN SEGURIDAD CONTRA INCENDIOS  |  CUIT 20-35108395-7  |  www.arifa.com.ar", colSpan: 3, styles: { fontStyle: "bold", textColor: [0, 34, 68] } }],
       ],
       styles: { fontSize: 9, cellPadding: 4 },
       tableLineColor: [0, 34, 68], tableLineWidth: 0.3,
@@ -296,8 +292,17 @@ export default function CertificadoEditorPage() {
       const imgW = (TW - 5) / 2;
       for (const url of fotos) {
         try {
-          const img = await fetch(url).then(r => r.blob());
-          const du = await new Promise<string>(res => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.readAsDataURL(img); });
+          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = proxyUrl; });
+          const cnv = document.createElement("canvas");
+          const maxW = 1200; const maxH = 900;
+          const ratio = Math.min(maxW / (img.naturalWidth || maxW), maxH / (img.naturalHeight || maxH), 1);
+          cnv.width = Math.round((img.naturalWidth || maxW) * ratio);
+          cnv.height = Math.round((img.naturalHeight || maxH) * ratio);
+          cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
+          const du = cnv.toDataURL("image/jpeg", 0.82);
           const x = ML + col * (imgW + 5);
           pdf.addImage(du, "JPEG", x, y, imgW, 55);
           col++;

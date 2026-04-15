@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
-import { db, auth } from "@/lib/firebase";
+import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc
 } from "firebase/firestore";
+import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -61,7 +62,24 @@ export default function DeteccionPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, "ordenes_trabajo", id));
+      const docRef = doc(db, "ordenes_trabajo", id);
+      const docSnap = await getDoc(docRef);
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const fotos = data.fotos || [];
+        // Delete each photo from Storage
+        for (const url of fotos) {
+          try {
+            const picRef = ref(storage, url);
+            await deleteObject(picRef);
+          } catch (err) {
+            console.error("Error eliminando imagen de storage:", err);
+          }
+        }
+      }
+
+      await deleteDoc(docRef);
       setOts(prev => prev.filter(o => o.id !== id));
       setDeleteConfirm(null);
     } catch (e) { alert("Error al eliminar: " + e); }

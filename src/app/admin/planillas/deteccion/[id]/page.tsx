@@ -299,10 +299,16 @@ export default function OTPage() {
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const W = 210; const ML = 15; const MR = 15; const TW = W - ML - MR;
-    let y = 15;
+    const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+    const otNum = String(numero).padStart(4, "0");
+    const fecStr = fecha ? new Date(fecha).toLocaleDateString("es-AR") : "-";
+    const cn = clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre || "-";
+    const ce = clienteSeleccionado?.empresa || clienteEmpresa || "";
+    const cd = clienteSeleccionado?.direccion || clienteDireccion || "";
+    const ct = clienteSeleccionado?.telefono || clienteTelefono || "";
+    const tecLista = tecnicoManual ? tecnicoManualNombre : tecnicosSeleccionados.join(", ");
 
-    // Load logo — convert SVG → PNG via canvas (jsPDF doesn't support SVG)
+    // ── Logo SVG → PNG ───────────────────────────────────────────────────────
     let logoPng: string | null = null;
     try {
       const resp = await fetch("/logos/logoFondoTransparente.svg");
@@ -311,82 +317,127 @@ export default function OTPage() {
       const url = URL.createObjectURL(blob);
       const img = new Image();
       await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth || 200; canvas.height = img.naturalHeight || 100;
-      canvas.getContext("2d")!.drawImage(img, 0, 0);
-      logoPng = canvas.toDataURL("image/png");
+      const c = document.createElement("canvas");
+      c.width = img.naturalWidth || 300; c.height = img.naturalHeight || 150;
+      c.getContext("2d")!.drawImage(img, 0, 0);
+      logoPng = c.toDataURL("image/png");
       URL.revokeObjectURL(url);
-    } catch { /* skip logo */ }
+    } catch { /* no logo */ }
 
-    const drawHeader = (pdf: any, yPos: number) => {
-      if (logoPng) pdf.addImage(logoPng, "PNG", ML, yPos, 35, 18);
-      pdf.setFontSize(9); pdf.setTextColor(100);
-      pdf.text("ARIFA — Prevención y Protección contra Incendios", ML + 38, yPos + 5);
-      pdf.text("www.arifa.com.ar", ML + 38, yPos + 9);
-      pdf.setFillColor(0, 34, 68);
-      pdf.rect(W - MR - 55, yPos, 55, 10, "F");
-      pdf.setTextColor(255); pdf.setFontSize(7); pdf.setFont(undefined as any, "bold");
-      pdf.text("ORDEN DE TRABAJO", W - MR - 27.5, yPos + 4, { align: "center" });
-      pdf.setFontSize(12);
-      pdf.text(`OT-${String(numero).padStart(4, "0")}`, W - MR - 27.5, yPos + 9, { align: "center" });
-      pdf.setTextColor(50); pdf.setFont(undefined as any, "normal"); pdf.setFontSize(9);
-      pdf.text(`Fecha: ${fecha ? new Date(fecha).toLocaleDateString("es-AR") : "-"}`, W - MR - 55, yPos + 14);
-      return yPos + 22;
+    // ── Institutional header ───────────────────────────────────────────────────
+    const HEADER_H = 30;
+    const drawPageHeader = (pg: any): number => {
+      const top = 10;
+      pg.setDrawColor(0, 34, 68); pg.setLineWidth(0.5);
+      pg.rect(ML, top, TW, HEADER_H);
+
+      // Logo cell
+      if (logoPng) pg.addImage(logoPng, "PNG", ML + 1, top + 2, 30, 26);
+      pg.line(ML + 33, top, ML + 33, top + HEADER_H);
+
+      // Center cell
+      const rx = W - MR - 48;
+      const cx = ML + 33 + (rx - ML - 33) / 2;
+      pg.setFont(undefined as any, "bold"); pg.setFontSize(9); pg.setTextColor(0, 34, 68);
+      pg.text("Orden de Trabajo — Inspección", cx, top + 9, { align: "center" });
+      pg.text("Seguridad Contra Incendios", cx, top + 15, { align: "center" });
+      pg.setFontSize(13); pg.setTextColor(163, 31, 29);
+      pg.text(`OT-${otNum}`, cx, top + 23, { align: "center" });
+
+      // Right info cell (48mm wide)
+      pg.line(rx, top, rx, top + HEADER_H);
+      const rRows = [["Fecha:", fecStr], ["Estado:", estado.toUpperCase()], ["Categ.:", "DETECCIÓN"]];
+      rRows.forEach(([k, v], i) => {
+        const ry = top + 7 + i * 7;
+        pg.setFont(undefined as any, "bold"); pg.setFontSize(7); pg.setTextColor(0);
+        pg.text(k, rx + 2, ry);
+        pg.setFont(undefined as any, "normal"); pg.setFontSize(7);
+        pg.text(v, rx + 18, ry);
+        if (i < 2) pg.line(rx, ry + 2, W - MR, ry + 2);
+      });
+
+      // Footer bar
+      pg.line(ML, top + HEADER_H - 6, W - MR, top + HEADER_H - 6);
+      pg.setFont(undefined as any, "normal"); pg.setFontSize(7); pg.setTextColor(80);
+      pg.text("Ingeniería contra Incendio", ML + 2, top + HEADER_H - 2);
+      pg.setFont(undefined as any, "bold"); pg.setFontSize(7); pg.setTextColor(0);
+      const pn = pg.getCurrentPageInfo().pageNumber;
+      pg.text(`Página  ${pn}`, rx + 2, top + HEADER_H - 2);
+
+      return top + HEADER_H + 6;
     };
 
-    y = drawHeader(pdf, y);
-    pdf.setFillColor(240, 243, 250);
-    pdf.rect(ML, y, TW, 18, "F");
-    pdf.setFontSize(9); pdf.setTextColor(30);
-    const cn = clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre || "-";
-    const ce = clienteSeleccionado?.empresa || clienteEmpresa || "";
-    const cd = clienteSeleccionado?.direccion || clienteDireccion || "";
-    const ct = clienteSeleccionado?.telefono || clienteTelefono || "";
-    const tecLista = tecnicoManual ? tecnicoManualNombre : tecnicosSeleccionados.join(", ");
-    pdf.setFont(undefined as any, "bold"); pdf.text("Cliente:", ML + 3, y + 6);
-    pdf.setFont(undefined as any, "normal"); pdf.text(`${cn}${ce ? ` — ${ce}` : ""}`, ML + 20, y + 6);
-    pdf.text(`Dir: ${cd}   Tel: ${ct}`, ML + 3, y + 12);
-    pdf.text(`Técnico(s): ${tecLista || "-"}`, ML + 3, y + 17);
-    y += 22;
+    // ── PAGE 1 ────────────────────────────────────────────────────────────────
+    let y = drawPageHeader(pdf);
 
+    // Client & technician data table
+    autoTable(pdf, {
+      startY: y, margin: { left: ML, right: MR },
+      body: [
+        [{ content: "Cliente:", styles: { fontStyle: "bold", cellWidth: 42 } }, { content: cn + (ce ? ` — ${ce}` : ""), colSpan: 3 }],
+        [{ content: "Domicilio:", styles: { fontStyle: "bold" } }, cd || "-",
+         { content: "Teléfono:", styles: { fontStyle: "bold", cellWidth: 28 } }, ct || "-"],
+        [{ content: "Técnico(s):", styles: { fontStyle: "bold" } }, { content: tecLista || "-", colSpan: 3 }],
+      ],
+      styles: { fontSize: 9, cellPadding: 4 },
+      tableLineColor: [0, 34, 68], tableLineWidth: 0.3,
+    });
+    y = (pdf as any).lastAutoTable.finalY + 8;
+
+    // Observations
     const allObs = [...obsAutomaticas, ...observacionesExtra].filter(Boolean);
     if (allObs.length) {
-      pdf.setFont(undefined as any, "bold"); pdf.setFontSize(10); pdf.setTextColor(0, 34, 68);
-      pdf.text("OBSERVACIONES DEL SERVICIO", ML, y + 6); y += 10;
+      if (y > 245) { pdf.addPage(); y = drawPageHeader(pdf); }
       autoTable(pdf, {
         startY: y, margin: { left: ML, right: MR },
-        head: [["#", "Observación"]],
+        head: [["#", "Observaciones del Servicio"]],
         body: allObs.map((o, i) => [i + 1, o]),
         styles: { fontSize: 8 }, headStyles: { fillColor: [163, 31, 29] },
+        columnStyles: { 0: { cellWidth: 10, halign: "center" } },
       });
       y = (pdf as any).lastAutoTable.finalY + 8;
     }
 
+    // Planillas
     for (const p of planillasEnOT) {
-      if (y > 240) { pdf.addPage(); y = drawHeader(pdf, 15) + 5; }
-      pdf.setFont(undefined as any, "bold"); pdf.setFontSize(11); pdf.setTextColor(0, 34, 68);
-      pdf.text(`${p.codigo} — ${p.nombre}`, ML, y); y += 7;
-      for (const [k, v] of Object.entries(p.infoValues)) {
-        if (v) { pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8); pdf.setTextColor(60); pdf.text(`${k}: ${v}`, ML + 3, y); y += 5; }
-      }
-      if (p.tipo === "checklist") {
-        const esSiNo = (p as any).modoChecklist === "si_no";
-        const colLabel1 = esSiNo ? "SI" : "OK";
-        const colLabel2 = esSiNo ? "NO" : "NOK";
+      if (y > 230) { pdf.addPage(); y = drawPageHeader(pdf); }
+
+      // Section title bar
+      pdf.setFillColor(0, 34, 68);
+      pdf.rect(ML, y, TW, 8, "F");
+      pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9); pdf.setTextColor(255);
+      pdf.text(`${p.codigo} — ${p.nombre}`, ML + 3, y + 5.5);
+      y += 10;
+
+      // Info fields
+      const infoEntries = Object.entries(p.infoValues).filter(([, v]) => v);
+      if (infoEntries.length) {
         autoTable(pdf, {
           startY: y, margin: { left: ML, right: MR },
-          head: [["Ítem", "Resultado", "Observaciones"]],
+          body: infoEntries.map(([k, v]) => [{ content: k + ":", styles: { fontStyle: "bold", cellWidth: 55 } }, v]),
+          styles: { fontSize: 8, cellPadding: 2 },
+          tableLineColor: [200, 200, 200], tableLineWidth: 0.2,
+        });
+        y = (pdf as any).lastAutoTable.finalY + 4;
+      }
+
+      if (p.tipo === "checklist") {
+        const esSiNo = (p as any).modoChecklist === "si_no";
+        const lbl1 = esSiNo ? "SI" : "OK"; const lbl2 = esSiNo ? "NO" : "NOK";
+        autoTable(pdf, {
+          startY: y, margin: { left: ML, right: MR },
+          head: [["Ítem de inspección", "Resultado", "Observaciones"]],
           body: p.filasChecklist.map(f => {
-            if (f.esGrupo) return [{ content: f.descripcion, colSpan: 3, styles: { fillColor: [220, 220, 220], fontStyle: "bold", textColor: [30, 30, 30] } }];
+            if (f.esGrupo) return [{ content: f.descripcion, colSpan: 3, styles: { fillColor: [224, 231, 238], fontStyle: "bold", textColor: [0, 34, 68] } }];
             const tc = (f as any).tipoColumna || "checklist";
-            let resultado = "";
-            if (tc === "tiempo") resultado = f.valor ? `${f.valor} seg` : "-";
-            else if (tc === "texto") resultado = f.valor || "-";
-            else resultado = f.valor === "ok" ? `✔ ${colLabel1}` : f.valor === "nok" ? `✘ ${colLabel2}` : f.valor === "na" ? "N/A" : "-";
-            return [f.descripcion, resultado, f.observacion || ""];
+            let res = "";
+            if (tc === "tiempo") res = f.valor ? `${f.valor} seg` : "-";
+            else if (tc === "texto") res = f.valor || "-";
+            else res = f.valor === "ok" ? `✔ ${lbl1}` : f.valor === "nok" ? `✘ ${lbl2}` : f.valor === "na" ? "N/A" : "-";
+            return [f.descripcion, res, f.observacion || ""];
           }),
           styles: { fontSize: 8 }, headStyles: { fillColor: [0, 34, 68] },
-          columnStyles: { 1: { halign: "center", cellWidth: 30 } },
+          columnStyles: { 1: { halign: "center", cellWidth: 28 }, 2: { cellWidth: 45 } },
         });
       } else {
         autoTable(pdf, {
@@ -399,47 +450,64 @@ export default function OTPage() {
       y = (pdf as any).lastAutoTable.finalY + 10;
     }
 
-    // Photos
+    // ── Fotos ─────────────────────────────────────────────────────────────────
     if (fotos.length) {
-      if (y > 180) { pdf.addPage(); y = drawHeader(pdf, 15); y += 5; }
-      pdf.setFont(undefined as any, "bold"); pdf.setFontSize(11); pdf.setTextColor(0, 34, 68);
-      pdf.text("REGISTRO FOTOGRÁFICO", ML, y); y += 8;
+      if (y > 185) { pdf.addPage(); y = drawPageHeader(pdf); }
+      pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 8, "F");
+      pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9); pdf.setTextColor(255);
+      pdf.text("REGISTRO FOTOGRÁFICO", ML + 3, y + 5.5); y += 12;
       let col = 0;
+      const imgW = (TW - 6) / 2;
       for (const url of fotos) {
         try {
-          const img = await fetch(url).then(r => r.blob());
-          const du = await new Promise<string>(res => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.readAsDataURL(img); });
-          const x = ML + col * (TW / 2 + 5);
-          pdf.addImage(du, "JPEG", x, y, TW / 2, 60);
-          col++;
-          if (col === 2) { col = 0; y += 65; }
-          if (y > 240) { pdf.addPage(); y = drawHeader(pdf, 15); y += 5; col = 0; }
-        } catch { /* skip bad image */ }
+          // Route through server proxy to bypass Firebase Storage CORS restrictions
+          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          await new Promise<void>((res, rej) => {
+            img.onload = () => res();
+            img.onerror = (e) => rej(e);
+            img.src = proxyUrl;
+          });
+          const cnv = document.createElement("canvas");
+          const maxW = 1200; const maxH = 900;
+          const ratio = Math.min(maxW / (img.naturalWidth || maxW), maxH / (img.naturalHeight || maxH), 1);
+          cnv.width = Math.round((img.naturalWidth || maxW) * ratio);
+          cnv.height = Math.round((img.naturalHeight || maxH) * ratio);
+          cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
+          const du = cnv.toDataURL("image/jpeg", 0.82);
+          pdf.addImage(du, "JPEG", ML + col * (imgW + 6), y, imgW, 56);
+          col++; if (col === 2) { col = 0; y += 60; }
+          if (y > 235) { pdf.addPage(); y = drawPageHeader(pdf); col = 0; }
+        } catch { /* skip failed image */ }
       }
-      if (col > 0) y += 65;
+      if (col > 0) y += 60;
+      y += 6;
     }
 
-    // Signatures
-    if (y > 220) { pdf.addPage(); y = drawHeader(pdf, 15); y += 5; }
-    pdf.setFont(undefined as any, "bold"); pdf.setFontSize(10); pdf.setTextColor(0, 34, 68);
-    pdf.text("FIRMAS", ML, y + 5); y += 10;
-    pdf.rect(ML, y, TW / 2 - 5, 30);
-    pdf.rect(ML + TW / 2 + 5, y, TW / 2 - 5, 30);
+    // ── Firmas ────────────────────────────────────────────────────────────────
+    if (y > 220) { pdf.addPage(); y = drawPageHeader(pdf); }
+    const bw = (TW - 8) / 2;
+    pdf.setDrawColor(0, 34, 68); pdf.setLineWidth(0.3);
+    pdf.rect(ML, y, bw, 34); pdf.rect(ML + bw + 8, y, bw, 34);
     pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8); pdf.setTextColor(80);
-    pdf.text("Técnico Responsable:", ML + 2, y + 3);
-    pdf.text("Cliente / Comitente:", ML + TW / 2 + 7, y + 3);
-    if (firmaTecnico) try { pdf.addImage(firmaTecnico, "PNG", ML + 5, y + 5, 70, 20); } catch { /* skip */ }
-    if (firmaCliente) try { pdf.addImage(firmaCliente, "PNG", ML + TW / 2 + 10, y + 5, 70, 20); } catch { /* skip */ }
+    pdf.text("Técnico Responsable", ML + 2, y + 4);
+    if (nombreFirmaTecnico) { pdf.setFont(undefined as any, "bold"); pdf.setFontSize(8.5); pdf.setTextColor(0, 34, 68); pdf.text(nombreFirmaTecnico, ML + 2, y + 9); }
+    pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8); pdf.setTextColor(80);
+    pdf.text("Cliente / Comitente", ML + bw + 10, y + 4);
+    if (nombreFirmaCliente) { pdf.setFont(undefined as any, "bold"); pdf.setFontSize(8.5); pdf.setTextColor(0, 34, 68); pdf.text(nombreFirmaCliente, ML + bw + 10, y + 9); }
+    if (firmaTecnico) try { pdf.addImage(firmaTecnico, "PNG", ML + 3, y + 11, bw - 6, 20); } catch { /* skip */ }
+    if (firmaCliente) try { pdf.addImage(firmaCliente, "PNG", ML + bw + 11, y + 11, bw - 6, 20); } catch { /* skip */ }
 
-    // Page numbers
-    const totalPages = pdf.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
+    // ── Página numbers in all pages ───────────────────────────────────────────
+    const total = pdf.getNumberOfPages();
+    for (let i = 1; i <= total; i++) {
       pdf.setPage(i);
-      pdf.setFontSize(8); pdf.setTextColor(150);
-      pdf.text(`Página ${i} / ${totalPages}`, W / 2, 292, { align: "center" });
+      pdf.setFontSize(7); pdf.setTextColor(160);
+      pdf.text(`ARIFA  ·  OT-${otNum}  ·  Pág. ${i}/${total}`, W / 2, 296, { align: "center" });
     }
 
-    pdf.save(`OT-${String(numero).padStart(4, "0")}.pdf`);
+    pdf.save(`ARIFA-OT-${otNum}.pdf`);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────

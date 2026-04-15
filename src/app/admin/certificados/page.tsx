@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { db, auth } from "@/lib/firebase";
+import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc } from "firebase/firestore";
+import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -53,7 +54,23 @@ export default function CertificadosPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await deleteDoc(doc(db, "certificados", id));
+      const docRef = doc(db, "certificados", id);
+      const docSnap = await getDoc(docRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const fotos = data.fotos || [];
+        for (const url of fotos) {
+          try {
+            const picRef = ref(storage, url);
+            await deleteObject(picRef);
+          } catch (err) {
+            console.error("Error eliminando imagen de storage:", err);
+          }
+        }
+      }
+
+      await deleteDoc(docRef);
       setCerts(p => p.filter(c => c.id !== id));
       setDeleteConfirm(null);
     } catch (e) { alert("Error: " + e); }
