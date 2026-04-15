@@ -49,6 +49,7 @@ export default function AdminDashboard() {
         setStats({
           unread: myConsSnap.size,
           ordenes: myOrdSnap.size,
+          certificados: 0,
           productos: 0,
           usuarios: 0
         });
