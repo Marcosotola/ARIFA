@@ -531,6 +531,14 @@ export default function OTPage() {
           </h1>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {!isNueva && (estado === "completada" || estado === "firmada") && (
+            <button 
+              onClick={() => router.push(`/admin/certificados/nuevo?fromOt=${params.id}`)}
+              style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid #2e7d32", background: "#e8f5e9", color: "#2e7d32", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem" }}
+            >
+              📜 Certificar
+            </button>
+          )}
           <button onClick={handlePDF} style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem" }}>
             📥 Descargar PDF
           </button>

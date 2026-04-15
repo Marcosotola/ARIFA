@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, addDoc, updateDoc, doc, getDoc, query, orderBy, serverTimestamp } from "firebase/firestore";
@@ -26,7 +26,9 @@ const cardSt: React.CSSProperties = { background: "#fff", borderRadius: "12px", 
 export default function CertificadoEditorPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const isNuevo = params.id === "nuevo";
+  const fromOt = searchParams.get("fromOt");
 
   const [paso, setPaso] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -72,11 +74,37 @@ export default function CertificadoEditorPage() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
       await Promise.all([loadClientes(), loadNextNum()]);
-      if (!isNuevo) await loadCertificado();
+      if (isNuevo && fromOt) {
+        await importFromOT(fromOt);
+      } else if (!isNuevo) {
+        await loadCertificado();
+      }
       setLoading(false);
     });
     return () => unsub();
-  }, []);
+  }, [fromOt]);
+
+  const importFromOT = async (otId: string) => {
+    try {
+      const d = await getDoc(doc(db, "ordenes_trabajo", otId));
+      if (!d.exists()) return;
+      const data = d.data() as any;
+      
+      setClienteNombre(data.clienteNombre || "");
+      setClienteEmpresa(data.clienteEmpresa || "");
+      setClienteCuit(data.clienteCuit || "");
+      setClienteDireccion(data.clienteDireccion || "");
+      if (data.clienteId) setClienteSeleccionado({ id: data.clienteId, nombre: data.clienteNombre, razonSocial: data.clienteEmpresa, empresa: data.clienteEmpresa, cuit: data.clienteCuit, direccion: data.clienteDireccion, email: "" });
+      setClienteManual(data.clienteManual || false);
+      
+      if (data.planillasSeleccionadas && data.planillasSeleccionadas.length > 0) {
+        setSistemaCertificado(data.planillasSeleccionadas.map((p:any) => p.nombre).join(", "));
+      }
+      
+      setMemoriaDescriptiva(`Inspección realizada en base a Orden de Trabajo N° OT-${String(data.numero || "").padStart(4, "0")}.`);
+      setFotos(data.fotos || []);
+    } catch (e) { console.error("Error importing from OT:", e); }
+  };
 
   const loadClientes = async () => {
     try {

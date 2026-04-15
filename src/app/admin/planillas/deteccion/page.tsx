@@ -241,6 +241,11 @@ export default function DeteccionPage() {
                           <Link href={`/admin/planillas/deteccion/${ot.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
                             Ver / Editar
                           </Link>
+                          {['firmada', 'completada'].includes(ot.estado) && (
+                            <Link href={`/admin/certificados/nuevo?fromOt=${ot.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #e8f5e9", background: "#e8f5e9", fontSize: "0.82rem", fontWeight: 700, color: "#2e7d32", whiteSpace: "nowrap" }}>
+                              📜 Certificar
+                            </Link>
+                          )}
                           {role === "admin" && (
                             <button onClick={() => setDeleteConfirm(ot.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)", fontSize: "0.82rem" }}>
                               🗑️
