@@ -69,6 +69,8 @@ export default function OTPage() {
   const [clienteDireccion, setClienteDireccion] = useState("");
   const [clienteTelefono, setClienteTelefono] = useState("");
   const [tecnicosSeleccionados, setTecnicosSeleccionados] = useState<string[]>([]);
+  const [tecnicoManual, setTecnicoManual] = useState(false);
+  const [tecnicoManualNombre, setTecnicoManualNombre] = useState("");
   const [estado, setEstado] = useState("borrador");
 
   // Filtros del selector de planillas
@@ -92,6 +94,8 @@ export default function OTPage() {
   const sigCliRef = useRef<any>(null);
   const [firmaTecnico, setFirmaTecnico] = useState<string | null>(null);
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
+  const [nombreFirmaTecnico, setNombreFirmaTecnico] = useState("");
+  const [nombreFirmaCliente, setNombreFirmaCliente] = useState("");
 
   // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -149,11 +153,15 @@ export default function OTPage() {
       setClienteDireccion(data.clienteDireccion || "");
       setClienteTelefono(data.clienteTelefono || "");
       setTecnicosSeleccionados(data.tecnicos || []);
+      setTecnicoManual(data.tecnicoManual || false);
+      setTecnicoManualNombre(data.tecnicoManualNombre || "");
       setPlanillasEnOT(data.planillasSeleccionadas || []);
       setObservacionesExtra(data.observacionesExtra || []);
       setFotos(data.fotos || []);
       setFirmaTecnico(data.firmaTecnico || null);
       setFirmaCliente(data.firmaCliente || null);
+      setNombreFirmaTecnico(data.nombreFirmaTecnico || "");
+      setNombreFirmaCliente(data.nombreFirmaCliente || "");
     } catch (e) { console.error(e); }
   };
 
@@ -228,26 +236,52 @@ export default function OTPage() {
     finally { setUploadingFoto(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
 
+  // ── Canvas resize for mobile (fixes touch misalignment) ──────────────────
+  const resizeCanvas = (sigRef: React.MutableRefObject<any>) => {
+    const canvas = sigRef.current?.getCanvas();
+    if (!canvas) return;
+    const ratio = Math.max(window.devicePixelRatio || 1, 1);
+    canvas.width = canvas.offsetWidth * ratio;
+    canvas.height = canvas.offsetHeight * ratio;
+    canvas.getContext("2d")?.scale(ratio, ratio);
+    sigRef.current.clear();
+  };
+
+  useEffect(() => {
+    if (paso === 4) {
+      setTimeout(() => { resizeCanvas(sigTecRef); resizeCanvas(sigCliRef); }, 100);
+    }
+  }, [paso]);
+
   // ── Save ──────────────────────────────────────────────────────────────────
+  const sanitize = (v: any) => v === undefined ? null : v;
+
   const handleSave = async (estadoOverride?: string) => {
     setSaving(true);
     try {
+      const tecLista = tecnicoManual
+        ? (tecnicoManualNombre.trim() ? [tecnicoManualNombre.trim()] : [])
+        : tecnicosSeleccionados;
       const payload: any = {
         numero: parseInt(numero) || nextNum,
-        fecha,
-        clienteId: clienteSeleccionado?.id || null,
-        clienteNombre: clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre,
-        clienteEmpresa: clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa,
-        clienteDireccion: clienteSeleccionado?.direccion || clienteDireccion,
-        clienteTelefono: clienteSeleccionado?.telefono || clienteTelefono,
+        fecha: sanitize(fecha),
+        clienteId: sanitize(clienteSeleccionado?.id) ?? null,
+        clienteNombre: sanitize(clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre) || "",
+        clienteEmpresa: sanitize(clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa) || "",
+        clienteDireccion: sanitize(clienteSeleccionado?.direccion || clienteDireccion) || "",
+        clienteTelefono: sanitize(clienteSeleccionado?.telefono || clienteTelefono) || "",
         clienteManual,
-        tecnicos: tecnicosSeleccionados,
+        tecnicos: tecLista,
+        tecnicoManual,
+        tecnicoManualNombre: tecnicoManualNombre || "",
         estado: estadoOverride || estado,
         planillasSeleccionadas: planillasEnOT,
         observacionesExtra,
         fotos,
-        firmaTecnico,
-        firmaCliente,
+        firmaTecnico: sanitize(firmaTecnico),
+        firmaCliente: sanitize(firmaCliente),
+        nombreFirmaTecnico: nombreFirmaTecnico || "",
+        nombreFirmaCliente: nombreFirmaCliente || "",
         updatedAt: serverTimestamp(),
       };
       if (isNueva) {
@@ -268,40 +302,39 @@ export default function OTPage() {
     const W = 210; const ML = 15; const MR = 15; const TW = W - ML - MR;
     let y = 15;
 
-    // Load logo
-    let logoDataUrl: string | null = null;
+    // Load logo — convert SVG → PNG via canvas (jsPDF doesn't support SVG)
+    let logoPng: string | null = null;
     try {
       const resp = await fetch("/logos/logoFondoTransparente.svg");
-      const blob = await resp.blob();
-      logoDataUrl = await new Promise<string>(res => {
-        const fr = new FileReader();
-        fr.onload = () => res(fr.result as string);
-        fr.readAsDataURL(blob);
-      });
+      const svgText = await resp.text();
+      const blob = new Blob([svgText], { type: "image/svg+xml" });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth || 200; canvas.height = img.naturalHeight || 100;
+      canvas.getContext("2d")!.drawImage(img, 0, 0);
+      logoPng = canvas.toDataURL("image/png");
+      URL.revokeObjectURL(url);
     } catch { /* skip logo */ }
 
     const drawHeader = (pdf: any, yPos: number) => {
-      // Logo
-      if (logoDataUrl) pdf.addImage(logoDataUrl, "SVG", ML, yPos, 35, 18);
-      // Company info
+      if (logoPng) pdf.addImage(logoPng, "PNG", ML, yPos, 35, 18);
       pdf.setFontSize(9); pdf.setTextColor(100);
       pdf.text("ARIFA — Prevención y Protección contra Incendios", ML + 38, yPos + 5);
       pdf.text("www.arifa.com.ar", ML + 38, yPos + 9);
-      // OT box
       pdf.setFillColor(0, 34, 68);
       pdf.rect(W - MR - 55, yPos, 55, 10, "F");
       pdf.setTextColor(255); pdf.setFontSize(7); pdf.setFont(undefined as any, "bold");
       pdf.text("ORDEN DE TRABAJO", W - MR - 27.5, yPos + 4, { align: "center" });
       pdf.setFontSize(12);
       pdf.text(`OT-${String(numero).padStart(4, "0")}`, W - MR - 27.5, yPos + 9, { align: "center" });
-      // Date & client
       pdf.setTextColor(50); pdf.setFont(undefined as any, "normal"); pdf.setFontSize(9);
       pdf.text(`Fecha: ${fecha ? new Date(fecha).toLocaleDateString("es-AR") : "-"}`, W - MR - 55, yPos + 14);
       return yPos + 22;
     };
 
     y = drawHeader(pdf, y);
-    // Client box
     pdf.setFillColor(240, 243, 250);
     pdf.rect(ML, y, TW, 18, "F");
     pdf.setFontSize(9); pdf.setTextColor(30);
@@ -309,13 +342,13 @@ export default function OTPage() {
     const ce = clienteSeleccionado?.empresa || clienteEmpresa || "";
     const cd = clienteSeleccionado?.direccion || clienteDireccion || "";
     const ct = clienteSeleccionado?.telefono || clienteTelefono || "";
+    const tecLista = tecnicoManual ? tecnicoManualNombre : tecnicosSeleccionados.join(", ");
     pdf.setFont(undefined as any, "bold"); pdf.text("Cliente:", ML + 3, y + 6);
     pdf.setFont(undefined as any, "normal"); pdf.text(`${cn}${ce ? ` — ${ce}` : ""}`, ML + 20, y + 6);
     pdf.text(`Dir: ${cd}   Tel: ${ct}`, ML + 3, y + 12);
-    pdf.text(`Técnico(s): ${tecnicosSeleccionados.join(", ") || "-"}`, ML + 3, y + 17);
+    pdf.text(`Técnico(s): ${tecLista || "-"}`, ML + 3, y + 17);
     y += 22;
 
-    // Observations table
     const allObs = [...obsAutomaticas, ...observacionesExtra].filter(Boolean);
     if (allObs.length) {
       pdf.setFont(undefined as any, "bold"); pdf.setFontSize(10); pdf.setTextColor(0, 34, 68);
@@ -329,12 +362,10 @@ export default function OTPage() {
       y = (pdf as any).lastAutoTable.finalY + 8;
     }
 
-    // Planillas
     for (const p of planillasEnOT) {
-      if (y > 240) { pdf.addPage(); y = drawHeader(pdf, 15); y += 5; }
+      if (y > 240) { pdf.addPage(); y = drawHeader(pdf, 15) + 5; }
       pdf.setFont(undefined as any, "bold"); pdf.setFontSize(11); pdf.setTextColor(0, 34, 68);
       pdf.text(`${p.codigo} — ${p.nombre}`, ML, y); y += 7;
-      // Info values
       for (const [k, v] of Object.entries(p.infoValues)) {
         if (v) { pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8); pdf.setTextColor(60); pdf.text(`${k}: ${v}`, ML + 3, y); y += 5; }
       }
@@ -346,14 +377,12 @@ export default function OTPage() {
           startY: y, margin: { left: ML, right: MR },
           head: [["Ítem", "Resultado", "Observaciones"]],
           body: p.filasChecklist.map(f => {
-            if (f.esGrupo) {
-              return [{ content: f.descripcion, colSpan: 3, styles: { fillColor: [220, 220, 220], fontStyle: "bold", textColor: [30, 30, 30] } }];
-            }
+            if (f.esGrupo) return [{ content: f.descripcion, colSpan: 3, styles: { fillColor: [220, 220, 220], fontStyle: "bold", textColor: [30, 30, 30] } }];
             const tc = (f as any).tipoColumna || "checklist";
             let resultado = "";
             if (tc === "tiempo") resultado = f.valor ? `${f.valor} seg` : "-";
             else if (tc === "texto") resultado = f.valor || "-";
-            else resultado = f.valor === "ok" ? "✔ OK" : f.valor === "nok" ? "✘ NOK" : f.valor === "na" ? "N/A" : "-";
+            else resultado = f.valor === "ok" ? `✔ ${colLabel1}` : f.valor === "nok" ? `✘ ${colLabel2}` : f.valor === "na" ? "N/A" : "-";
             return [f.descripcion, resultado, f.observacion || ""];
           }),
           styles: { fontSize: 8 }, headStyles: { fillColor: [0, 34, 68] },
@@ -543,20 +572,35 @@ export default function OTPage() {
           </div>
 
           <div style={cardSt}>
-            <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "16px", fontSize: "1rem" }}>Técnico(s)</h2>
-            {tecnicos.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>No hay técnicos registrados en el sistema.</p>}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
-              {tecnicos.map(t => {
-                const nombre = t.nombre || t.email;
-                const sel = tecnicosSeleccionados.includes(nombre);
-                return (
-                  <button key={t.id} onClick={() => setTecnicosSeleccionados(prev => sel ? prev.filter(x => x !== nombre) : [...prev, nombre])}
-                    style={{ padding: "9px 16px", borderRadius: "20px", border: `2px solid ${sel ? "var(--primary-blue)" : "#ddd"}`, background: sel ? "var(--primary-blue)" : "#fff", color: sel ? "#fff" : "#555", fontWeight: sel ? 700 : 500, cursor: "pointer", fontSize: "0.88rem", transition: "0.2s" }}>
-                    {sel ? "✓ " : ""}{nombre}
-                  </button>
-                );
-              })}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>Técnico(s)</h2>
+              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.85rem" }}>
+                <input type="checkbox" checked={tecnicoManual} onChange={e => { setTecnicoManual(e.target.checked); setTecnicosSeleccionados([]); }} />
+                Carga manual
+              </label>
             </div>
+            {!tecnicoManual ? (
+              <>
+                {tecnicos.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: "0.88rem", marginBottom: "10px" }}>No hay técnicos registrados en el sistema.</p>}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                  {tecnicos.map(t => {
+                    const nombre = t.nombre || t.email;
+                    const sel = tecnicosSeleccionados.includes(nombre);
+                    return (
+                      <button key={t.id} onClick={() => setTecnicosSeleccionados(prev => sel ? prev.filter(x => x !== nombre) : [...prev, nombre])}
+                        style={{ padding: "9px 16px", borderRadius: "20px", border: `2px solid ${sel ? "var(--primary-blue)" : "#ddd"}`, background: sel ? "var(--primary-blue)" : "#fff", color: sel ? "#fff" : "#555", fontWeight: sel ? 700 : 500, cursor: "pointer", fontSize: "0.88rem", transition: "0.2s" }}>
+                        {sel ? "✓ " : ""}{nombre}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <div>
+                <label style={labelSt}>Nombre del técnico</label>
+                <input style={inputSt} value={tecnicoManualNombre} onChange={e => setTecnicoManualNombre(e.target.value)} placeholder="Nombre y apellido del técnico..." />
+              </div>
+            )}
           </div>
 
           <div style={{ textAlign: "right" }}>
@@ -844,18 +888,21 @@ export default function OTPage() {
         <div>
           <div style={cardSt}>
             <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "20px", fontSize: "1rem" }}>Firmas</h2>
-            {[
-              { label: "Técnico Responsable", sig: firmaTecnico, setSig: setFirmaTecnico, ref: sigTecRef },
-              { label: "Cliente / Comitente", sig: firmaCliente, setSig: setFirmaCliente, ref: sigCliRef },
-            ].map(({ label, sig, setSig, ref: sigRef }) => (
-              <div key={label} style={{ marginBottom: "28px" }}>
+            {([
+              { label: "Técnico Responsable", sig: firmaTecnico, setSig: setFirmaTecnico, ref: sigTecRef, nombre: nombreFirmaTecnico, setNombre: setNombreFirmaTecnico, placeholder: "Nombre del técnico..." },
+              { label: "Cliente / Comitente", sig: firmaCliente, setSig: setFirmaCliente, ref: sigCliRef, nombre: nombreFirmaCliente, setNombre: setNombreFirmaCliente, placeholder: "Nombre del cliente / representante..." },
+            ] as any[]).map(({ label, sig, setSig, ref: sigRef, nombre, setNombre, placeholder }) => (
+              <div key={label} style={{ marginBottom: "32px" }}>
                 <label style={labelSt}>{label}</label>
-                <div style={{ border: "2px solid #ddd", borderRadius: "10px", overflow: "hidden", background: "#f9f9f9", touchAction: "none" }}>
+                <div style={{ marginBottom: "10px" }}>
+                  <input style={{ ...inputSt, fontSize: "0.88rem" }} value={nombre} onChange={e => setNombre(e.target.value)} placeholder={placeholder} />
+                </div>
+                <div style={{ border: "2px solid #ddd", borderRadius: "10px", overflow: "hidden", background: "#f9f9f9" }}>
                   <SignatureCanvas ref={sigRef} penColor="#002244"
-                    canvasProps={{ width: 800, height: 180, style: { width: "100%", height: "180px" } }} />
+                    canvasProps={{ style: { width: "100%", height: "180px", touchAction: "none", display: "block" } }} />
                 </div>
                 <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                  <button onClick={() => sigRef.current?.clear()}
+                  <button onClick={() => { sigRef.current?.clear(); }}
                     style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: "0.85rem" }}>
                     🗑 Limpiar
                   </button>
