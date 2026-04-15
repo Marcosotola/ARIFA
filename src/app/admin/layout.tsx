@@ -76,9 +76,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  if (isAdmin || isTecnico) {
+    sidebarLinks.push(
+      { label: "Certificados", href: "/admin/certificados", icon: "📜" }
+    );
+  }
+
   if (isAdmin) {
     sidebarLinks.push(
-      { label: "Usuarios", href: "/admin/usuarios", icon: "👥" }
+      { label: "Usuarios", href: "/admin/usuarios", icon: "👥" },
+      { label: "Plantillas", href: "/admin/templates", icon: "🗂️" }
     );
   }
 
