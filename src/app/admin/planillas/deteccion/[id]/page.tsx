@@ -15,7 +15,7 @@ import type SignatureCanvasType from "react-signature-canvas";
 const SignatureCanvas = dynamic(() => import("react-signature-canvas"), { ssr: false }) as any;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-interface PlantillaItem { id: string; descripcion: string; esGrupo?: boolean; }
+interface PlantillaItem { id: string; descripcion: string; esGrupo?: boolean; tipoColumna?: string; }
 interface Plantilla {
   id: string; codigo: string; nombre: string; categoria: string;
   frecuencia: string; tipo: "checklist" | "tabla_piso";
