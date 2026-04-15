@@ -357,9 +357,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           .mobile-admin-header { display: flex !important; }
           .admin-aside {
             position: fixed !important;
-            transform: translateX(-100%);
-            height: 100vh !important;
+            top: 60px !important;
+            left: 0 !important;
+            height: calc(100vh - 60px) !important;
             overflow-y: auto !important;
+            overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch !important;
+            transform: translateX(-100%);
+            padding-bottom: 30px !important;
           }
           .admin-aside.open {
             transform: translateX(0);

@@ -11,11 +11,10 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dynamic from "next/dynamic";
 import type SignatureCanvasType from "react-signature-canvas";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const SignatureCanvas = dynamic(() => import("react-signature-canvas"), { ssr: false }) as any;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-interface PlantillaItem { id: string; descripcion: string; esGrupo?: boolean; }
+interface PlantillaItem { id: string; descripcion: string; esGrupo?: boolean; tipoColumna?: string; }
 interface Plantilla {
   id: string; codigo: string; nombre: string; categoria: string;
   frecuencia: string; tipo: "checklist" | "tabla_piso";
@@ -34,16 +33,18 @@ interface PlanillaEnOT {
 interface Cliente { id: string; nombre?: string; empresa?: string; razonSocial?: string; direccion?: string; telefono?: string; email?: string; }
 interface Tecnico { id: string; nombre?: string; email: string; }
 
+// ─── Constants ───────────────────────────────────────────────────────────────
+const COLECCION = "ordenes_trabajo_extincion";
+const RUTA_LISTADO = "/admin/planillas/extincion";
+const CATEGORIA_LABEL = "🧯 Extinción";
 const PASOS = ["Cabecera", "Planillas", "Observaciones", "Fotos", "Firmas"];
 const PASOS_ICONS = ["📋", "📊", "📝", "📷", "✍️"];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 const labelSt: React.CSSProperties = { display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.4px" };
 const inputSt: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none" };
 const cardSt: React.CSSProperties = { background: "#fff", borderRadius: "12px", padding: "24px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", marginBottom: "20px" };
 
-// ─── Component ───────────────────────────────────────────────────────────────
-export default function OTPage() {
+export default function ExtincionOTPage() {
   const params = useParams();
   const router = useRouter();
   const isNueva = params.id === "nueva";
@@ -52,13 +53,11 @@ export default function OTPage() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Data
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [tecnicos, setTecnicos] = useState<Tecnico[]>([]);
   const [nextNum, setNextNum] = useState(1);
 
-  // Form - Cabecera
   const [numero, setNumero] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
   const [clienteManual, setClienteManual] = useState(false);
@@ -71,29 +70,19 @@ export default function OTPage() {
   const [tecnicosSeleccionados, setTecnicosSeleccionados] = useState<string[]>([]);
   const [estado, setEstado] = useState("borrador");
 
-  // Filtros del selector de planillas
-  const [filtroCat, setFiltroCat] = useState<"all" | "deteccion" | "extincion">("all");
+  const [filtroCat, setFiltroCat] = useState<"all" | "deteccion" | "extincion">("extincion");
   const [busquedaPlanilla, setBusquedaPlanilla] = useState("");
-
-  // Form - Planillas
   const [planillasEnOT, setPlanillasEnOT] = useState<PlanillaEnOT[]>([]);
-
-  // Form - Observaciones
   const [observacionesExtra, setObservacionesExtra] = useState<string[]>([]);
   const [nuevaObs, setNuevaObs] = useState("");
-
-  // Form - Fotos
   const [fotos, setFotos] = useState<string[]>([]);
   const [uploadingFoto, setUploadingFoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Form - Firmas
   const sigTecRef = useRef<any>(null);
   const sigCliRef = useRef<any>(null);
   const [firmaTecnico, setFirmaTecnico] = useState<string | null>(null);
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
 
-  // ── Init ──────────────────────────────────────────────────────────────────
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
@@ -115,7 +104,7 @@ export default function OTPage() {
     try {
       const snap = await getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente")));
       setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Cliente)));
-    } catch { /* ok if empty */ }
+    } catch { /* ok */ }
   };
 
   const loadTecnicos = async () => {
@@ -127,16 +116,16 @@ export default function OTPage() {
 
   const loadNextNum = async () => {
     try {
-      const snap = await getDocs(collection(db, "ordenes_trabajo"));
+      const snap = await getDocs(collection(db, COLECCION));
       const nums = snap.docs.map(d => (d.data() as any).numero || 0);
-      setNextNum(nums.length ? Math.max(...nums) + 1 : 1);
-      setNumero(String(nums.length ? Math.max(...nums) + 1 : 1));
+      const n = nums.length ? Math.max(...nums) + 1 : 1;
+      setNextNum(n); setNumero(String(n));
     } catch { setNumero("1"); }
   };
 
   const loadOT = async () => {
     try {
-      const d = await getDoc(doc(db, "ordenes_trabajo", params.id as string));
+      const d = await getDoc(doc(db, COLECCION, params.id as string));
       if (!d.exists()) return;
       const data = d.data() as any;
       setNumero(String(data.numero || ""));
@@ -157,18 +146,12 @@ export default function OTPage() {
     } catch (e) { console.error(e); }
   };
 
-  // ── Planillas Helpers ─────────────────────────────────────────────────────
   const togglePlanilla = (p: Plantilla, checked: boolean) => {
     if (checked) {
       const nueva: PlanillaEnOT = {
-        plantillaId: p.id,
-        codigo: p.codigo,
-        nombre: p.nombre,
-        tipo: p.tipo,
+        plantillaId: p.id, codigo: p.codigo, nombre: p.nombre, tipo: p.tipo,
         modoChecklist: p.modoChecklist || "ok_nok",
-        columnas: p.columnas || [],
-        infoFields: p.infoFields || [],
-        infoValues: {},
+        columnas: p.columnas || [], infoFields: p.infoFields || [], infoValues: {},
         filasChecklist: p.tipo === "checklist"
           ? (p.items || []).map(it => ({ itemId: it.id, descripcion: it.descripcion, esGrupo: it.esGrupo, tipoColumna: it.tipoColumna || "checklist", valor: "", observacion: "" }))
           : [],
@@ -205,13 +188,11 @@ export default function OTPage() {
   const updateInfoValue = (pIdx: number, field: string, val: string) =>
     setPlanillasEnOT(prev => prev.map((x, i) => i === pIdx ? { ...x, infoValues: { ...x.infoValues, [field]: val } } : x));
 
-  // ── Observaciones ─────────────────────────────────────────────────────────
   const obsAutomaticas = planillasEnOT.flatMap(p =>
     p.filasChecklist.filter(f => !f.esGrupo && f.observacion.trim())
       .map(f => `[${p.nombre}] ${f.descripcion}: ${f.observacion}`)
   );
 
-  // ── Fotos ─────────────────────────────────────────────────────────────────
   const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
@@ -228,7 +209,6 @@ export default function OTPage() {
     finally { setUploadingFoto(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
 
-  // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async (estadoOverride?: string) => {
     setSaving(true);
     try {
@@ -251,16 +231,15 @@ export default function OTPage() {
         updatedAt: serverTimestamp(),
       };
       if (isNueva) {
-        await addDoc(collection(db, "ordenes_trabajo"), { ...payload, createdAt: serverTimestamp() });
+        await addDoc(collection(db, COLECCION), { ...payload, createdAt: serverTimestamp() });
       } else {
-        await updateDoc(doc(db, "ordenes_trabajo", params.id as string), payload);
+        await updateDoc(doc(db, COLECCION, params.id as string), payload);
       }
-      router.push("/admin/planillas/deteccion");
+      router.push(RUTA_LISTADO);
     } catch (e) { alert("Error al guardar: " + e); }
     finally { setSaving(false); }
   };
 
-  // ── PDF ───────────────────────────────────────────────────────────────────
   const handlePDF = async () => {
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
@@ -268,7 +247,6 @@ export default function OTPage() {
     const W = 210; const ML = 15; const MR = 15; const TW = W - ML - MR;
     let y = 15;
 
-    // Load logo
     let logoDataUrl: string | null = null;
     try {
       const resp = await fetch("/logos/logoFondoTransparente.svg");
@@ -278,30 +256,25 @@ export default function OTPage() {
         fr.onload = () => res(fr.result as string);
         fr.readAsDataURL(blob);
       });
-    } catch { /* skip logo */ }
+    } catch { /* skip */ }
 
     const drawHeader = (pdf: any, yPos: number) => {
-      // Logo
       if (logoDataUrl) pdf.addImage(logoDataUrl, "SVG", ML, yPos, 35, 18);
-      // Company info
       pdf.setFontSize(9); pdf.setTextColor(100);
       pdf.text("ARIFA — Prevención y Protección contra Incendios", ML + 38, yPos + 5);
       pdf.text("www.arifa.com.ar", ML + 38, yPos + 9);
-      // OT box
       pdf.setFillColor(0, 34, 68);
       pdf.rect(W - MR - 55, yPos, 55, 10, "F");
       pdf.setTextColor(255); pdf.setFontSize(7); pdf.setFont(undefined as any, "bold");
-      pdf.text("ORDEN DE TRABAJO", W - MR - 27.5, yPos + 4, { align: "center" });
+      pdf.text("ORDEN DE TRABAJO — EXTINCIÓN", W - MR - 27.5, yPos + 4, { align: "center" });
       pdf.setFontSize(12);
-      pdf.text(`OT-${String(numero).padStart(4, "0")}`, W - MR - 27.5, yPos + 9, { align: "center" });
-      // Date & client
+      pdf.text(`OT-EXT-${String(numero).padStart(4, "0")}`, W - MR - 27.5, yPos + 9, { align: "center" });
       pdf.setTextColor(50); pdf.setFont(undefined as any, "normal"); pdf.setFontSize(9);
       pdf.text(`Fecha: ${fecha ? new Date(fecha).toLocaleDateString("es-AR") : "-"}`, W - MR - 55, yPos + 14);
       return yPos + 22;
     };
 
     y = drawHeader(pdf, y);
-    // Client box
     pdf.setFillColor(240, 243, 250);
     pdf.rect(ML, y, TW, 18, "F");
     pdf.setFontSize(9); pdf.setTextColor(30);
@@ -315,7 +288,6 @@ export default function OTPage() {
     pdf.text(`Técnico(s): ${tecnicosSeleccionados.join(", ") || "-"}`, ML + 3, y + 17);
     y += 22;
 
-    // Observations table
     const allObs = [...obsAutomaticas, ...observacionesExtra].filter(Boolean);
     if (allObs.length) {
       pdf.setFont(undefined as any, "bold"); pdf.setFontSize(10); pdf.setTextColor(0, 34, 68);
@@ -329,31 +301,27 @@ export default function OTPage() {
       y = (pdf as any).lastAutoTable.finalY + 8;
     }
 
-    // Planillas
     for (const p of planillasEnOT) {
       if (y > 240) { pdf.addPage(); y = drawHeader(pdf, 15); y += 5; }
       pdf.setFont(undefined as any, "bold"); pdf.setFontSize(11); pdf.setTextColor(0, 34, 68);
       pdf.text(`${p.codigo} — ${p.nombre}`, ML, y); y += 7;
-      // Info values
       for (const [k, v] of Object.entries(p.infoValues)) {
         if (v) { pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8); pdf.setTextColor(60); pdf.text(`${k}: ${v}`, ML + 3, y); y += 5; }
       }
       if (p.tipo === "checklist") {
-        const esSiNo = (p as any).modoChecklist === "si_no";
+        const esSiNo = p.modoChecklist === "si_no";
         const colLabel1 = esSiNo ? "SI" : "OK";
         const colLabel2 = esSiNo ? "NO" : "NOK";
         autoTable(pdf, {
           startY: y, margin: { left: ML, right: MR },
           head: [["Ítem", "Resultado", "Observaciones"]],
           body: p.filasChecklist.map(f => {
-            if (f.esGrupo) {
-              return [{ content: f.descripcion, colSpan: 3, styles: { fillColor: [220, 220, 220], fontStyle: "bold", textColor: [30, 30, 30] } }];
-            }
-            const tc = (f as any).tipoColumna || "checklist";
+            if (f.esGrupo) return [{ content: f.descripcion, colSpan: 3, styles: { fillColor: [220, 220, 220], fontStyle: "bold", textColor: [30, 30, 30] } }];
+            const tc = f.tipoColumna || "checklist";
             let resultado = "";
             if (tc === "tiempo") resultado = f.valor ? `${f.valor} seg` : "-";
             else if (tc === "texto") resultado = f.valor || "-";
-            else resultado = f.valor === "ok" ? "✔ OK" : f.valor === "nok" ? "✘ NOK" : f.valor === "na" ? "N/A" : "-";
+            else resultado = f.valor === "ok" ? `✔ ${colLabel1}` : f.valor === "nok" ? `✘ ${colLabel2}` : f.valor === "na" ? "N/A" : "-";
             return [f.descripcion, resultado, f.observacion || ""];
           }),
           styles: { fontSize: 8 }, headStyles: { fillColor: [0, 34, 68] },
@@ -370,7 +338,6 @@ export default function OTPage() {
       y = (pdf as any).lastAutoTable.finalY + 10;
     }
 
-    // Photos
     if (fotos.length) {
       if (y > 180) { pdf.addPage(); y = drawHeader(pdf, 15); y += 5; }
       pdf.setFont(undefined as any, "bold"); pdf.setFontSize(11); pdf.setTextColor(0, 34, 68);
@@ -385,12 +352,11 @@ export default function OTPage() {
           col++;
           if (col === 2) { col = 0; y += 65; }
           if (y > 240) { pdf.addPage(); y = drawHeader(pdf, 15); y += 5; col = 0; }
-        } catch { /* skip bad image */ }
+        } catch { /* skip */ }
       }
       if (col > 0) y += 65;
     }
 
-    // Signatures
     if (y > 220) { pdf.addPage(); y = drawHeader(pdf, 15); y += 5; }
     pdf.setFont(undefined as any, "bold"); pdf.setFontSize(10); pdf.setTextColor(0, 34, 68);
     pdf.text("FIRMAS", ML, y + 5); y += 10;
@@ -402,18 +368,15 @@ export default function OTPage() {
     if (firmaTecnico) try { pdf.addImage(firmaTecnico, "PNG", ML + 5, y + 5, 70, 20); } catch { /* skip */ }
     if (firmaCliente) try { pdf.addImage(firmaCliente, "PNG", ML + TW / 2 + 10, y + 5, 70, 20); } catch { /* skip */ }
 
-    // Page numbers
     const totalPages = pdf.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       pdf.setPage(i);
       pdf.setFontSize(8); pdf.setTextColor(150);
       pdf.text(`Página ${i} / ${totalPages}`, W / 2, 292, { align: "center" });
     }
-
-    pdf.save(`OT-${String(numero).padStart(4, "0")}.pdf`);
+    pdf.save(`OT-EXT-${String(numero).padStart(4, "0")}.pdf`);
   };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   if (loading) return <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)" }}>Cargando...</div>;
 
   const clientesFiltrados = clientes.filter(c =>
@@ -426,11 +389,11 @@ export default function OTPage() {
       {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <button onClick={() => router.push("/admin/planillas/deteccion")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "5px" }}>
+          <button onClick={() => router.push(RUTA_LISTADO)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "5px" }}>
             ← Volver al listado
           </button>
           <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>
-            {isNueva ? "Nueva Orden de Trabajo" : `OT-${String(numero).padStart(4, "0")}`}
+            {isNueva ? "Nueva OT — Extinción" : `OT-EXT-${String(numero).padStart(4, "0")}`}
           </h1>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -443,7 +406,7 @@ export default function OTPage() {
         </div>
       </div>
 
-      {/* ── Stepper (scrollable en mobile) ── */}
+      {/* ── Stepper ── */}
       <div style={{ overflowX: "auto", marginBottom: "28px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
         <div style={{ display: "flex", minWidth: "420px", background: "#fff", borderRadius: "10px", overflow: "hidden" }}>
           {PASOS.map((p, i) => (
@@ -454,16 +417,14 @@ export default function OTPage() {
                 borderRight: i < PASOS.length - 1 ? "1px solid #eee" : "none", transition: "0.2s",
                 minWidth: "76px"
               }}>
-              <div style={{ fontSize: "1.2rem", marginBottom: "3px" }}>
-                {i < paso ? "✓" : PASOS_ICONS[i]}
-              </div>
+              <div style={{ fontSize: "1.2rem", marginBottom: "3px" }}>{i < paso ? "✓" : PASOS_ICONS[i]}</div>
               {p}
             </button>
           ))}
         </div>
       </div>
 
-      {/* ══════════ PASO 0: CABECERA ══════════ */}
+      {/* ══ PASO 0: CABECERA ══ */}
       {paso === 0 && (
         <div>
           <div style={cardSt}>
@@ -544,7 +505,7 @@ export default function OTPage() {
 
           <div style={cardSt}>
             <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "16px", fontSize: "1rem" }}>Técnico(s)</h2>
-            {tecnicos.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>No hay técnicos registrados en el sistema.</p>}
+            {tecnicos.length === 0 && <p style={{ color: "var(--text-muted)", fontSize: "0.88rem" }}>No hay técnicos registrados.</p>}
             <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
               {tecnicos.map(t => {
                 const nombre = t.nombre || t.email;
@@ -565,15 +526,13 @@ export default function OTPage() {
         </div>
       )}
 
-      {/* ══════════ PASO 1: PLANILLAS ══════════ */}
+      {/* ══ PASO 1: PLANILLAS ══ */}
       {paso === 1 && (
         <div>
-          {/* Selector con filtros */}
           <div style={cardSt}>
             <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "6px", fontSize: "1rem" }}>Seleccionar planillas para esta OT</h2>
             <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "16px" }}>Marcá todas las que aplican al trabajo de hoy.</p>
 
-            {/* Buscador */}
             <input
               style={{ ...inputSt, marginBottom: "14px" }}
               value={busquedaPlanilla}
@@ -581,7 +540,6 @@ export default function OTPage() {
               placeholder="🔎 Buscar planilla por nombre o código..."
             />
 
-            {/* Tabs de categoría */}
             <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
               {(["all", "deteccion", "extincion"] as const).map(cat => (
                 <button key={cat} onClick={() => setFiltroCat(cat)}
@@ -604,11 +562,7 @@ export default function OTPage() {
                   p.codigo.toLowerCase().includes(busquedaPlanilla.toLowerCase());
                 return matchCat && matchBusq;
               });
-
-              if (filtradas.length === 0) return (
-                <p style={{ color: "var(--text-muted)", fontStyle: "italic", padding: "16px 0" }}>No se encontraron planillas con ese filtro.</p>
-              );
-
+              if (filtradas.length === 0) return <p style={{ color: "var(--text-muted)", fontStyle: "italic", padding: "16px 0" }}>No se encontraron planillas.</p>;
               return (
                 <div style={{ display: "grid", gap: "8px" }}>
                   {filtradas.map(p => {
@@ -624,11 +578,9 @@ export default function OTPage() {
                             <span style={{ background: p.categoria === "deteccion" ? "#e3f2fd" : "#fff3e0", color: p.categoria === "deteccion" ? "#1565c0" : "#e65100", padding: "1px 7px", borderRadius: "10px", fontWeight: 600 }}>
                               {p.categoria === "deteccion" ? "🔍 Detección" : "🧯 Extinción"}
                             </span>
-                            <span>{p.codigo}</span>
-                            <span>·</span>
-                            <span style={{ textTransform: "capitalize" }}>{p.frecuencia}</span>
-                            <span>·</span>
-                            <span>{p.tipo === "checklist" ? "Checklist" : "Tabla por piso"}</span>
+                            <span>{p.codigo}</span><span>·</span>
+                            <span style={{ textTransform: "capitalize" }}>{p.frecuencia}</span><span>·</span>
+                            <span>{p.tipo === "checklist" ? "Checklist" : "Tabla"}</span>
                           </div>
                         </div>
                         {sel && <span style={{ fontSize: "1.2rem", color: "var(--primary-blue)", flexShrink: 0 }}>✓</span>}
@@ -640,7 +592,7 @@ export default function OTPage() {
             })()}
           </div>
 
-          {/* Fill in selected planillas */}
+          {/* Fill selected planillas */}
           {planillasEnOT.map((p, pIdx) => (
             <div key={p.plantillaId} style={{ ...cardSt, border: "2px solid var(--primary-blue)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
@@ -650,7 +602,6 @@ export default function OTPage() {
                 </div>
               </div>
 
-              {/* Info fields */}
               {p.infoFields.length > 0 && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "16px", background: "#f8f9fc", padding: "14px", borderRadius: "8px" }}>
                   {p.infoFields.map(field => (
@@ -672,7 +623,7 @@ export default function OTPage() {
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.88rem" }}>
                       <thead>
                         <tr style={{ background: "#002244", color: "#fff" }}>
-                          <th style={{ textAlign: "left", padding: "10px 12px" }}>\u00cdtem de inspecci\u00f3n</th>
+                          <th style={{ textAlign: "left", padding: "10px 12px" }}>Ítem de inspección</th>
                           <th style={{ textAlign: "center", padding: "10px 8px", minWidth: 50 }}>{label1}</th>
                           <th style={{ textAlign: "center", padding: "10px 8px", minWidth: 50 }}>{label2}</th>
                           <th style={{ textAlign: "center", padding: "10px 8px", minWidth: 50 }}>N/A</th>
@@ -772,7 +723,7 @@ export default function OTPage() {
         </div>
       )}
 
-      {/* ══════════ PASO 2: OBSERVACIONES ══════════ */}
+      {/* ══ PASO 2: OBSERVACIONES ══ */}
       {paso === 2 && (
         <div>
           <div style={cardSt}>
@@ -809,7 +760,7 @@ export default function OTPage() {
         </div>
       )}
 
-      {/* ══════════ PASO 3: FOTOS ══════════ */}
+      {/* ══ PASO 3: FOTOS ══ */}
       {paso === 3 && (
         <div>
           <div style={cardSt}>
@@ -839,7 +790,7 @@ export default function OTPage() {
         </div>
       )}
 
-      {/* ══════════ PASO 4: FIRMAS ══════════ */}
+      {/* ══ PASO 4: FIRMAS ══ */}
       {paso === 4 && (
         <div>
           <div style={cardSt}>
@@ -881,12 +832,6 @@ export default function OTPage() {
           </div>
         </div>
       )}
-
-      <style jsx global>{`
-        @media (max-width: 640px) {
-          .ot-stepper button { font-size: 0.65rem !important; padding: 10px 4px !important; }
-        }
-      `}</style>
     </div>
   );
 }
