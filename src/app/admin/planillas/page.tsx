@@ -6,6 +6,16 @@ import { collection, query, getDocs, doc, getDoc, orderBy } from "firebase/fires
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+interface Module {
+  title: string;
+  desc: string;
+  icon: string;
+  count: number | null;
+  color: string;
+  comingSoon?: boolean;
+  links: { label: string; href: string; primary: boolean }[];
+}
+
 export default function PlanillasHubPage() {
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,8 +44,9 @@ export default function PlanillasHubPage() {
   if (loading) return <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)" }}>Cargando Gestor de Planillas...</div>;
 
   const isAdmin = role === "admin";
+  const isStaff = role === "admin" || role === "tecnico";
 
-  const modules = [
+  const modules: Module[] = [
     {
       title: "Órdenes de Trabajo",
       desc: "Gestión de inspecciones en campo, checklists de detección, extinción y registros fotográficos.",
