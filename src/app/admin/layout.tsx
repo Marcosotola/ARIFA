@@ -12,7 +12,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [planillasOpen, setPlanillasOpen] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -45,13 +44,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Close sidebar on navigation (mobile)
   useEffect(() => {
     setSidebarOpen(false);
-  }, [pathname]);
-
-  // Auto-open planillas submenu when navigating to planillas/templates
-  useEffect(() => {
-    if (pathname.startsWith("/admin/planillas") || pathname.startsWith("/admin/templates")) {
-      setPlanillasOpen(true);
-    }
   }, [pathname]);
 
   if (loading) return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontStyle:'italic', color:'var(--text-muted)'}}>Cargando Panel ARIFA...</div>;

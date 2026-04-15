@@ -34,7 +34,6 @@ export default function PlanillasHubPage() {
   if (loading) return <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)" }}>Cargando Gestor de Planillas...</div>;
 
   const isAdmin = role === "admin";
-  const isStaff = role === "admin" || role === "tecnico";
 
   const modules = [
     {
