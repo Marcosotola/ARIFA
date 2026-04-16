@@ -71,12 +71,14 @@ export default function PlanillasHubPage() {
     },
     {
       title: "Matafuegos",
-      desc: "Control de carga, vencimientos y mantenimiento preventivo de extintores portátiles.",
+      desc: "Gestión de retiros, recargas y devoluciones de extintores. Remitos digitales con firma.",
       icon: "🧯",
       count: null,
       color: "#c53030",
-      comingSoon: true,
-      links: []
+      links: [
+        { label: "Ver Remitos", href: "/admin/planillas/matafuegos", primary: false },
+        { label: "Nuevo Retiro/Entrega", href: "/admin/planillas/matafuegos/nuevo", primary: true },
+      ]
     },
   ];
 
