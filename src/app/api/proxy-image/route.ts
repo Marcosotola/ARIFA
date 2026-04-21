@@ -1,26 +1,28 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
-// Proxies Firebase Storage images server-side to avoid browser CORS restrictions
-// when drawing to canvas for PDF generation.
-export async function GET(req: NextRequest) {
-  const url = req.nextUrl.searchParams.get("url");
-  if (!url) return new NextResponse("Missing url param", { status: 400 });
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const imageUrl = searchParams.get('url');
+
+  if (!imageUrl) {
+    return NextResponse.json({ error: 'URL is required' }, { status: 400 });
+  }
 
   try {
-    const res = await fetch(url, { cache: "no-store" });
-    if (!res.ok) return new NextResponse("Failed to fetch image", { status: res.status });
+    const response = await fetch(imageUrl);
+    if (!response.ok) throw new Error('Failed to fetch image');
 
-    const buffer = await res.arrayBuffer();
-    const contentType = res.headers.get("Content-Type") || "image/jpeg";
+    const blob = await response.blob();
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
 
-    return new NextResponse(buffer, {
+    return new NextResponse(blob, {
       headers: {
-        "Content-Type": contentType,
-        "Access-Control-Allow-Origin": "*",
-        "Cache-Control": "public, max-age=3600",
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=3600',
       },
     });
-  } catch (e) {
-    return new NextResponse("Error: " + e, { status: 500 });
+  } catch (error) {
+    console.error('Error proxying image:', error);
+    return NextResponse.json({ error: 'Failed to proxy image' }, { status: 500 });
   }
 }
