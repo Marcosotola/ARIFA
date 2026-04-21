@@ -67,6 +67,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Planillas as a top-level item now
   sidebarLinks.push({ label: "Planillas", href: "/admin/planillas", icon: "📋" });
 
+  // Notifications — admin and tecnico only
+  if (isAdmin || isTecnico) {
+    sidebarLinks.push({ label: "Notificaciones", href: "/admin/notificaciones", icon: "🔔" });
+  }
+
   const configLink = { label: "Configuración", href: "/admin/config", icon: "⚙️" };
 
 

@@ -2,13 +2,13 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, getDocs, where, doc, getDoc, orderBy } from "firebase/firestore";
+import { collection, query, getDocs, where, doc, getDoc, orderBy, limit } from "firebase/firestore";
 import Link from "next/link";
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null);
   const [role, setRole] = useState<string | null>(null);
-  const [stats, setStats] = useState({ unread: 0, ordenes: 0, certificados: 0, productos: 0, usuarios: 0 });
+  const [stats, setStats] = useState({ unread: 0, ordenes: 0, certificados: 0, productos: 0, usuarios: 0, notificaciones: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,12 +34,14 @@ export default function AdminDashboard() {
         const certSnap = await getDocs(query(collection(db, "certificados"), orderBy("createdAt", "desc")));
         const prodSnap = await getDocs(collection(db, "productos"));
         const userSnap = await getDocs(collection(db, "usuarios"));
+        const notifSnap = await getDocs(query(collection(db, "notificaciones_enviadas"), orderBy("creadaEn", "desc"), limit(100)));
         setStats({
           unread: unreadSnap.size,
           ordenes: otSnap.size,
           certificados: certSnap.size,
           productos: prodSnap.size,
-          usuarios: userSnap.size
+          usuarios: userSnap.size,
+          notificaciones: notifSnap.size,
         });
       } else {
         const qMyConsultas = query(collection(db, "consultas"), where("email", "==", email));
@@ -74,6 +76,7 @@ export default function AdminDashboard() {
     { label: "Total Planillas", value: stats.ordenes + stats.certificados, color: "#2b6cb0", icon: "📋", href: "/admin/planillas" },
     { label: "Productos", value: stats.productos, color: "#FF9800", icon: "🛒", href: "/admin/productos" },
     { label: "Usuarios", value: stats.usuarios, color: "#9C27B0", icon: "👥", href: "/admin/usuarios" },
+    { label: "Notificaciones", value: stats.notificaciones, color: "#0891b2", icon: "🔔", href: "/admin/notificaciones" },
   ];
 
   return (
@@ -136,6 +139,7 @@ export default function AdminDashboard() {
               <Link href="/admin/planillas" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📋 Gestionar Planillas</Link>
               <Link href="/admin/productos" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📦 Catálogo & Prod.</Link>
               <Link href="/admin/consultas" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>📧 Consultas Recib.</Link>
+              <Link href="/admin/notificaciones" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>🔔 Notificaciones</Link>
               {isAdmin && <Link href="/admin/usuarios" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)", padding: "14px 15px", borderRadius: "8px", color: "#fff", fontWeight: 700, cursor: "pointer", textAlign: "left", fontSize: '0.85rem', display: 'block' }}>👥 Usuarios Sist.</Link>}
             </div>
           )}

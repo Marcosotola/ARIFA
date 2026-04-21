@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
+import PWAInstallButton from "./PWAInstallButton";
 
 // NAV DATA - espejos de Maxi Seguridad adaptado a ARIFA
 const NAV_ITEMS = [
@@ -201,6 +202,8 @@ export default function Header() {
             351 244-9504
           </a>
 
+          <PWAInstallButton />
+
           <Link href={user ? "/admin" : "/login"} className="header-cta" style={{ background: "var(--primary-blue)", color: "#fff", borderColor: "var(--primary-blue)" }}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             <span className="cta-text">{user ? "Mi Cuenta" : "Ingresar"}</span>
@@ -246,7 +249,8 @@ export default function Header() {
               </div>
             );
           })}
-          <div style={{padding:'15px 0'}}>
+          <div style={{padding:'15px 0', display:'flex', flexDirection:'column', gap:'10px'}}>
+            <PWAInstallButton />
             <Link href={user ? "/admin" : "/login"} className="btn-blue" style={{display:'block', textAlign:'center'}}>
               {user ? "Mi Cuenta" : "Ingresar"}
             </Link>
