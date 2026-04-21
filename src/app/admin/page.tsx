@@ -53,7 +53,8 @@ export default function AdminDashboard() {
           ordenes: myOrdSnap.size,
           certificados: 0,
           productos: 0,
-          usuarios: 0
+          usuarios: 0,
+          notificaciones: 0
         });
       }
     } catch (e) {
