@@ -4,10 +4,12 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { requestNotificationPermission, isPushSupported, isIOS } from "@/lib/firebase-messaging";
+import Link from "next/link";
 
 export default function ConfigPage() {
   const [user, setUser] = useState<any>(null);
   const [nombre, setNombre] = useState("");
+  const [rol, setRol] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -28,6 +30,7 @@ export default function ConfigPage() {
         if (userDoc.exists()) {
           const data = userDoc.data();
           setNombre(data.nombre || "");
+          setRol(data.rol || "cliente");
           setHasToken(!!data.fcmToken);
         }
         setLoading(false);
@@ -121,6 +124,20 @@ export default function ConfigPage() {
         <p style={{ color: "var(--text-muted)", marginTop: "5px", fontSize: "0.95rem" }}>
           Administra tus datos personales y preferencias de cuenta.
         </p>
+        
+        {/* Acceso rápido a Suscripción para superadmin */}
+        {rol?.toLowerCase() === 'superadmin' && (
+          <div style={{ marginTop: '15px' }}>
+            <Link href="/admin/config/suscripcion" style={{ 
+              display: 'inline-flex', alignItems: 'center', gap: '8px', 
+              padding: '8px 16px', background: 'var(--primary-blue)', 
+              color: '#fff', borderRadius: '8px', fontSize: '0.85rem', 
+              fontWeight: 700, textDecoration: 'none' 
+            }}>
+              💳 Ir a Gestión de Suscripción
+            </Link>
+          </div>
+        )}
       </header>
 
       {/* Profile form */}

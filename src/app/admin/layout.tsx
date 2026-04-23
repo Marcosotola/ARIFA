@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 
@@ -12,11 +12,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [subscription, setSubscription] = useState<any>(null);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (u) => {
+    // 1. Auth and Role
+    const unsubAuth = onAuthStateChanged(auth, async (u) => {
       if (!u) {
         if (!["/login", "/register"].includes(pathname)) {
           router.push("/login");
@@ -34,11 +36,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const q = query(collection(db, "consultas"), where("estado", "==", "nueva"));
         const snapshot = await getDocs(q);
         setUnreadCount(snapshot.size);
-        
-        setLoading(false);
       }
     });
-    return () => unsub();
+
+    // 2. Subscription Status (Real-time)
+    const unsubSub = onSnapshot(doc(db, "configuracion", "suscripcion"), (docSnap) => {
+      if (docSnap.exists()) {
+        setSubscription(docSnap.data());
+      } else {
+        // Default if not exists
+        setSubscription({
+          estado: "activo",
+          costo: 120000,
+          vencimiento: null
+        });
+      }
+      setLoading(false);
+    });
+
+    return () => {
+      unsubAuth();
+      unsubSub();
+    };
   }, [pathname, router]);
 
   // Close sidebar on navigation (mobile)
@@ -48,9 +67,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading) return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontStyle:'italic', color:'var(--text-muted)'}}>Cargando Panel ARIFA...</div>;
 
-  const isClient = role === "cliente";
-  const isAdmin = role === "admin";
+  const isSuperAdmin = role === "superadmin";
+  const isAdmin = role === "admin" || isSuperAdmin;
   const isTecnico = role === "tecnico";
+  const isClient = role === "cliente";
+
+  // Subscription logic
+  const isExpired = subscription?.estado === "vencido" || (subscription?.vencimiento && subscription.vencimiento.toDate() < new Date());
+  const isMaintenance = subscription?.estado === "mantenimiento";
+  const shouldBlock = (isExpired || isMaintenance) && !isSuperAdmin;
+
+  // Special case for Admin: Redirect to subscription page if blocked
+  if (shouldBlock && isAdmin && pathname !== "/admin/config/suscripcion") {
+    router.push("/admin/config/suscripcion");
+    return null;
+  }
+
+  // Block everyone else with a maintenance screen
+  if (shouldBlock && !isAdmin) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', padding: '20px', textAlign: 'center' }}>
+        <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🛠️</div>
+        <h1 style={{ color: 'var(--primary-blue)', marginBottom: '10px' }}>
+          {isMaintenance ? "Sitio en Mantenimiento" : "Servicio Suspendido"}
+        </h1>
+        <p style={{ color: '#666', maxWidth: '400px', lineHeight: '1.6' }}>
+          {isMaintenance 
+            ? "Estamos realizando mejoras en la plataforma. Por favor, volvé a intentarlo más tarde." 
+            : "La suscripción de este sitio ha expirado. Por favor, contacte al administrador."}
+        </p>
+        <button 
+          onClick={() => auth.signOut().then(() => router.push("/"))}
+          style={{ marginTop: '30px', padding: '10px 25px', background: 'var(--primary-blue)', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}
+        >
+          Volver al Inicio
+        </button>
+      </div>
+    );
+  }
+
   const sidebarLinks = [
     { label: "Mi Panel", href: "/admin", icon: "📊" },
     { label: isClient ? "Mis Consultas" : "Consultas", href: "/admin/consultas", icon: "📧", badge: !isClient && unreadCount > 0 ? unreadCount : null },
@@ -64,7 +119,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: "👥" });
   }
 
-  // Planillas as a top-level item now
+  // Planillas as a top-level item
   sidebarLinks.push({ label: "Planillas", href: "/admin/planillas", icon: "📋" });
 
   // Notifications — admin and tecnico only
@@ -73,7 +128,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const configLink = { label: "Configuración", href: "/admin/config", icon: "⚙️" };
-
 
   return (
     <div className="admin-layout" style={{ display: "flex", minHeight: "100vh", background: "#f0f2f5", position: 'relative' }}>
@@ -175,6 +229,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </li>
               );
             })}
+
+            {/* Suscripción - Solo Superadmin */}
+            {role?.toLowerCase() === 'superadmin' && (
+              <li style={{ marginBottom: "8px" }}>
+                <Link 
+                  href="/admin/config/suscripcion" 
+                  style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: "12px", 
+                    padding: "12px 15px", 
+                    borderRadius: "8px",
+                    textDecoration: "none",
+                    color: pathname === "/admin/config/suscripcion" ? "#fff" : "rgba(255,255,255,0.7)",
+                    background: pathname === "/admin/config/suscripcion" ? "rgba(255,255,255,0.15)" : "transparent",
+                    fontWeight: pathname === "/admin/config/suscripcion" ? 700 : 500,
+                    transition: "0.2s"
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>💳</span>
+                  <span style={{ flex: 1 }}>Suscripción</span>
+                </Link>
+              </li>
+            )}
 
             {/* Configuración - Final item in list */}
             <li style={{ marginBottom: "8px" }}>

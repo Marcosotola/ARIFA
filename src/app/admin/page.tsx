@@ -27,7 +27,8 @@ export default function AdminDashboard() {
   const fetchStats = async (uid: string, email: string | null, role: string) => {
     try {
       setLoading(true);
-      if (role === 'admin' || role === 'tecnico') {
+      const isStaffOrAdmin = role === 'admin' || role === 'tecnico' || role === 'superadmin';
+      if (isStaffOrAdmin) {
         const [unreadSnap, otSnap, certSnap, prodSnap, userSnap, notifSnap, remSnap, mantSnap] = await Promise.all([
           getDocs(query(collection(db, "consultas"), where("estado", "==", "nueva"))),
           getDocs(query(collection(db, "ordenes_trabajo"), orderBy("createdAt", "desc"))),
@@ -39,12 +40,23 @@ export default function AdminDashboard() {
           getDocs(collection(db, "mantenimiento_matafuegos"))
         ]);
         
+        let userCount = userSnap.size;
+        const currentRole = role?.toLowerCase();
+
+        if (currentRole !== 'superadmin') {
+          // Contamos solo los que NO son superadmin
+          userCount = userSnap.docs.filter(doc => {
+            const userRole = doc.data().rol?.toLowerCase();
+            return userRole !== 'superadmin';
+          }).length;
+        }
+        
         setStats({
           unread: unreadSnap.size,
           ordenes: otSnap.size,
           certificados: certSnap.size,
           productos: prodSnap.size,
-          usuarios: userSnap.size,
+          usuarios: userCount,
           notificaciones: notifSnap.size,
           matafuegos: remSnap.size + mantSnap.size
         });
@@ -75,7 +87,8 @@ export default function AdminDashboard() {
   };
 
   const isClient = role === "cliente";
-  const isStaff = role === "admin" || role === "tecnico";
+  const isSuperAdmin = role === "superadmin";
+  const isStaff = role === "admin" || role === "tecnico" || isSuperAdmin;
 
   const statCards = isClient ? [
     { label: "Mis Consultas", value: stats.unread, color: "var(--primary-red)", icon: "📧", href: "/admin/consultas" },

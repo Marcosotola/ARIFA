@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
-import { collection, getDocs, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
+import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
 export default function UsuariosPage() {
@@ -12,9 +12,17 @@ export default function UsuariosPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
 
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
+
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
+      if (user) {
+        const userDoc = await getDoc(doc(db, "usuarios", user.uid));
+        if (userDoc.exists()) {
+          setCurrentUserRole(userDoc.data().rol);
+        }
+      }
     });
     fetchUsuarios();
     return () => unsub();
@@ -33,6 +41,14 @@ export default function UsuariosPage() {
       setLoading(false);
     }
   };
+
+  // Filtrar usuarios para que el superadmin sea invisible para otros
+  const usuariosVisibles = usuarios.filter(u => {
+    const isTargetSuper = u.rol?.toLowerCase() === "superadmin";
+    const isMeSuper = currentUserRole?.toLowerCase() === "superadmin";
+    if (!isMeSuper && isTargetSuper) return false;
+    return true;
+  });
 
   const handleEdit = (user: any) => {
     setEditingUser({ ...user });
@@ -86,7 +102,7 @@ export default function UsuariosPage() {
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Gestión de Usuarios</h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px", fontSize: "0.95rem" }}>
-            Administra los roles y estados de los usuarios en ARIFA.
+            Administra los roles y estados de los usuarios en ARIFA ({usuariosVisibles.length} registros).
           </p>
         </div>
       </header>
@@ -103,7 +119,7 @@ export default function UsuariosPage() {
               </tr>
             </thead>
             <tbody>
-              {usuarios.map((u) => (
+              {usuariosVisibles.map((u) => (
                 <tr key={u.id} style={{ borderBottom: "1px solid #f8f8f8" }}>
                   <td style={{ padding: "15px 20px" }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -117,8 +133,8 @@ export default function UsuariosPage() {
                   <td style={{ padding: "15px 20px" }}>
                     <span style={{ 
                       fontSize: "0.65rem", fontWeight: 900, padding: "4px 10px", borderRadius: "20px", 
-                      background: u.rol === "admin" ? "rgba(163, 31, 29, 0.1)" : u.rol === 'tecnico' ? "rgba(0, 34, 68, 0.1)" : "rgba(0,0,0,0.05)", 
-                      color: u.rol === "admin" ? "var(--primary-red)" : u.rol === 'tecnico' ? "var(--primary-blue)" : "#666",
+                      background: u.rol?.toLowerCase() === "superadmin" ? "var(--primary-blue)" : u.rol?.toLowerCase() === "admin" ? "rgba(163, 31, 29, 0.1)" : u.rol?.toLowerCase() === 'tecnico' ? "rgba(0, 34, 68, 0.1)" : "rgba(0,0,0,0.05)", 
+                      color: u.rol?.toLowerCase() === "superadmin" ? "#fff" : u.rol?.toLowerCase() === "admin" ? "var(--primary-red)" : u.rol?.toLowerCase() === 'tecnico' ? "var(--primary-blue)" : "#666",
                       textTransform: "uppercase", letterSpacing: '0.5px'
                     }}>
                       {u.rol}
@@ -169,7 +185,11 @@ export default function UsuariosPage() {
                 >
                   <option value="cliente">Cliente</option>
                   <option value="tecnico">Técnico</option>
+                  <option value="secretaria">Secretaria</option>
                   <option value="admin">Administrador</option>
+                  {currentUserRole?.toLowerCase() === "superadmin" && (
+                    <option value="superadmin">Superadmin</option>
+                  )}
                 </select>
               </div>
 
