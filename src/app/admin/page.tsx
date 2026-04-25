@@ -46,6 +46,16 @@ const MODULES = [
     roles: ["admin", "tecnico", "superadmin"],
   },
   {
+    icon: "📈",
+    label: "Plan de Acción",
+    description: "Seguimiento de mejoras, prioridades y costos por consorcio.",
+    href: "/admin/plan-accion",
+    color: "#6b46c1", // Purple
+    roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente"],
+    clientLabel: "Mi Plan de Acción",
+    clientDescription: "Mejoras propuestas y estado de ejecución.",
+  },
+  {
     icon: "🦺",
     label: "HyS",
     description: "Visitas, capacitaciones, ATS y programas de seguridad.",

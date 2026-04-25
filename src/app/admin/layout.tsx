@@ -131,6 +131,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // HyS — admin and tecnico
   if (isAdmin || isTecnico) {
+    sidebarLinks.push({ label: "Plan de Acción", href: "/admin/plan-accion", icon: "📈" });
     sidebarLinks.push({ label: "HyS", href: "/admin/hys", icon: "🦺" });
   }
 
