@@ -12,6 +12,8 @@ interface Producto {
   proveedor?: string;
   precioVenta?: number;
   activo?: boolean;
+  imagenes?: string[];
+  imagen?: string; // legacy
 }
 
 // Category icons mapping
@@ -28,22 +30,195 @@ const CAT_ICONS: Record<string, string> = {
 };
 
 const CAT_COLORS: Record<string, string> = {
-  "Matafuegos": "#dc2626",
-  "Detectores y Alarmas": "#2563eb",
-  "Señalización": "#d97706",
-  "Rociadores y Sprinklers": "#0891b2",
-  "Mangueras y Accesorios": "#7c3aed",
-  "Equipos de Protección Personal": "#059669",
-  "Iluminación de Emergencia": "#d97706",
-  "Botiquines y Primeros Auxilios": "#dc2626",
-  "Otro": "#6b7280",
+  "Matafuegos": "#e11d48",           // Rosa/Rojo vibrante
+  "Detectores y Alarmas": "#2563eb",  // Azul
+  "Señalización": "#ea580c",          // Naranja
+  "Rociadores y Sprinklers": "#0891b2", // Cian/Turquesa
+  "Mangueras y Accesorios": "#7c3aed", // Violeta
+  "Equipos de Protección Personal": "#16a34a", // Verde
+  "Iluminación de Emergencia": "#ca8a04", // Dorado/Amarillo
+  "Botiquines y Primeros Auxilios": "#db2777", // Fucsia
+  "Otro": "#4b5563",                  // Gris
 };
+
+function ProductCard({ p, color, icon, fmtPeso, onClick }: { p: Producto, color: string, icon: string, fmtPeso: (n: number) => string, onClick: () => void }) {
+  const allImages = p.imagenes || (p.imagen ? [p.imagen] : []);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  return (
+    <div 
+      onClick={onClick}
+      style={{
+        background: "#fff",
+        borderRadius: "16px",
+        border: "1px solid #e2e8f0",
+        boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+        overflow: "hidden",
+        transition: "transform 0.2s, box-shadow 0.2s",
+        display: "flex",
+        flexDirection: "column",
+        cursor: "pointer"
+      }}
+      onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = "0 12px 36px rgba(0,0,0,0.12)"; }}
+      onMouseLeave={e => { e.currentTarget.style.transform = ""; e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.05)"; }}>
+      
+      {/* Image Gallery */}
+      <div style={{
+        background: allImages.length > 0 ? "#fff" : `linear-gradient(135deg, ${color}15, ${color}25)`,
+        height: "180px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        flexShrink: 0,
+        overflow: "hidden",
+      }}>
+        {allImages.length > 0 ? (
+          <>
+            <img src={allImages[activeIdx]} alt={p.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            {allImages.length > 1 && (
+              <div style={{ position: "absolute", bottom: "10px", left: "0", right: "0", display: "flex", justifyContent: "center", gap: "6px", zIndex: 10 }}>
+                {allImages.map((_, i) => (
+                  <button 
+                    key={i} 
+                    onMouseEnter={(e) => { e.stopPropagation(); setActiveIdx(i); }}
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setActiveIdx(i); }}
+                    style={{ 
+                      width: "7px", height: "7px", borderRadius: "50%", border: "none", 
+                      background: i === activeIdx ? color : "rgba(255,255,255,0.7)", 
+                      padding: 0, cursor: "pointer", transition: "0.2s",
+                      boxShadow: "0 1px 3px rgba(0,0,0,0.3)"
+                    }} 
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <span style={{ fontSize: "4rem" }}>{icon}</span>
+        )}
+        
+        {p.categoria && (
+          <span style={{
+            position: "absolute", top: "12px", left: "12px",
+            background: color, color: "#fff",
+            fontSize: "0.65rem", fontWeight: 800,
+            padding: "3px 9px", borderRadius: "20px", letterSpacing: "0.3px",
+            textTransform: "uppercase",
+            zIndex: 2,
+          }}>
+            {p.categoria}
+          </span>
+        )}
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: "18px 20px", flex: 1, display: "flex", flexDirection: "column" }}>
+        <h3 style={{ fontSize: "0.98rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "8px", lineHeight: 1.3 }}>{p.titulo}</h3>
+        {p.descripcion && (
+          <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.6, marginBottom: "14px", flex: 1,
+            display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>
+            {p.descripcion}
+          </p>
+        )}
+        {/* Price */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: "12px", borderTop: "1px solid #f0f0f0" }}>
+          {p.precioVenta ? (
+            <div>
+              <div style={{ fontSize: "0.65rem", color: "#aaa", fontWeight: 600, textTransform: "uppercase" }}>Precio</div>
+              <div style={{ fontSize: "1.1rem", fontWeight: 900, color: color }}>{fmtPeso(p.precioVenta)}</div>
+            </div>
+          ) : (
+            <div style={{ fontSize: "0.82rem", color: "#aaa", fontStyle: "italic" }}>Consultar precio</div>
+          )}
+          <div
+            style={{
+              background: color, color: "#fff", fontSize: "0.72rem", fontWeight: 800,
+              padding: "8px 14px", borderRadius: "8px",
+              transition: "opacity 0.2s",
+            }}>
+            Ver Detalle →
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProductDetailModal({ p, color, icon, fmtPeso, onClose }: { p: Producto, color: string, icon: string, fmtPeso: (n: number) => string, onClose: () => void }) {
+  const allImages = p.imagenes || (p.imagen ? [p.imagen] : []);
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,10,30,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", overflowY: "auto" }} onClick={onClose}>
+      <div style={{ background: "#fff", width: "100%", maxWidth: "900px", borderRadius: "24px", overflow: "hidden", position: "relative", display: "flex", flexDirection: "row", flexWrap: "wrap", maxHeight: "90vh" }} onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} style={{ position: "absolute", top: "15px", right: "15px", width: "36px", height: "36px", borderRadius: "50%", background: "#fff", border: "none", boxShadow: "0 2px 10px rgba(0,0,0,0.1)", cursor: "pointer", fontSize: "1.5rem", zIndex: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>×</button>
+        
+        {/* Gallery Section */}
+        <div style={{ flex: "1.2", minWidth: "300px", background: "#f8fafc", position: "relative" }}>
+          <div style={{ height: "450px", width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            {allImages.length > 0 ? (
+              <img src={allImages[activeIdx]} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+            ) : (
+              <span style={{ fontSize: "8rem" }}>{icon}</span>
+            )}
+          </div>
+          {allImages.length > 1 && (
+            <div style={{ padding: "15px", display: "flex", gap: "10px", overflowX: "auto", background: "rgba(0,0,0,0.03)" }}>
+              {allImages.map((src, i) => (
+                <img 
+                  key={i} 
+                  src={src} 
+                  onClick={() => setActiveIdx(i)}
+                  style={{ width: "60px", height: "60px", objectFit: "cover", borderRadius: "8px", cursor: "pointer", border: `2px solid ${activeIdx === i ? color : "transparent"}`, transition: "0.2s" }} 
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Info Section */}
+        <div style={{ flex: "1", padding: "40px", display: "flex", flexDirection: "column", minWidth: "300px", overflowY: "auto" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "15px" }}>
+            <span style={{ background: `${color}15`, color: color, padding: "5px 12px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 800, textTransform: "uppercase" }}>
+              {p.categoria}
+            </span>
+          </div>
+          <h2 style={{ fontSize: "2rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "20px", lineHeight: 1.1 }}>{p.titulo}</h2>
+          
+          <div style={{ flex: 1, marginBottom: "30px" }}>
+            <h4 style={{ fontSize: "0.8rem", textTransform: "uppercase", color: "#999", letterSpacing: "1px", marginBottom: "10px" }}>Descripción</h4>
+            <div style={{ color: "#444", lineHeight: 1.8, fontSize: "0.95rem", whiteSpace: "pre-wrap" }}>
+              {p.descripcion || "Sin descripción detallada."}
+            </div>
+          </div>
+
+          <div style={{ background: "#f8fafc", padding: "24px", borderRadius: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: "0.75rem", color: "#666", fontWeight: 600, textTransform: "uppercase", marginBottom: "4px" }}>Precio</div>
+              <div style={{ fontSize: "1.8rem", fontWeight: 900, color: color }}>
+                {p.precioVenta ? fmtPeso(p.precioVenta) : "Consultar"}
+              </div>
+            </div>
+            <Link href="/contacto" 
+              onClick={(e) => e.stopPropagation()}
+              className="btn-red" 
+              style={{ padding: "14px 28px", background: color, borderColor: color }}>
+              Cotizar ahora
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function CatalogoPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [catActiva, setCatActiva] = useState("Todas");
+  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
 
   useEffect(() => {
     const fetchProductos = async () => {
@@ -185,81 +360,23 @@ export default function CatalogoPage() {
                 {visible.map(p => {
                   const color = CAT_COLORS[p.categoria || "Otro"] || "#334155";
                   const icon = CAT_ICONS[p.categoria || "Otro"] || "📦";
-                  return (
-                    <div key={p.id} style={{
-                      background: "#fff",
-                      borderRadius: "16px",
-                      border: "1px solid #e2e8f0",
-                      boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
-                      overflow: "hidden",
-                      transition: "transform 0.2s, box-shadow 0.2s",
-                      display: "flex",
-                      flexDirection: "column",
-                    }}
-                      onMouseEnter={e => { (e.currentTarget as any).style.transform = "translateY(-4px)"; (e.currentTarget as any).style.boxShadow = "0 12px 36px rgba(0,0,0,0.12)"; }}
-                      onMouseLeave={e => { (e.currentTarget as any).style.transform = ""; (e.currentTarget as any).style.boxShadow = "0 4px 20px rgba(0,0,0,0.05)"; }}>
-                      {/* Image placeholder */}
-                      <div style={{
-                        background: `linear-gradient(135deg, ${color}15, ${color}25)`,
-                        height: "160px",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        position: "relative",
-                        flexShrink: 0,
-                      }}>
-                        <span style={{ fontSize: "4rem" }}>{icon}</span>
-                        {p.categoria && (
-                          <span style={{
-                            position: "absolute", top: "12px", left: "12px",
-                            background: color, color: "#fff",
-                            fontSize: "0.65rem", fontWeight: 800,
-                            padding: "3px 9px", borderRadius: "20px", letterSpacing: "0.3px",
-                            textTransform: "uppercase",
-                          }}>
-                            {p.categoria}
-                          </span>
-                        )}
-                      </div>
-                      {/* Body */}
-                      <div style={{ padding: "18px 20px", flex: 1, display: "flex", flexDirection: "column" }}>
-                        <h3 style={{ fontSize: "0.98rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "8px", lineHeight: 1.3 }}>{p.titulo}</h3>
-                        {p.descripcion && (
-                          <p style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.6, marginBottom: "14px", flex: 1,
-                            display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>
-                            {p.descripcion}
-                          </p>
-                        )}
-                        {/* Price */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "auto", paddingTop: "12px", borderTop: "1px solid #f0f0f0" }}>
-                          {p.precioVenta ? (
-                            <div>
-                              <div style={{ fontSize: "0.65rem", color: "#aaa", fontWeight: 600, textTransform: "uppercase" }}>Precio</div>
-                              <div style={{ fontSize: "1.2rem", fontWeight: 900, color: color }}>{fmtPeso(p.precioVenta)}</div>
-                            </div>
-                          ) : (
-                            <div style={{ fontSize: "0.82rem", color: "#aaa", fontStyle: "italic" }}>Consultar precio</div>
-                          )}
-                          <Link href="/contacto"
-                            style={{
-                              background: color, color: "#fff", fontSize: "0.72rem", fontWeight: 800,
-                              padding: "8px 14px", borderRadius: "8px", textDecoration: "none",
-                              transition: "opacity 0.2s",
-                            }}
-                            onMouseEnter={e => (e.currentTarget as any).style.opacity = "0.85"}
-                            onMouseLeave={e => (e.currentTarget as any).style.opacity = "1"}>
-                            Consultar →
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  );
+                  return <ProductCard key={p.id} p={p} color={color} icon={icon} fmtPeso={fmtPeso} onClick={() => setSelectedProduct(p)} />;
                 })}
               </div>
             </>
           )}
         </div>
       </section>
+
+      {selectedProduct && (
+        <ProductDetailModal 
+          p={selectedProduct} 
+          color={CAT_COLORS[selectedProduct.categoria || "Otro"] || "#334155"} 
+          icon={CAT_ICONS[selectedProduct.categoria || "Otro"] || "📦"}
+          fmtPeso={fmtPeso}
+          onClose={() => setSelectedProduct(null)}
+        />
+      )}
 
       {/* ── CTA Empresas ── */}
       <section className="section-padding bg-gray">

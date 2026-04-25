@@ -120,8 +120,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: "👥" });
   }
 
-  // Planillas as a top-level item
-  sidebarLinks.push({ label: "Planillas", href: "/admin/planillas", icon: "📋" });
+  // OT as a top-level item
+  sidebarLinks.push({ label: "OT", href: "/admin/planillas", icon: "📋" });
+
+  // Matafuegos & Certificados
+  if (isAdmin || isTecnico) {
+    sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: "🧯" });
+    sidebarLinks.push({ label: "Certificados", href: "/admin/certificados", icon: "📜" });
+  }
 
   // HyS — admin and tecnico
   if (isAdmin || isTecnico) {

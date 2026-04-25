@@ -6,6 +6,8 @@ import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
   doc, query, orderBy, serverTimestamp, getDoc
 } from "firebase/firestore";
+import { storage } from "@/lib/firebase";
+import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Producto {
@@ -18,6 +20,8 @@ interface Producto {
   porcentaje: number;   // margen de ganancia %
   precioVenta: number;  // calculado
   activo: boolean;
+  imagenes?: string[];  // URLs de las imágenes
+  slug?: string;        // URL amigable
   createdAt?: any;
   updatedAt?: any;
 }
@@ -27,6 +31,18 @@ const CATEGORIAS = [
   "Mangueras y Accesorios", "Equipos de Protección Personal",
   "Iluminación de Emergencia", "Botiquines y Primeros Auxilios", "Otro",
 ];
+
+const CAT_COLORS: Record<string, string> = {
+  "Matafuegos": "#e11d48",
+  "Detectores y Alarmas": "#2563eb",
+  "Señalización": "#ea580c",
+  "Rociadores y Sprinklers": "#0891b2",
+  "Mangueras y Accesorios": "#7c3aed",
+  "Equipos de Protección Personal": "#16a34a",
+  "Iluminación de Emergencia": "#ca8a04",
+  "Botiquines y Primeros Auxilios": "#db2777",
+  "Otro": "#4b5563",
+};
 
 const inputSt: React.CSSProperties = {
   width: "100%", padding: "10px 12px", borderRadius: "8px",
@@ -40,6 +56,8 @@ const labelSt: React.CSSProperties = {
 const EMPTY: Omit<Producto, "id" | "createdAt" | "updatedAt"> = {
   titulo: "", descripcion: "", categoria: "", proveedor: "",
   precio: 0, porcentaje: 30, precioVenta: 0, activo: true,
+  imagenes: [],
+  slug: "",
 };
 
 function calcVenta(precio: number, porcentaje: number): number {
@@ -57,6 +75,8 @@ export default function AdminProductos() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filtroCat, setFiltroCat] = useState("Todas");
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -89,6 +109,9 @@ export default function AdminProductos() {
           field === "porcentaje" ? Number(value) : prev.porcentaje,
         );
       }
+      if (field === "titulo" && !editId) {
+        updated.slug = value.toLowerCase().trim().replace(/[^\w\s-]/g, '').replace(/[\s_-]+/g, '-').replace(/^-+|-+$/g, '');
+      }
       return updated;
     });
   };
@@ -96,6 +119,8 @@ export default function AdminProductos() {
   const openCreate = () => {
     setForm({ ...EMPTY, precioVenta: calcVenta(EMPTY.precio, EMPTY.porcentaje) });
     setEditId(null);
+    setImageFiles([]);
+    setPreviews([]);
     setModal("create");
   };
 
@@ -104,8 +129,12 @@ export default function AdminProductos() {
       titulo: p.titulo, descripcion: p.descripcion, categoria: p.categoria,
       proveedor: p.proveedor, precio: p.precio, porcentaje: p.porcentaje,
       precioVenta: p.precioVenta, activo: p.activo,
+      imagenes: p.imagenes || [],
+      slug: p.slug || "",
     });
     setEditId(p.id);
+    setImageFiles([]);
+    setPreviews(p.imagenes || []);
     setModal("edit");
   };
 
@@ -114,19 +143,50 @@ export default function AdminProductos() {
     if (!form.titulo.trim()) { alert("El título es obligatorio."); return; }
     setSaving(true);
     try {
+      // 1. Upload new files
+      const newUrls: string[] = [];
+      for (const file of imageFiles) {
+        const fileRef = ref(storage, `productos/${Date.now()}_${file.name}`);
+        const snap = await uploadBytes(fileRef, file);
+        const url = await getDownloadURL(snap.ref);
+        newUrls.push(url);
+      }
+
+      // 2. Filter existing URLs that were kept
+      const keptUrls = previews.filter(p => p.startsWith("http"));
+      const finalImages = [...keptUrls, ...newUrls];
+
+      // 3. Clean up deleted images from Storage if editing
+      if (editId) {
+        const oldProd = productos.find(p => p.id === editId);
+        if (oldProd?.imagenes) {
+          const removed = oldProd.imagenes.filter(url => !keptUrls.includes(url));
+          for (const url of removed) {
+            try { await deleteObject(ref(storage, url)); } catch (e) { console.warn("Error deleting removed image", e); }
+          }
+        }
+      }
+
       const payload = {
         ...form,
+        imagenes: finalImages,
         precio: Number(form.precio),
         porcentaje: Number(form.porcentaje),
         precioVenta: calcVenta(Number(form.precio), Number(form.porcentaje)),
         updatedAt: serverTimestamp(),
       };
+      
+      // Remove legacy 'imagen' field if it exists
+      if ("imagen" in payload) delete (payload as any).imagen;
+
       if (modal === "create") {
         await addDoc(collection(db, "productos"), { ...payload, createdAt: serverTimestamp() });
       } else if (editId) {
         await updateDoc(doc(db, "productos", editId), payload);
       }
       setModal(null);
+      setImageFiles([]);
+      setPreviews([]);
       await fetch();
     } catch (err) { alert("Error al guardar: " + err); }
     finally { setSaving(false); }
@@ -134,6 +194,12 @@ export default function AdminProductos() {
 
   const handleDelete = async (id: string) => {
     try {
+      const prod = productos.find(p => p.id === id);
+      if (prod?.imagenes && prod.imagenes.length > 0) {
+        for (const url of prod.imagenes) {
+          try { await deleteObject(ref(storage, url)); } catch (e) { console.warn("Error deleting storage file", e); }
+        }
+      }
       await deleteDoc(doc(db, "productos", id));
       setDeleteConfirm(null);
       setProductos(prev => prev.filter(p => p.id !== id));
@@ -209,8 +275,30 @@ export default function AdminProductos() {
                   onMouseEnter={e => (e.currentTarget.style.background = "#fafcff")}
                   onMouseLeave={e => (e.currentTarget.style.background = "")}>
                   <td style={{ padding: "13px 16px" }}>
-                    <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.9rem" }}>{p.titulo}</div>
-                    {p.categoria && <div style={{ fontSize: "0.72rem", color: "#888", marginTop: "2px" }}>{p.categoria}</div>}
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: "40px", height: "40px", borderRadius: "6px", background: "#f5f5f5", overflow: "hidden", border: "1px solid #eee", flexShrink: 0 }}>
+                        {p.imagenes && p.imagenes.length > 0 ? (
+                          <img src={p.imagenes[0]} alt={p.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        ) : (
+                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem", color: "#ddd" }}>📦</div>
+                        )}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.9rem" }}>{p.titulo}</div>
+                        {p.categoria && (
+                          <div style={{ 
+                            fontSize: "0.65rem", 
+                            color: CAT_COLORS[p.categoria] || "#666", 
+                            marginTop: "2px", 
+                            fontWeight: 800, 
+                            textTransform: "uppercase",
+                            letterSpacing: "0.3px"
+                          }}>
+                            {p.categoria}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td style={{ padding: "13px 16px", fontSize: "0.85rem", color: "#555" }}>{p.proveedor || "—"}</td>
                   <td style={{ padding: "13px 16px", fontSize: "0.88rem", fontWeight: 600 }}>{fmtPeso(p.precio)}</td>
@@ -236,7 +324,7 @@ export default function AdminProductos() {
 
       {/* Modal - Adjusted to NOT cover the sidebar (z-index 150 < sidebar 200) */}
       {modal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 150, overflowY: "auto", padding: "40px 16px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 150, overflowY: "auto", padding: "40px 16px", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
           <div style={{ background: "#fff", borderRadius: "14px", maxWidth: "600px", width: "100%", padding: "32px", boxShadow: "0 25px 60px rgba(0,0,0,0.25)" }}>
             <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
               <h2 style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-blue)" }}>
@@ -246,9 +334,51 @@ export default function AdminProductos() {
             </header>
 
             <form onSubmit={handleSave} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-              <div>
-                <label style={labelSt}>Título del Producto *</label>
-                <input style={inputSt} value={form.titulo} onChange={e => setField("titulo", e.target.value)} required />
+              <div style={{ display: "flex", gap: "20px", alignItems: "flex-start" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelSt}>Fotos del Producto</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px", marginBottom: "12px" }}>
+                    {previews.map((src, idx) => (
+                      <div key={idx} style={{ position: "relative", width: "100%", aspectRatio: "1", borderRadius: "8px", border: "1px solid #eee", overflow: "hidden", background: "#f8f9fa" }}>
+                        <img src={src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <button type="button" 
+                          onClick={() => {
+                            const isUrl = src.startsWith("http");
+                            if (!isUrl) {
+                              const blobIdx = previews.slice(0, idx).filter(p => !p.startsWith("http")).length;
+                              setImageFiles(prev => prev.filter((_, i) => i !== blobIdx));
+                            }
+                            setPreviews(prev => prev.filter((_, i) => i !== idx));
+                          }}
+                          style={{ position: "absolute", top: "4px", right: "4px", width: "20px", height: "20px", borderRadius: "50%", border: "none", background: "rgba(220, 38, 38, 0.8)", color: "#fff", cursor: "pointer", fontSize: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <div style={{ width: "100%", aspectRatio: "1", borderRadius: "8px", border: "2px dashed #ccc", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", position: "relative", cursor: "pointer", background: "#fafafa" }}>
+                      <span style={{ fontSize: "1.2rem", color: "#999" }}>➕</span>
+                      <span style={{ fontSize: "0.6rem", fontWeight: 800, color: "#999", textTransform: "uppercase" }}>Añadir</span>
+                      <input type="file" multiple accept="image/*" 
+                        onChange={e => {
+                          const files = Array.from(e.target.files || []);
+                          if (files.length > 0) {
+                            setImageFiles(prev => [...prev, ...files]);
+                            setPreviews(prev => [...prev, ...files.map(f => URL.createObjectURL(f))]);
+                          }
+                        }}
+                        style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }} 
+                      />
+                    </div>
+                  </div>
+                  <p style={{ fontSize: "0.65rem", color: "#888", fontStyle: "italic" }}>Sugerencia: Subí varias fotos. La primera será la principal.</p>
+                </div>
+                <div style={{ flex: 2 }}>
+                  <label style={labelSt}>Título del Producto *</label>
+                  <input style={inputSt} value={form.titulo} onChange={e => setField("titulo", e.target.value)} required />
+                  <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '4px' }}>
+                    Slug: <strong>{form.slug || '—'}</strong>
+                  </div>
+                </div>
               </div>
               <div>
                 <label style={labelSt}>Descripción</label>

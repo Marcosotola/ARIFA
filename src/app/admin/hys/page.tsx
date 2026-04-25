@@ -52,6 +52,7 @@ export default function HySPage() {
   const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
 
   // Form
+  const [usuarios, setUsuarios] = useState<{id: string, nombre: string, apellido: string, empresa?: string}[]>([]);
   const [fCliente, setFCliente] = useState("");
   const [fFecha, setFFecha] = useState(new Date().toISOString().split("T")[0]);
   const [fTipo, setFTipo] = useState<TipoDoc>("Visita");
@@ -62,9 +63,18 @@ export default function HySPage() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) return;
       await fetchDocs();
+      await fetchUsuarios();
     });
     return () => unsub();
   }, []);
+
+  const fetchUsuarios = async () => {
+    try {
+      const q = query(collection(db, "usuarios"), where("rol", "==", "cliente"));
+      const snap = await getDocs(q);
+      setUsuarios(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)));
+    } catch (e) { console.error(e); }
+  };
 
   const fetchDocs = async () => {
     setLoading(true);
@@ -337,7 +347,19 @@ export default function HySPage() {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                 <div>
                   <label style={labelSt}>Cliente *</label>
-                  <input style={inputSt} value={fCliente} onChange={e => setFCliente(e.target.value)} placeholder="Nombre del cliente..." />
+                  <input 
+                    style={inputSt} 
+                    value={fCliente} 
+                    onChange={e => setFCliente(e.target.value)} 
+                    placeholder="Escribí nombre o empresa..." 
+                    list="usuarios-list"
+                  />
+                  <datalist id="usuarios-list">
+                    {usuarios.map(u => {
+                      const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
+                      return <option key={u.id} value={display} />;
+                    })}
+                  </datalist>
                 </div>
                 <div>
                   <label style={labelSt}>Fecha *</label>

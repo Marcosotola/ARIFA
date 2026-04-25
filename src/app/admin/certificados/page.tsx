@@ -81,7 +81,7 @@ export default function CertificadosPage() {
     } catch (e) { alert("Error: " + e); }
   };
 
-  const isStaff = role === "admin" || role === "tecnico";
+  const isStaff = role === "admin" || role === "tecnico" || role === "superadmin";
 
   const filteredCerts = certs.filter(c => {
     const matchesSearch = 
@@ -225,7 +225,7 @@ export default function CertificadosPage() {
                           <Link href={`/admin/certificados/${c.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
                             Ver / Editar
                           </Link>
-                          {role === "admin" && (
+                          {(role === "admin" || role === "superadmin") && (
                             <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)" }}>
                               🗑️
                             </button>

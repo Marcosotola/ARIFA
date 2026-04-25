@@ -64,7 +64,7 @@ export default function UsuariosPage() {
     if (!editingUser) return;
     setActionLoading(true);
     try {
-      await updateDoc(doc(db, "usuarios", editingUser.id), {
+      const payload = {
         nombre: editingUser.nombre || "",
         apellido: editingUser.apellido || "",
         empresa: editingUser.empresa || "",
@@ -72,12 +72,24 @@ export default function UsuariosPage() {
         telefono: editingUser.telefono || "",
         cargo: editingUser.cargo || "",
         rol: editingUser.rol,
+        email: editingUser.email || "",
         updatedAt: new Date().toISOString(),
-      });
-      setUsuarios(usuarios.map(u => u.id === editingUser.id ? { ...u, ...editingUser } : u));
+      };
+
+      if (editingUser.id) {
+        await updateDoc(doc(db, "usuarios", editingUser.id), payload);
+      } else {
+        await addDoc(collection(db, "usuarios"), {
+          ...payload,
+          fechaCreacion: new Date().toISOString(),
+          perfilCompleto: true
+        });
+      }
+      
+      await fetchUsuarios();
       setIsModalOpen(false);
     } catch (e) {
-      alert("Error al actualizar usuario");
+      alert("Error al guardar usuario");
     } finally {
       setActionLoading(false);
     }
@@ -105,6 +117,22 @@ export default function UsuariosPage() {
 
   if (loading) return <div style={{ padding: "40px", textAlign: "center", color: "var(--text-muted)" }}>Cargando usuarios...</div>;
 
+  const openCreate = () => {
+    setEditingUser({
+      nombre: "",
+      apellido: "",
+      empresa: "",
+      email: "",
+      direccion: "",
+      telefono: "",
+      cargo: "",
+      rol: "cliente",
+      perfilCompleto: true,
+      fechaCreacion: new Date().toISOString()
+    });
+    setIsModalOpen(true);
+  };
+
   return (
     <div style={{ width: "100%" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px", flexWrap: "wrap", gap: "16px" }}>
@@ -114,12 +142,19 @@ export default function UsuariosPage() {
             {usuariosVisibles.length} registro{usuariosVisibles.length !== 1 ? "s" : ""} encontrado{usuariosVisibles.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <input
-          style={{ padding: "10px 16px", borderRadius: "8px", border: "1.5px solid #ddd", minWidth: "260px", fontSize: "0.92rem" }}
-          placeholder="🔎 Buscar por nombre, empresa, email..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
+        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+          <input
+            style={{ padding: "10px 16px", borderRadius: "8px", border: "1.5px solid #ddd", minWidth: "260px", fontSize: "0.92rem" }}
+            placeholder="🔎 Buscar por nombre, empresa, email..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          {(currentUserRole === "admin" || currentUserRole === "superadmin") && (
+            <button onClick={openCreate} className="btn-red" style={{ padding: "11px 22px", borderRadius: "8px" }}>
+              ➕ Nuevo Usuario
+            </button>
+          )}
+        </div>
       </header>
 
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee" }}>
@@ -203,11 +238,17 @@ export default function UsuariosPage() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
           <div style={{ background: "#fff", padding: "35px", borderRadius: "14px", width: "100%", maxWidth: "580px", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.25)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-              <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--primary-blue)" }}>Editar Usuario</h2>
+              <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--primary-blue)" }}>
+                {editingUser.id ? "Editar Usuario" : "Nuevo Usuario"}
+              </h2>
               <button onClick={() => setIsModalOpen(false)} style={{ background: "none", border: "none", fontSize: "1.3rem", cursor: "pointer", color: "#999" }}>✕</button>
             </div>
 
             <form onSubmit={saveUser} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div>
+                <label style={labelSt}>Email *</label>
+                <input style={inputSt} type="email" required value={editingUser.email || ""} onChange={e => setEditingUser({ ...editingUser, email: e.target.value })} placeholder="email@ejemplo.com" />
+              </div>
               {/* Nombres */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                 <div>
