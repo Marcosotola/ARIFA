@@ -15,6 +15,7 @@ const PRIORIDADES: Prioridad[] = ["Leve", "Moderada", "Crítica"];
 interface PlanItem {
   id: string;
   cliente: string;
+  clienteId?: string;
   consorcio: string;
   fecha: string;
   detalle: string;

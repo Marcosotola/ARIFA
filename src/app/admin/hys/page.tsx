@@ -15,6 +15,7 @@ const TIPOS: TipoDoc[] = ["Visita", "Capacitación", "ATS", "Programa de Segurid
 interface HySDoc {
   id: string;
   cliente: string;
+  clienteId?: string;
   fecha: string;
   tipo: TipoDoc;
   descripcion?: string;
@@ -186,10 +187,10 @@ export default function HySPage() {
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px", flexWrap: "wrap", gap: "16px" }}>
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
-            {isReadOnly ? "Mis Docs HyS" : "Panel HyS"}
+            HyS
           </h1>
           <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>
-            {isReadOnly ? "Documentos de Higiene y Seguridad de tus instalaciones." : "Gestión de documentos de Higiene y Seguridad."}
+            {isReadOnly ? "Higiene y Seguridad de tus instalaciones." : "Gestión de documentos de Higiene y Seguridad."}
           </p>
         </div>
         {!isReadOnly && (

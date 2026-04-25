@@ -109,21 +109,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const sidebarLinks = [
+  interface LinkItem {
+    label: string;
+    href: string;
+    icon: string;
+    badge?: number | string | null;
+  }
+
+  const sidebarLinks: LinkItem[] = [
     { label: "Mi Panel", href: "/admin", icon: "📊" },
   ];
 
-  // Consultas — todos los roles
-  sidebarLinks.push({
-    label: isClient ? "Mis Consultas" : "Consultas",
-    href: "/admin/consultas",
-    icon: "📧",
-    badge: !isClient && unreadCount > 0 ? unreadCount : null,
-  });
+  // Consultas — admin, tecnico, secretaria (clientes NO ven esto)
+  if (!isClient) {
+    sidebarLinks.push({
+      label: "Consultas",
+      href: "/admin/consultas",
+      icon: "📧",
+      badge: unreadCount > 0 ? unreadCount : null,
+    });
+  }
 
   // OT — todos los roles
   sidebarLinks.push({
-    label: isClient ? "Mis Órdenes" : "OT",
+    label: "OT",
     href: "/admin/planillas",
     icon: "📋",
   });
@@ -135,21 +144,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Certificados — admin, tecnico y cliente (cliente: solo lectura)
   sidebarLinks.push({
-    label: isClient ? "Mis Certificados" : "Certificados",
+    label: "Certificados",
     href: "/admin/certificados",
     icon: "📜",
   });
 
   // Plan de Acción — admin, tecnico y cliente (cliente: solo lectura)
   sidebarLinks.push({
-    label: isClient ? "Mi Plan de Acción" : "Plan de Acción",
+    label: "Plan de Acción",
     href: "/admin/plan-accion",
     icon: "📈",
   });
 
   // HyS — admin, tecnico y cliente (cliente: solo lectura)
   sidebarLinks.push({
-    label: isClient ? "Mis Docs HyS" : "HyS",
+    label: "HyS",
     href: "/admin/hys",
     icon: "🦺",
   });

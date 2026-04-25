@@ -17,6 +17,7 @@ interface OT {
   fecha: string;
   clienteNombre: string;
   clienteEmpresa: string;
+  clienteId?: string;
   tecnicos: string[];
   estado: string;
   planillasSeleccionadas: { nombre: string; codigo?: string }[];
@@ -110,7 +111,10 @@ export default function OTUnifiedPage() {
       }
 
       let docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as OT));
-      if (!isStaffRole(r)) docs = docs.filter(o => (o as any).clienteId === uid);
+      // SEGURIDAD: Filtrar por clienteId si no es staff, pase lo que pase
+      if (!isStaffRole(r)) {
+        docs = docs.filter(o => o.clienteId === uid);
+      }
       
       docs.sort((a, b) => {
         const ts = (o: any) => o.createdAt?.seconds ?? o.fechaCreacion?.seconds ?? (o.fecha ? new Date(o.fecha).getTime() / 1000 : 0);
@@ -246,7 +250,9 @@ export default function OTUnifiedPage() {
       {/* HEADER */}
       <header style={{ marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "15px" }}>
         <div>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Órdenes de Trabajo</h1>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
+            {isClient ? "Mis Órdenes" : "Órdenes de Trabajo"}
+          </h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>{activeTab === "ots" ? "Gestión de inspecciones en campo." : "Gestión de plantillas base."}</p>
         </div>
         {isStaff && !isReadOnly && (

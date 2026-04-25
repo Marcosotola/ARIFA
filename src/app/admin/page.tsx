@@ -14,9 +14,7 @@ const MODULES = [
     description: "Mensajes entrantes y seguimiento de clientes.",
     href: "/admin/consultas",
     color: "#A31F1D",
-    roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente"],
-    clientLabel: "Mis Consultas",
-    clientDescription: "Tus consultas enviadas y su estado.",
+    roles: ["admin", "tecnico", "superadmin", "secretaria"],
     showBadge: true,
   },
   {
@@ -64,8 +62,6 @@ const MODULES = [
     href: "/admin/hys",
     color: "#15803d",
     roles: ["admin", "tecnico", "superadmin", "cliente"],
-    clientLabel: "Mis Docs HyS",
-    clientDescription: "Documentos de Higiene y Seguridad de tus instalaciones.",
   },
   {
     icon: "🛒",
@@ -153,7 +149,7 @@ export default function AdminDashboard() {
         </h1>
         <p style={{ color: "var(--text-muted)", marginTop: "6px", fontSize: "0.88rem" }}>
           {isClient
-            ? "Bienvenido a tu panel de cliente ARIFA. Acá podés consultar tus registros."
+            ? "Panel de Cliente · ARIFA Seguridad"
             : role?.toLowerCase() === "tecnico"
             ? "Panel de Técnico · Gestioná OT y Matafuegos"
             : isStaff

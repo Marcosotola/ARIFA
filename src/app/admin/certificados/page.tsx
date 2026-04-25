@@ -16,6 +16,7 @@ interface Certificado {
   sistemaCertificado: string;
   clienteNombre: string;
   clienteEmpresa: string;
+  clienteId?: string;
   estado: "borrador" | "emitido";
   createdAt: any;
 }
@@ -68,7 +69,12 @@ export default function CertificadosPage() {
       } else {
         snap = await getDocs(query(collection(db, "certificados"), orderBy("createdAt", "desc")));
       }
-      setCerts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Certificado)));
+      let all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Certificado));
+      // SEGURIDAD: Filtrar por clienteId si es cliente, pase lo que pase
+      if (r === "cliente") {
+        all = all.filter(c => c.clienteId === currentUid);
+      }
+      setCerts(all);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -130,7 +136,9 @@ export default function CertificadosPage() {
           <span style={{ fontSize: "0.8rem", background: "#e8f5e9", color: "#2e7d32", padding: "3px 10px", borderRadius: "20px", fontWeight: 700 }}>
             📜 Certificados
           </span>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)", marginTop: "8px" }}>Certificados de Instalación</h1>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
+            {isReadOnly ? "Mis Certificados" : "Certificados de Instalación"}
+          </h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Generá y gestioná certificados con carácter de Declaración Jurada.</p>
         </div>
         {isStaff && !isReadOnly && (
