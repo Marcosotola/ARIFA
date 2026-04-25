@@ -111,33 +111,60 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const sidebarLinks = [
     { label: "Mi Panel", href: "/admin", icon: "📊" },
-    { label: isClient ? "Mis Consultas" : "Consultas", href: "/admin/consultas", icon: "📧", badge: !isClient && unreadCount > 0 ? unreadCount : null },
   ];
 
+  // Consultas — todos los roles
+  sidebarLinks.push({
+    label: isClient ? "Mis Consultas" : "Consultas",
+    href: "/admin/consultas",
+    icon: "📧",
+    badge: !isClient && unreadCount > 0 ? unreadCount : null,
+  });
+
+  // OT — todos los roles
+  sidebarLinks.push({
+    label: isClient ? "Mis Órdenes" : "OT",
+    href: "/admin/planillas",
+    icon: "📋",
+  });
+
+  // Matafuegos — solo admin y tecnico (gestionan)
+  if (isAdmin || isTecnico) {
+    sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: "🧯" });
+  }
+
+  // Certificados — admin, tecnico y cliente (cliente: solo lectura)
+  sidebarLinks.push({
+    label: isClient ? "Mis Certificados" : "Certificados",
+    href: "/admin/certificados",
+    icon: "📜",
+  });
+
+  // Plan de Acción — admin, tecnico y cliente (cliente: solo lectura)
+  sidebarLinks.push({
+    label: isClient ? "Mi Plan de Acción" : "Plan de Acción",
+    href: "/admin/plan-accion",
+    icon: "📈",
+  });
+
+  // HyS — admin, tecnico y cliente (cliente: solo lectura)
+  sidebarLinks.push({
+    label: isClient ? "Mis Docs HyS" : "HyS",
+    href: "/admin/hys",
+    icon: "🦺",
+  });
+
+  // Productos — admin y tecnico
   if (isAdmin || isTecnico) {
     sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: "🛒" });
   }
 
+  // Usuarios — solo admin
   if (isAdmin) {
     sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: "👥" });
   }
 
-  // OT as a top-level item
-  sidebarLinks.push({ label: "OT", href: "/admin/planillas", icon: "📋" });
-
-  // Matafuegos & Certificados
-  if (isAdmin || isTecnico) {
-    sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: "🧯" });
-    sidebarLinks.push({ label: "Certificados", href: "/admin/certificados", icon: "📜" });
-  }
-
-  // HyS — admin and tecnico
-  if (isAdmin || isTecnico) {
-    sidebarLinks.push({ label: "Plan de Acción", href: "/admin/plan-accion", icon: "📈" });
-    sidebarLinks.push({ label: "HyS", href: "/admin/hys", icon: "🦺" });
-  }
-
-  // Notifications — admin and tecnico only
+  // Notificaciones — admin, tecnico y secretaria
   if (isAdmin || isTecnico || isSecretaria) {
     sidebarLinks.push({ label: "Notificaciones", href: "/admin/notificaciones", icon: "🔔" });
   }
@@ -166,7 +193,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           {sidebarOpen ? '✕' : '☰'}
         </button>
-        <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>ARIFA ADMIN</div>
+        <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>
+          ARIFA {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : "PANEL"}
+        </div>
         <div style={{ width: '40px' }}></div>
       </div>
 
@@ -202,7 +231,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         className={`admin-aside ${sidebarOpen ? 'open' : ''}`}
       >
         <div style={{ marginBottom: "40px", textAlign: "center" }}>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 900, letterSpacing: "1px" }}>ARIFA <span style={{fontSize:'0.7rem', fontWeight:400, opacity:0.6}}>ADMIN</span></h2>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 900, letterSpacing: "1px" }}>
+            ARIFA{" "}
+            <span style={{fontSize:'0.7rem', fontWeight:400, opacity:0.6}}>
+              {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : "PANEL"}
+            </span>
+          </h2>
         </div>
         
         <nav style={{ flex: 1 }}>
@@ -269,27 +303,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </li>
             )}
 
-            {/* Configuración - Final item in list */}
-            <li style={{ marginBottom: "8px" }}>
-              <Link 
-                href={configLink.href} 
-                style={{ 
-                  display: "flex", 
-                  alignItems: "center", 
-                  gap: "12px", 
-                  padding: "12px 15px", 
-                  borderRadius: "8px",
-                  textDecoration: "none",
-                  color: pathname === configLink.href ? "#fff" : "rgba(255,255,255,0.7)",
-                  background: pathname === configLink.href ? "rgba(255,255,255,0.15)" : "transparent",
-                  fontWeight: pathname === configLink.href ? 700 : 500,
-                  transition: "0.2s"
-                }}
-              >
-                <span style={{ fontSize: "1.2rem" }}>{configLink.icon}</span>
-                <span style={{ flex: 1 }}>{configLink.label}</span>
-              </Link>
-            </li>
+            {/* Configuración - Solo para staff */}
+            {!isClient && (
+              <li style={{ marginBottom: "8px" }}>
+                <Link 
+                  href={configLink.href} 
+                  style={{ 
+                    display: "flex", 
+                    alignItems: "center", 
+                    gap: "12px", 
+                    padding: "12px 15px", 
+                    borderRadius: "8px",
+                    textDecoration: "none",
+                    color: pathname === configLink.href ? "#fff" : "rgba(255,255,255,0.7)",
+                    background: pathname === configLink.href ? "rgba(255,255,255,0.15)" : "transparent",
+                    fontWeight: pathname === configLink.href ? 700 : 500,
+                    transition: "0.2s"
+                  }}
+                >
+                  <span style={{ fontSize: "1.2rem" }}>{configLink.icon}</span>
+                  <span style={{ flex: 1 }}>{configLink.label}</span>
+                </Link>
+              </li>
+            )}
           </ul>
         </nav>
         

@@ -37,6 +37,8 @@ const TIPO_COLORS: Record<TipoDoc, { bg: string; color: string; dot: string }> =
 export default function HySPage() {
   const [docs, setDocs] = useState<HySDoc[]>([]);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<HySDoc | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -62,8 +64,13 @@ export default function HySPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) return;
-      await fetchDocs();
-      await fetchUsuarios();
+      const snap = await getDoc(doc(db, "usuarios", u.uid));
+      const userData = snap.exists() ? snap.data() : {};
+      const r = userData.rol || "cliente";
+      setRole(r);
+      setCurrentUser({ uid: u.uid, ...userData });
+      await fetchDocs(r, userData);
+      if (r !== "cliente") await fetchUsuarios();
     });
     return () => unsub();
   }, []);
@@ -76,11 +83,17 @@ export default function HySPage() {
     } catch (e) { console.error(e); }
   };
 
-  const fetchDocs = async () => {
+  const fetchDocs = async (r?: string, userData?: any) => {
     setLoading(true);
     try {
       const snap = await getDocs(query(collection(db, "hys_documentos"), orderBy("createdAt", "desc")));
-      setDocs(snap.docs.map(d => ({ id: d.id, ...d.data() } as HySDoc)));
+      let all = snap.docs.map(d => ({ id: d.id, ...d.data() } as HySDoc));
+      // Filtro para cliente: solo sus documentos
+      if (r === "cliente" && userData) {
+        const searchStr = (userData.empresa || userData.nombre || "").toLowerCase();
+        all = all.filter(d => d.cliente?.toLowerCase().includes(searchStr));
+      }
+      setDocs(all);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -165,17 +178,25 @@ export default function HySPage() {
     try { return new Date(s + "T12:00:00").toLocaleDateString("es-AR"); } catch { return s; }
   };
 
+  const isReadOnly = role === "cliente";
+
   return (
     <div style={{ width: "100%" }}>
       {/* ── Header ── */}
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px", flexWrap: "wrap", gap: "16px" }}>
         <div>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Panel HyS</h1>
-          <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>Gestión de documentos de Higiene y Seguridad.</p>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
+            {isReadOnly ? "Mis Docs HyS" : "Panel HyS"}
+          </h1>
+          <p style={{ color: "var(--text-muted)", marginTop: "6px" }}>
+            {isReadOnly ? "Documentos de Higiene y Seguridad de tus instalaciones." : "Gestión de documentos de Higiene y Seguridad."}
+          </p>
         </div>
-        <button onClick={openCreate} className="btn-red" style={{ padding: "12px 22px" }}>
-          ➕ Nuevo Documento
-        </button>
+        {!isReadOnly && (
+          <button onClick={openCreate} className="btn-red" style={{ padding: "12px 22px" }}>
+            ➕ Nuevo Documento
+          </button>
+        )}
       </header>
 
       {/* ── Filters ── */}
@@ -294,10 +315,16 @@ export default function HySPage() {
                         ) : <span style={{ color: "#ccc", fontSize: "0.82rem" }}>Sin fotos</span>}
                       </td>
                       <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
-                        <button onClick={() => openEdit(d)} title="Editar"
-                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px" }}>✏️</button>
-                        <button onClick={() => setDeleteConfirm(d.id)} title="Eliminar"
-                          style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px", marginLeft: "2px" }}>🗑️</button>
+                        {!isReadOnly ? (
+                          <>
+                            <button onClick={() => openEdit(d)} title="Editar"
+                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px" }}>✏️</button>
+                            <button onClick={() => setDeleteConfirm(d.id)} title="Eliminar"
+                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px", marginLeft: "2px" }}>🗑️</button>
+                          </>
+                        ) : (
+                          <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>
+                        )}
                       </td>
                     </tr>
                   );

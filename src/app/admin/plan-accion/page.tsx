@@ -34,6 +34,9 @@ const PRIORIDAD_COLORS: Record<Prioridad, { bg: string; color: string; border: s
 export default function PlanAccionPage() {
   const [items, setItems] = useState<PlanItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [selectedItem, setSelectedItem] = useState<PlanItem | null>(null);
@@ -61,17 +64,34 @@ export default function PlanAccionPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
-      fetchItems();
-      fetchUsuarios();
+      const snap = await getDoc(doc(db, "usuarios", u.uid));
+      const userData = snap.exists() ? snap.data() : {};
+      const r = userData.rol || "cliente";
+      setRole(r);
+      setUid(u.uid);
+      setCurrentUser({ uid: u.uid, ...userData });
+      fetchItems(r, userData);
+      if (r !== "cliente") fetchUsuarios();
     });
     return () => unsub();
   }, [router]);
 
-  const fetchItems = async () => {
+  const fetchItems = async (r?: string, userData?: any) => {
     setLoading(true);
     try {
       const snap = await getDocs(query(collection(db, "plan_accion"), orderBy("createdAt", "desc")));
-      setItems(snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanItem)));
+      let all = snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanItem));
+      // Filtro para cliente: solo sus items
+      if (r === "cliente" && userData) {
+        const clientName = userData.empresa 
+          ? `${userData.empresa} - ${userData.nombre} ${userData.apellido}`
+          : `${userData.nombre} ${userData.apellido}`;
+        all = all.filter(i =>
+          i.clienteId === userData.uid ||
+          i.cliente?.toLowerCase().includes((userData.empresa || userData.nombre || "").toLowerCase())
+        );
+      }
+      setItems(all);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -144,14 +164,20 @@ export default function PlanAccionPage() {
     return matchesSearch && matchesPrioridad && matchesRealizado;
   });
 
+  const isReadOnly = role === "cliente";
+
   return (
     <div style={{ width: "100%", maxWidth: "1100px" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "30px", flexWrap: "wrap", gap: "20px" }}>
         <div>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Plan de Acción</h1>
-          <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Propuestas de mejora, mantenimiento y seguimiento de prioridades.</p>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
+            {isReadOnly ? "Mi Plan de Acción" : "Plan de Acción"}
+          </h1>
+          <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>
+            {isReadOnly ? "Propuestas de mejora asignadas a tus instalaciones." : "Propuestas de mejora, mantenimiento y seguimiento de prioridades."}
+          </p>
         </div>
-        <button onClick={openCreate} className="btn-red" style={{ padding: "12px 24px" }}>➕ Nueva Propuesta</button>
+        {!isReadOnly && <button onClick={openCreate} className="btn-red" style={{ padding: "12px 24px" }}>➕ Nueva Propuesta</button>}
       </header>
 
       {/* FILTROS */}
@@ -218,8 +244,13 @@ export default function PlanAccionPage() {
                         )}
                       </td>
                       <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
-                        <button onClick={() => openEdit(item)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }} title="Editar">✏️</button>
-                        <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", marginLeft: "5px" }} title="Eliminar">🗑️</button>
+                        {!isReadOnly && (
+                          <>
+                            <button onClick={() => openEdit(item)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }} title="Editar">✏️</button>
+                            <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", marginLeft: "5px" }} title="Eliminar">🗑️</button>
+                          </>
+                        )}
+                        {isReadOnly && <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>}
                       </td>
                     </tr>
                   );

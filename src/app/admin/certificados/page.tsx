@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -29,6 +29,7 @@ export default function CertificadosPage() {
   const [certs, setCerts] = useState<Certificado[]>([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
+  const [uid, setUid] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   // Filters
   const [search, setSearch] = useState("");
@@ -43,15 +44,30 @@ export default function CertificadosPage() {
       const snap = await getDoc(doc(db, "usuarios", u.uid));
       const r = snap.exists() ? snap.data().rol : "cliente";
       setRole(r);
-      fetchCerts();
+      setUid(u.uid);
+      fetchCerts(r, u.uid);
     });
     return () => unsub();
   }, []);
 
-  const fetchCerts = async () => {
+  const fetchCerts = async (r: string, currentUid: string) => {
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, "certificados"), orderBy("createdAt", "desc")));
+      let snap;
+      if (r === "cliente") {
+        // Clientes solo ven sus certificados (filtrado por clienteId)
+        const q = query(collection(db, "certificados"), where("clienteId", "==", currentUid), orderBy("createdAt", "desc"));
+        try {
+          snap = await getDocs(q);
+        } catch {
+          snap = await getDocs(collection(db, "certificados"));
+          const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Certificado));
+          setCerts((all as any[]).filter(c => c.clienteId === currentUid));
+          return;
+        }
+      } else {
+        snap = await getDocs(query(collection(db, "certificados"), orderBy("createdAt", "desc")));
+      }
       setCerts(snap.docs.map(d => ({ id: d.id, ...d.data() } as Certificado)));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -82,6 +98,7 @@ export default function CertificadosPage() {
   };
 
   const isStaff = role === "admin" || role === "tecnico" || role === "superadmin";
+  const isReadOnly = role === "cliente";
 
   const filteredCerts = certs.filter(c => {
     const matchesSearch = 
@@ -116,7 +133,7 @@ export default function CertificadosPage() {
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)", marginTop: "8px" }}>Certificados de Instalación</h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Generá y gestioná certificados con carácter de Declaración Jurada.</p>
         </div>
-        {isStaff && (
+        {isStaff && !isReadOnly && (
           <Link href="/admin/certificados/nuevo" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
             ➕ Nuevo Certificado
           </Link>
@@ -223,9 +240,9 @@ export default function CertificadosPage() {
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ display: "flex", gap: "6px" }}>
                           <Link href={`/admin/certificados/${c.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
-                            Ver / Editar
+                            {isReadOnly ? "Ver" : "Ver / Editar"}
                           </Link>
-                          {(role === "admin" || role === "superadmin") && (
+                          {(role === "admin" || role === "superadmin") && !isReadOnly && (
                             <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)" }}>
                               🗑️
                             </button>

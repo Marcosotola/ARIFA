@@ -43,14 +43,16 @@ const MODULES = [
     description: "Emisión y gestión de certificados de instalación.",
     href: "/admin/certificados",
     color: "#0369a1",
-    roles: ["admin", "tecnico", "superadmin"],
+    roles: ["admin", "tecnico", "superadmin", "cliente"],
+    clientLabel: "Mis Certificados",
+    clientDescription: "Certificados de tus instalaciones.",
   },
   {
     icon: "📈",
     label: "Plan de Acción",
     description: "Seguimiento de mejoras, prioridades y costos por consorcio.",
     href: "/admin/plan-accion",
-    color: "#6b46c1", // Purple
+    color: "#6b46c1",
     roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente"],
     clientLabel: "Mi Plan de Acción",
     clientDescription: "Mejoras propuestas y estado de ejecución.",
@@ -61,7 +63,9 @@ const MODULES = [
     description: "Visitas, capacitaciones, ATS y programas de seguridad.",
     href: "/admin/hys",
     color: "#15803d",
-    roles: ["admin", "tecnico", "superadmin"],
+    roles: ["admin", "tecnico", "superadmin", "cliente"],
+    clientLabel: "Mis Docs HyS",
+    clientDescription: "Documentos de Higiene y Seguridad de tus instalaciones.",
   },
   {
     icon: "🛒",
@@ -149,7 +153,9 @@ export default function AdminDashboard() {
         </h1>
         <p style={{ color: "var(--text-muted)", marginTop: "6px", fontSize: "0.88rem" }}>
           {isClient
-            ? "Bienvenido a tu panel de cliente ARIFA."
+            ? "Bienvenido a tu panel de cliente ARIFA. Acá podés consultar tus registros."
+            : role?.toLowerCase() === "tecnico"
+            ? "Panel de Técnico · Gestioná OT y Matafuegos"
             : isStaff
             ? "Panel de Gestión y Operaciones · ARIFA Seguridad"
             : "Acceso al sistema."}

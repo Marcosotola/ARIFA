@@ -238,6 +238,8 @@ export default function OTUnifiedPage() {
 
   const isStaff = isStaffRole(role ?? "");
   const isAdmin = role === "admin" || role === "superadmin";
+  const isClient = role === "cliente";
+  const isReadOnly = isClient; // clientes solo pueden ver
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
@@ -247,7 +249,7 @@ export default function OTUnifiedPage() {
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Órdenes de Trabajo</h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>{activeTab === "ots" ? "Gestión de inspecciones en campo." : "Gestión de plantillas base."}</p>
         </div>
-        {isStaff && (
+        {isStaff && !isReadOnly && (
           <div style={{ display: "flex", gap: "10px" }}>
             {activeTab === "gestor" ? (
               isAdmin && <button onClick={() => { setFormPlantilla(emptyPlantilla()); setModalGestor("create"); }} className="btn-red" style={{ padding: "12px 24px" }}>➕ NUEVA PLANTILLA</button>
@@ -279,7 +281,7 @@ export default function OTUnifiedPage() {
           }}>
           📋 Listado OT
         </button>
-        {isAdmin && (
+        {isAdmin && !isReadOnly && (
           <button 
             onClick={() => setActiveTab("gestor")}
             style={{ 
@@ -344,8 +346,10 @@ export default function OTUnifiedPage() {
                           </td>
                           <td style={{ padding: "14px 16px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: "5px", justifyContent: "flex-end" }}>
-                              <Link href={`/admin/planillas/deteccion/${ot.id}`} style={{ padding: "6px 10px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", textDecoration: "none", fontSize: "0.75rem", fontWeight: 700 }}>Editar</Link>
-                              {isAdmin && <button onClick={() => setDeleteConfirm({ id: ot.id, type: "ot" })} style={{ padding: "6px 10px", borderRadius: "6px", border: "none", background: "#fee2e2", color: "#b91c1c", cursor: "pointer" }}>🗑️</button>}
+                              <Link href={`/admin/planillas/deteccion/${ot.id}`} style={{ padding: "6px 10px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", textDecoration: "none", fontSize: "0.75rem", fontWeight: 700 }}>
+                                {isReadOnly ? "Ver" : "Editar"}
+                              </Link>
+                              {isAdmin && !isReadOnly && <button onClick={() => setDeleteConfirm({ id: ot.id, type: "ot" })} style={{ padding: "6px 10px", borderRadius: "6px", border: "none", background: "#fee2e2", color: "#b91c1c", cursor: "pointer" }}>🗑️</button>}
                             </div>
                           </td>
                         </tr>
