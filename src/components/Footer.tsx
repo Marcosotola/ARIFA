@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PWAInstallButton from "./PWAInstallButton";
 
 const SERVICES = [
   { label: "Análisis de Riesgos", href: "/servicios/analisis-de-riesgos" },

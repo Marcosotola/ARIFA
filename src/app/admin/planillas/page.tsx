@@ -10,7 +10,7 @@ interface Module {
   title: string;
   desc: string;
   icon: string;
-  count: number | null;
+  count?: number | null;
   color: string;
   comingSoon?: boolean;
   links: { label: string; href: string; primary: boolean }[];
@@ -19,7 +19,6 @@ interface Module {
 export default function PlanillasHubPage() {
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ ots: 0, certs: 0, remitos: 0, maintenance: 0 });
   const router = useRouter();
 
   useEffect(() => {
@@ -29,24 +28,6 @@ export default function PlanillasHubPage() {
       const userDoc = await getDoc(doc(db, "usuarios", u.uid));
       const roleData = userDoc.exists() ? userDoc.data().rol : "cliente";
       setRole(roleData);
-
-      try {
-        const [otSnap, certSnap, remSnap, mantSnap] = await Promise.all([
-          getDocs(collection(db, "ordenes_trabajo")),
-          getDocs(collection(db, "certificados")),
-          getDocs(collection(db, "remitos_matafuegos")),
-          getDocs(collection(db, "mantenimiento_matafuegos"))
-        ]);
-        setStats({ 
-          ots: otSnap.size, 
-          certs: certSnap.size, 
-          remitos: remSnap.size,
-          maintenance: mantSnap.size 
-        });
-      } catch (e) {
-        console.error("Error fetching stats:", e);
-      }
-      
       setLoading(false);
     });
     return () => unsub();
@@ -54,14 +35,13 @@ export default function PlanillasHubPage() {
 
   if (loading) return <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)" }}>Cargando Gestor de Planillas...</div>;
 
-  const isAdmin = role === "admin";
+  const isAdmin = role === "admin" || role === "superadmin";
 
   const modules: Module[] = [
     {
       title: "Órdenes de Trabajo",
       desc: "Gestión de inspecciones en campo, checklists de detección, extinción y registros fotográficos.",
       icon: "📋",
-      count: stats.ots,
       color: "#2b6cb0",
       links: [
         { label: "Ver Listado", href: "/admin/planillas/deteccion", primary: false },
@@ -72,7 +52,6 @@ export default function PlanillasHubPage() {
       title: "Certificaciones",
       desc: "Certificados de instalación y mantenimiento con carácter de Declaración Jurada para clientes.",
       icon: "📜",
-      count: stats.certs,
       color: "#2e7d32",
       links: [
         { label: "Ver Listado", href: "/admin/certificados", primary: false },
@@ -83,7 +62,6 @@ export default function PlanillasHubPage() {
       title: "Matafuegos",
       desc: "Gestión integral de remitos de logística y fichas técnicas de mantenimiento en taller.",
       icon: "🧯",
-      count: stats.remitos + stats.maintenance,
       color: "#c53030",
       links: [
         // Orden de links: 0: Ver Remitos, 1: Nuevo Remito, 2: Ver Fichas, 3: Nueva Ficha
@@ -100,7 +78,6 @@ export default function PlanillasHubPage() {
       title: "Gestor de Plantillas",
       desc: "Configuración de la estructura de las planillas, grupos de ítems y lógicas de validación.",
       icon: "🗂️",
-      count: null,
       color: "#4a5568",
       links: [
         { label: "Administrar Plantillas", href: "/admin/templates", primary: true },
@@ -110,7 +87,7 @@ export default function PlanillasHubPage() {
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
-      <header style={{ marginBottom: "40px" }}>
+      <header className="admin-header-main" style={{ marginBottom: "40px" }}>
         <h1 style={{ fontSize: "2.2rem", fontWeight: 900, color: "var(--primary-blue)" }}>Gestión de Planillas</h1>
         <p style={{ color: "var(--text-muted)", marginTop: "8px", fontSize: "1.05rem", maxWidth: '700px' }}>
           Centralizá todas las inspecciones, certificados y mantenimiento preventivo desde este panel operativo.
@@ -131,22 +108,16 @@ export default function PlanillasHubPage() {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
               <div style={{ fontSize: "2.5rem" }}>{m.icon}</div>
-              {m.count !== null && (
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: '1.5rem', fontWeight: 900, color: m.color }}>{m.count}</div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 700, opacity: 0.5, textTransform: 'uppercase' }}>Registros</div>
-                </div>
-              )}
             </div>
 
             <h3 style={{ fontSize: "1.3rem", fontWeight: 800, marginBottom: "12px", color: "#1a202c" }}>{m.title}</h3>
             <p className="card-desc" style={{ color: "#4a5568", fontSize: "0.95rem", lineHeight: "1.6", marginBottom: "30px", flex: 1 }}>{m.desc}</p>
 
-            <style jsx>{`
+            <style>{`
               @media (max-width: 768px) {
-                .card-desc { display: none; }
-                header { margin-bottom: 25px !important; }
-                h1 { fontSize: 1.8rem !important; }
+                .card-desc { display: none !important; }
+                .admin-header-main { margin-bottom: 25px !important; }
+                .admin-header-main h1 { font-size: 1.8rem !important; }
               }
             `}</style>
 

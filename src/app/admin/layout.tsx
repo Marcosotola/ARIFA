@@ -5,6 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import PWAInstallButton from "@/components/PWAInstallButton";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
@@ -121,6 +122,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Planillas as a top-level item
   sidebarLinks.push({ label: "Planillas", href: "/admin/planillas", icon: "📋" });
+
+  // HyS — admin and tecnico
+  if (isAdmin || isTecnico) {
+    sidebarLinks.push({ label: "HyS", href: "/admin/hys", icon: "🦺" });
+  }
 
   // Notifications — admin and tecnico only
   if (isAdmin || isTecnico) {
@@ -298,6 +304,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
+          <div style={{ padding: '10px 0', borderTop: '1px solid rgba(255,255,255,0.1)', marginBottom: '10px' }}>
+            <PWAInstallButton variant="sidebar" />
+          </div>
+
           <Link href="/" style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -338,7 +348,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
-      <style jsx>{`
+      <style>{`
         .return-site-btn:hover {
           background: rgba(255,255,255,0.15) !important;
         }
@@ -349,7 +359,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {children}
       </main>
 
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @media (max-width: 991px) {
           .mobile-admin-header { display: flex !important; }
           .admin-aside {
@@ -370,7 +380,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             padding: 80px 20px 40px !important;
           }
         }
-      `}</style>
+      `}} />
     </div>
   );
 }

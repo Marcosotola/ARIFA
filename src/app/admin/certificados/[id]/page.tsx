@@ -226,43 +226,48 @@ export default function CertificadoEditorPage() {
     } catch { /* skip */ }
 
     const drawPageHeader = (pdf: any) => {
+      const HEADER_H = 36;
+      const TOP = 10;
       pdf.setDrawColor(0, 34, 68);
       pdf.setLineWidth(0.5);
-      pdf.rect(ML, 10, TW, 28);
+      pdf.rect(ML, TOP, TW, HEADER_H);
+      // Logo area
       pdf.setFillColor(255, 255, 255);
-      pdf.rect(ML, 10, 35, 28, "F");
-      if (logoDataUrl) pdf.addImage(logoDataUrl, "PNG", ML + 2, 12, 31, 24);
-      pdf.setFillColor(255, 255, 255);
-      pdf.line(ML + 35, 10, ML + 35, 38);
+      pdf.rect(ML, TOP, 36, HEADER_H, "F");
+      if (logoDataUrl) pdf.addImage(logoDataUrl, "PNG", ML + 2, TOP + 3, 31, 26);
+      pdf.line(ML + 36, TOP, ML + 36, TOP + HEADER_H);
+      // Center area
+      const rx = W - MR - 52;
+      const cx = ML + 36 + (rx - ML - 36) / 2;
       pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9); pdf.setTextColor(0, 34, 68);
-      pdf.text("Certificado de Instalaciones", ML + 35 + (TW - 35 - 50) / 2, 17, { align: "center" });
-      pdf.text("contra incendio, y emergencias", ML + 35 + (TW - 35 - 50) / 2, 21, { align: "center" });
-      pdf.setFontSize(8); pdf.setTextColor(163, 31, 29);
-      pdf.text("DOCUMENTO TIENE CARÁCTER DE", ML + 35 + (TW - 35 - 50) / 2, 26, { align: "center" });
-      pdf.text("DECLARACIÓN JURADA.", ML + 35 + (TW - 35 - 50) / 2, 30, { align: "center" });
+      pdf.text("Certificado de Instalaciones", cx, TOP + 8, { align: "center" });
+      pdf.text("contra incendio, y emergencias", cx, TOP + 13, { align: "center" });
+      pdf.setFontSize(7.5); pdf.setTextColor(163, 31, 29);
+      pdf.text("DOCUMENTO TIENE CARÁCTER DE DECLARACIÓN JURADA.", cx, TOP + 19, { align: "center" });
       pdf.setTextColor(0); pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9);
-      pdf.text(`CERTIFICADO  N°${nCert}`, ML + 35 + (TW - 35 - 50) / 2, 35, { align: "center" });
+      pdf.text(`CERTIFICADO  N°${nCert}`, cx, TOP + 28, { align: "center" });
+      // "Ingeniería contra Incendio" text at bottom-left
+      pdf.setFont(undefined as any, "italic"); pdf.setFontSize(7); pdf.setTextColor(90);
+      pdf.text("Ingeniería contra Incendio", ML + 2, TOP + HEADER_H - 2);
       // Right info box
-      const rx = W - MR - 50;
-      pdf.line(rx, 10, rx, 38);
+      pdf.line(rx, TOP, rx, TOP + HEADER_H);
       pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8); pdf.setTextColor(0);
-      const rows = [["Rubro:", rubroFinal || "-"], ["Fecha:", fInsp], ["Rev. planos:", revPlanos || "-"]];
+      // Three rows: Rubro / Fecha / Rev.planos / Pagina
+      const rowH = HEADER_H / 4;
+      const rows = [
+        ["Rubro:", rubroFinal || "-"],
+        ["Fecha:", fInsp],
+        ["Rev. planos:", revPlanos || "-"],
+        ["Pagina:", String(pdf.getCurrentPageInfo().pageNumber)],
+      ];
       rows.forEach(([k, v], i) => {
-        pdf.setFont(undefined as any, "bold"); pdf.text(k, rx + 2, 17 + i * 7);
-        pdf.setFont(undefined as any, "normal"); pdf.text(v, rx + 22, 17 + i * 7);
-        if (i < 2) pdf.line(rx, 10 + (i + 1) * 7 + 3, W - MR, 10 + (i + 1) * 7 + 3);
+        const ry = TOP + rowH * i + rowH / 2 + 1.5;
+        pdf.setFont(undefined as any, "bold"); pdf.text(k, rx + 2, ry);
+        pdf.setFont(undefined as any, "normal"); pdf.text(v, rx + 24, ry);
+        if (i < rows.length - 1) pdf.line(rx, TOP + rowH * (i + 1), W - MR, TOP + rowH * (i + 1));
       });
-      // Footer line "Ingeniería contra Incendio"
-      pdf.line(ML, 38, W - MR, 38);
-      pdf.setFont(undefined as any, "normal"); pdf.setFontSize(7.5); pdf.setTextColor(80);
-      pdf.text("Ingeniería contra Incendio", ML + 2, 36);
-      // Right-bottom: Pagina
-      const totalPages = pdf.getNumberOfPages();
-      pdf.setFont(undefined as any, "bold"); pdf.setFontSize(8); pdf.setTextColor(0);
-      pdf.line(rx, 31, W - MR, 31);
-      pdf.text("Pagina", rx + 2, 35); 
-      pdf.text(String(pdf.getCurrentPageInfo().pageNumber), rx + 25, 35);
-      return 42; // y after header
+      pdf.line(ML, TOP + HEADER_H, W - MR, TOP + HEADER_H);
+      return TOP + HEADER_H + 6; // y after header
     };
 
     // ── PAGE 1 — Datos del certificado ────────────────────────────────────────
@@ -346,11 +351,13 @@ export default function CertificadoEditorPage() {
     if (y > 210) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
 
     pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9); pdf.setTextColor(0);
-    pdf.text("DECLARACION JURADA:", ML, y); 
-    pdf.setFont(undefined as any, "normal");
-    const djLines = pdf.splitTextToSize(DECLARACION_JURADA.replace("DECLARACION JURADA: ", ""), TW - 38);
-    pdf.text(djLines, ML + 38, y);
-    y += djLines.length * 5 + 12;
+    pdf.text("DECLARACION JURADA:", ML, y);
+    y += 6;
+    pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8.5); pdf.setTextColor(40);
+    const djText = DECLARACION_JURADA.replace("DECLARACION JURADA: ", "");
+    const djLines = pdf.splitTextToSize(djText, TW);
+    pdf.text(djLines, ML, y);
+    y += djLines.length * 5 + 10;
 
     // Firma boxes
     const bw = (TW - 10) / 2;

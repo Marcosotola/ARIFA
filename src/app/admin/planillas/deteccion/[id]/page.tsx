@@ -518,45 +518,98 @@ function OTFormContent() {
             <div key={p.plantillaId} style={{ ...cardSt, borderLeft: '5px solid var(--primary-blue)' }}>
               <h3 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "15px" }}>{p.nombre}</h3>
               {p.tipo === "checklist" ? (
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <tbody>
-                    {p.filasChecklist.map((f, iIdx) => (
-                      <tr key={iIdx} style={{ borderBottom: "1px solid #eee" }}>
-                        <td style={{ padding: "10px", fontSize: "0.85rem", fontWeight: f.esGrupo ? 800 : 400 }}>{f.descripcion}</td>
-                        {!f.esGrupo && (
-                            <>
-                                <td style={{ width: "30px" }}><input type="radio" checked={f.valor === "ok"} onChange={() => updateChecklist(pIdx, iIdx, "valor", "ok")} /></td>
-                                <td style={{ width: "30px" }}><input type="radio" checked={f.valor === "nok"} onChange={() => updateChecklist(pIdx, iIdx, "valor", "nok")} /></td>
-                                <td>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                        <input style={{ ...inputSt, padding: "5px" }} value={f.observacion} onChange={e => updateChecklist(pIdx, iIdx, "observacion", e.target.value)} placeholder="Obs..." />
-                                        {f.valor === "nok" && (
-                                            <div style={{ display: 'flex', gap: '4px' }}>
-                                                {["leve", "moderado", "critico"].map(s => (
-                                                    <button key={s} onClick={() => updateChecklist(pIdx, iIdx, "severidad", s)} style={{ 
-                                                        fontSize: '0.6rem', padding: '2px 8px', borderRadius: '4px', border: 'none', cursor: 'pointer',
-                                                        background: f.severidad === s ? (s === 'leve' ? '#10b981' : s === 'moderado' ? '#f59e0b' : '#ef4444') : '#f1f5f9',
-                                                        color: f.severidad === s ? '#fff' : '#64748b', fontWeight: 800
-                                                    }}> {s.toUpperCase()} </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </td>
-                            </>
-                        )}
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr style={{ background: "#f0f4ff", borderBottom: "2px solid var(--primary-blue)" }}>
+                        <th style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.8rem", fontWeight: 800, color: "var(--primary-blue)", minWidth: "200px" }}>Ítem</th>
+                        <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "0.75rem", fontWeight: 900, color: "#16a34a", width: "55px" }}>
+                          {p.modoChecklist === "si_no" ? "SI" : "OK"}
+                        </th>
+                        <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "0.75rem", fontWeight: 900, color: "#dc2626", width: "55px" }}>
+                          {p.modoChecklist === "si_no" ? "NO" : "NOK"}
+                        </th>
+                        <th style={{ padding: "10px 8px", textAlign: "center", fontSize: "0.75rem", fontWeight: 900, color: "#6b7280", width: "55px" }}>N/A</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left", fontSize: "0.8rem", fontWeight: 800, color: "#555" }}>Observación / Prioridad</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {p.filasChecklist.map((f, iIdx) => (
+                        <tr key={iIdx} style={{ borderBottom: "1px solid #eee", background: f.esGrupo ? "#f8fafc" : "#fff" }}>
+                          {f.esGrupo ? (
+                            <td colSpan={5} style={{ padding: "10px 12px", fontSize: "0.85rem", fontWeight: 800, color: "var(--primary-blue)", background: "#eef2ff", letterSpacing: "0.3px" }}>
+                              {f.descripcion}
+                            </td>
+                          ) : (
+                            <>
+                              <td style={{ padding: "10px 12px", fontSize: "0.85rem" }}>{f.descripcion}</td>
+                              <td style={{ textAlign: "center", padding: "10px 8px" }}>
+                                <input
+                                  type="radio"
+                                  name={`${pIdx}-${iIdx}`}
+                                  checked={f.valor === (p.modoChecklist === "si_no" ? "si" : "ok")}
+                                  onChange={() => updateChecklist(pIdx, iIdx, "valor", p.modoChecklist === "si_no" ? "si" : "ok")}
+                                  style={{ accentColor: "#16a34a", width: "16px", height: "16px", cursor: "pointer" }}
+                                />
+                              </td>
+                              <td style={{ textAlign: "center", padding: "10px 8px" }}>
+                                <input
+                                  type="radio"
+                                  name={`${pIdx}-${iIdx}`}
+                                  checked={f.valor === (p.modoChecklist === "si_no" ? "no" : "nok")}
+                                  onChange={() => updateChecklist(pIdx, iIdx, "valor", p.modoChecklist === "si_no" ? "no" : "nok")}
+                                  style={{ accentColor: "#dc2626", width: "16px", height: "16px", cursor: "pointer" }}
+                                />
+                              </td>
+                              <td style={{ textAlign: "center", padding: "10px 8px" }}>
+                                <input
+                                  type="radio"
+                                  name={`${pIdx}-${iIdx}`}
+                                  checked={f.valor === "na"}
+                                  onChange={() => updateChecklist(pIdx, iIdx, "valor", "na")}
+                                  style={{ accentColor: "#6b7280", width: "16px", height: "16px", cursor: "pointer" }}
+                                />
+                              </td>
+                              <td style={{ padding: "8px 12px" }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                  <input
+                                    style={{ ...inputSt, padding: "6px 8px", fontSize: "0.8rem" }}
+                                    value={f.observacion}
+                                    onChange={e => updateChecklist(pIdx, iIdx, "observacion", e.target.value)}
+                                    placeholder="Observación..."
+                                  />
+                                  {(f.valor === "nok" || f.valor === "no") && (
+                                    <div style={{ display: 'flex', gap: '4px' }}>
+                                      {["leve", "moderado", "critico"].map(s => (
+                                        <button key={s} onClick={() => updateChecklist(pIdx, iIdx, "severidad", s)} style={{
+                                          fontSize: '0.6rem', padding: '3px 8px', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                                          background: f.severidad === s ? (s === 'leve' ? '#10b981' : s === 'moderado' ? '#f59e0b' : '#ef4444') : '#f1f5f9',
+                                          color: f.severidad === s ? '#fff' : '#64748b', fontWeight: 800
+                                        }}>{s.toUpperCase()}</button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <div style={{ overflowX: "auto" }}>
                   <table style={{ width: "100%", fontSize: "0.75rem", borderCollapse: 'collapse' }}>
-                    <thead><tr style={{ background: "#f8f9fa" }}>{p.columnas.map(c => <th key={c} style={{ padding: "10px", textAlign: 'left' }}>{c}</th>)}</tr></thead>
+                    <thead><tr style={{ background: "#f8f9fa" }}>
+                      {p.columnas.map(c => <th key={c} style={{ padding: "10px", textAlign: 'left', fontWeight: 800, color: "var(--primary-blue)", borderBottom: "2px solid #eee" }}>{c}</th>)}
+                      <th style={{ padding: "10px", textAlign: 'left', fontWeight: 800, color: "#555", borderBottom: "2px solid #eee" }}>Observaciones</th>
+                    </tr></thead>
                     <tbody>{p.filasTabla.map((f, fIdx) => (
-                         <tr key={fIdx} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                           {p.columnas.map(c => <td key={c} style={{ padding: "4px" }}><input style={{...inputSt, padding: '5px'}} value={f.celdas[c] || ""} onChange={e => updateCelda(pIdx, fIdx, c, e.target.value)} /></td>)}
-                         </tr>
+                        <tr key={fIdx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                          {p.columnas.map(c => <td key={c} style={{ padding: "4px" }}><input style={{...inputSt, padding: '5px'}} value={f.celdas[c] || ""} onChange={e => updateCelda(pIdx, fIdx, c, e.target.value)} /></td>)}
+                          <td style={{ padding: "4px" }}><input style={{...inputSt, padding: '5px'}} value={f.celdas["__obs__"] || ""} onChange={e => updateCelda(pIdx, fIdx, "__obs__", e.target.value)} placeholder="Obs..." /></td>
+                        </tr>
                       ))}</tbody>
                   </table>
                   <button onClick={() => setPlanillasEnOT(prev => prev.map((x, idx) => idx === pIdx ? {...x, filasTabla: [...x.filasTabla, {celdas: {}}]} : x))} style={{ marginTop: '10px', background: '#f1f5f9', border: 'none', padding: '10px', width: '100%', borderRadius: '8px', fontWeight: 800 }}>+ AGREGAR FILA</button>

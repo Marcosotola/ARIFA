@@ -82,7 +82,7 @@ export default function MantenimientoListPage() {
     return matchesSearch && matchesDate;
   });
 
-  const isStaff = role === "admin" || role === "tecnico";
+  const isStaff = role === "admin" || role === "tecnico" || role === "superadmin";
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
@@ -195,7 +195,7 @@ export default function MantenimientoListPage() {
                         <Link href={`/admin/planillas/matafuegos/mantenimiento/${ficha.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#fff", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap", textDecoration: 'none' }}>
                           Ver / Editar
                         </Link>
-                        {role === "admin" && (
+                        {(role === "admin" || role === "superadmin") && (
                           <button onClick={() => setDeleteConfirm(ficha.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)", fontSize: "0.82rem" }}>
                             🗑️
                           </button>

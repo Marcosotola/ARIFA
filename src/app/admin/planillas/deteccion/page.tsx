@@ -50,18 +50,34 @@ export default function DeteccionPage() {
     return () => unsub();
   }, [router]);
 
+  const isStaffRole = (r: string) => ["admin", "tecnico", "superadmin"].includes(r);
+
   const fetchOTs = async (r: string, uid: string) => {
     setLoading(true);
     try {
-      let q;
-      if (r === "admin" || r === "tecnico") {
-        q = query(collection(db, "ordenes_trabajo"), orderBy("createdAt", "desc"));
-      } else {
-        q = query(collection(db, "ordenes_trabajo"), where("clienteId", "==", uid), orderBy("createdAt", "desc"));
+      let snap;
+      try {
+        const q = isStaffRole(r)
+          ? query(collection(db, "ordenes_trabajo"), orderBy("createdAt", "desc"))
+          : query(collection(db, "ordenes_trabajo"), where("clienteId", "==", uid), orderBy("createdAt", "desc"));
+        snap = await getDocs(q);
+      } catch {
+        // Fallback: fetch all, sort client-side (covers old docs with 'fechaCreacion')
+        snap = await getDocs(collection(db, "ordenes_trabajo"));
       }
-      const snap = await getDocs(q);
-      setOts(snap.docs.map(d => ({ id: d.id, ...d.data() } as OT)));
-    } catch (e) { console.error(e); }
+      let docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as OT));
+      // Filter by clienteId only for non-staff
+      if (!isStaffRole(r)) {
+        docs = docs.filter(o => (o as any).clienteId === uid);
+      }
+      // Sort: createdAt → fechaCreacion → fecha
+      docs.sort((a, b) => {
+        const ts = (o: any) =>
+          o.createdAt?.seconds ?? o.fechaCreacion?.seconds ?? (o.fecha ? new Date(o.fecha).getTime() / 1000 : 0);
+        return ts(b) - ts(a);
+      });
+      setOts(docs);
+    } catch (e) { console.error("Error fetching OTs:", e); }
     finally { setLoading(false); }
   };
 
@@ -90,7 +106,7 @@ export default function DeteccionPage() {
     } catch (e) { alert("Error al eliminar: " + e); }
   };
 
-  const isStaff = role === "admin" || role === "tecnico";
+  const isStaff = isStaffRole(role ?? "");
 
   const filteredOts = ots.filter(ot => {
     const matchesSearch = 

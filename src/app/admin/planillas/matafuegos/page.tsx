@@ -87,7 +87,7 @@ export default function RemitosListPage() {
     return matchesSearch && matchesDate;
   });
 
-  const isAdmin = role === "admin";
+  const isAdmin = role === "admin" || role === "superadmin";
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
@@ -102,7 +102,7 @@ export default function RemitosListPage() {
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Movimientos de Extintores</h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Registro de retiros para recarga y entregas a clientes.</p>
         </div>
-        {(role === "admin" || role === "tecnico") && (
+        {(role === "admin" || role === "tecnico" || role === "superadmin") && (
           <Link href="/admin/planillas/matafuegos/nuevo" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
             ➕ NUEVO REMITO
           </Link>

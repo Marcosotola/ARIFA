@@ -9,6 +9,11 @@ import Link from "next/link";
 export default function ConfigPage() {
   const [user, setUser] = useState<any>(null);
   const [nombre, setNombre] = useState("");
+  const [apellido, setApellido] = useState("");
+  const [empresa, setEmpresa] = useState("");
+  const [direccion, setDireccion] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [cargo, setCargo] = useState("");
   const [rol, setRol] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -30,6 +35,11 @@ export default function ConfigPage() {
         if (userDoc.exists()) {
           const data = userDoc.data();
           setNombre(data.nombre || "");
+          setApellido(data.apellido || "");
+          setEmpresa(data.empresa || "");
+          setDireccion(data.direccion || "");
+          setTelefono(data.telefono || "");
+          setCargo(data.cargo || "");
           setRol(data.rol || "cliente");
           setHasToken(!!data.fcmToken);
         }
@@ -52,7 +62,15 @@ export default function ConfigPage() {
     setSaving(true);
     setMessage("");
     try {
-      await updateDoc(doc(db, "usuarios", user.uid), { nombre });
+      await updateDoc(doc(db, "usuarios", user.uid), { 
+        nombre: nombre.trim(),
+        apellido: apellido.trim(),
+        empresa: empresa.trim(),
+        direccion: direccion.trim(),
+        telefono: telefono.trim(),
+        cargo: cargo.trim(),
+        updatedAt: new Date().toISOString()
+      });
       setMessage("✓ Perfil actualizado con éxito.");
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -72,22 +90,19 @@ export default function ConfigPage() {
         await updateDoc(doc(db, "usuarios", user.uid), { fcmToken: token });
         setHasToken(true);
         setNotifStatus("granted");
-        setNotifMessage("✓ Notificaciones activadas correctamente.");
+        setNotifMessage("✓ Notificaciones activadas.");
       } else {
-        const perm =
-          typeof window !== "undefined" && "Notification" in window
-            ? Notification.permission
-            : "denied";
+        const perm = typeof window !== "undefined" && "Notification" in window ? Notification.permission : "denied";
         setNotifStatus(perm as any);
         if (perm === "denied") {
-          setNotifMessage("✗ Bloqueaste las notificaciones. Habilitálas desde la configuración del navegador.");
+          setNotifMessage("✗ Permiso denegado por el navegador.");
         } else {
-          setNotifMessage("✗ No se pudo obtener el permiso. Intentá de nuevo.");
+          setNotifMessage("✗ No se pudo obtener el permiso.");
         }
       }
     } catch (e) {
       console.error(e);
-      setNotifMessage("✗ Error al activar notificaciones.");
+      setNotifMessage("✗ Error al activar.");
     } finally {
       setNotifLoading(false);
       setTimeout(() => setNotifMessage(""), 5000);
@@ -99,7 +114,7 @@ export default function ConfigPage() {
     try {
       await updateDoc(doc(db, "usuarios", user.uid), { fcmToken: null });
       setHasToken(false);
-      setNotifMessage("Notificaciones desactivadas. Ya no recibirás alertas push.");
+      setNotifMessage("✓ Notificaciones desactivadas.");
     } catch (e) {
       setNotifMessage("✗ Error al desactivar.");
     } finally {
@@ -108,210 +123,121 @@ export default function ConfigPage() {
     }
   };
 
-  if (loading)
-    return (
-      <div style={{ padding: "40px", textAlign: "center", fontStyle: "italic", color: "var(--text-muted)" }}>
-        Cargando perfil...
-      </div>
-    );
+  if (loading) return <div style={{ padding: "60px", textAlign: "center", fontStyle: "italic", color: "var(--text-muted)" }}>Cargando perfil...</div>;
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
       <header style={{ marginBottom: "35px" }}>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
-          Configuración de Perfil
-        </h1>
-        <p style={{ color: "var(--text-muted)", marginTop: "5px", fontSize: "0.95rem" }}>
-          Administra tus datos personales y preferencias de cuenta.
-        </p>
-        
-        {/* Acceso rápido a Suscripción para superadmin */}
-        {rol?.toLowerCase() === 'superadmin' && (
-          <div style={{ marginTop: '15px' }}>
-            <Link href="/admin/config/suscripcion" style={{ 
-              display: 'inline-flex', alignItems: 'center', gap: '8px', 
-              padding: '8px 16px', background: 'var(--primary-blue)', 
-              color: '#fff', borderRadius: '8px', fontSize: '0.85rem', 
-              fontWeight: 700, textDecoration: 'none' 
-            }}>
-              💳 Ir a Gestión de Suscripción
-            </Link>
-          </div>
-        )}
+        <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Mi Cuenta</h1>
+        <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Gestioná tus datos personales y preferencias de alertas.</p>
       </header>
 
-      {/* Profile form */}
-      <div style={{ background: "#fff", borderRadius: "12px", padding: "35px", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", border: "1px solid #eee" }}>
-        <form onSubmit={handleUpdate} style={{ display: "flex", flexDirection: "column", gap: "25px" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(350px, 1fr))", gap: "25px" }}>
+        
+        {/* Profile Info */}
+        <div style={{ background: "#fff", borderRadius: "16px", padding: "30px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
+          <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "25px", borderBottom: "1px solid #eee", paddingBottom: "15px" }}>
+            👤 Datos Personales
+          </h3>
+          <form onSubmit={handleUpdate} style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+              <div className="form-group">
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Nombre</label>
+                <input type="text" value={nombre} onChange={e => setNombre(e.target.value)} required style={{ width: "100%", padding: "11px", borderRadius: "8px", border: "1.5px solid #eee", fontSize: "0.95rem" }} />
+              </div>
+              <div className="form-group">
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Apellido</label>
+                <input type="text" value={apellido} onChange={e => setApellido(e.target.value)} required style={{ width: "100%", padding: "11px", borderRadius: "8px", border: "1.5px solid #eee", fontSize: "0.95rem" }} />
+              </div>
+            </div>
+
             <div className="form-group">
-              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "var(--primary-blue)", textTransform: "uppercase", marginBottom: "8px" }}>
-                Nombre Completo
-              </label>
-              <input
-                type="text"
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                required
-                placeholder="Tu nombre"
-                style={{ width: "100%", padding: "12px 15px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "1rem" }}
-              />
+              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Empresa</label>
+              <input type="text" value={empresa} onChange={e => setEmpresa(e.target.value)} style={{ width: "100%", padding: "11px", borderRadius: "8px", border: "1.5px solid #eee", fontSize: "0.95rem" }} />
             </div>
+
             <div className="form-group">
-              <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "var(--primary-blue)", opacity: 0.6, textTransform: "uppercase", marginBottom: "8px" }}>
-                Email (No editable)
-              </label>
-              <input
-                type="email"
-                disabled
-                value={user?.email || ""}
-                style={{ width: "100%", padding: "12px 15px", borderRadius: "8px", border: "1px solid #eee", fontSize: "1rem", color: "#999", background: "#fafafa" }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginTop: "10px" }}>
-            <button
-              type="submit"
-              className="btn-red"
-              disabled={saving}
-              style={{ padding: "14px 40px", fontSize: "0.9rem", fontWeight: 800 }}
-            >
-              {saving ? "Guardando..." : "Guardar Cambios"}
-            </button>
-            {message && (
-              <span style={{
-                marginLeft: "15px",
-                fontSize: "0.9rem",
-                fontWeight: 700,
-                color: message.startsWith("✓") ? "#2e7d32" : "var(--primary-red)",
-                transition: "0.3s",
-              }}>
-                {message}
-              </span>
-            )}
-          </div>
-        </form>
-      </div>
-
-      {/* NOTIFICATIONS SECTION */}
-      <div style={{ marginTop: "30px", background: "#fff", borderRadius: "12px", padding: "30px", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", border: "1px solid #eee" }}>
-        <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
-          🔔 Notificaciones Push
-        </h3>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "20px", lineHeight: 1.6 }}>
-          Recibí alertas importantes sobre vencimientos, consultas y novedades de ARIFA directamente en tu dispositivo.
-        </p>
-
-        {notifIOS && (
-          <div style={{ background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: "10px", padding: "16px", marginBottom: "16px" }}>
-            <p style={{ margin: 0, fontSize: "0.88rem", color: "#92400e", lineHeight: 1.6 }}>
-              <strong>⚠️ iOS / Safari:</strong> Las notificaciones push en iPhone/iPad requieren que la app esté instalada
-              en tu pantalla de inicio. Una vez instalada, tocá el botón <strong>&quot;Activar Notificaciones&quot;</strong> desde esta sección.
-            </p>
-          </div>
-        )}
-
-        {!notifSupported && !notifIOS && (
-          <div style={{ background: "#f3f4f6", borderRadius: "10px", padding: "16px", marginBottom: "16px" }}>
-            <p style={{ margin: 0, fontSize: "0.88rem", color: "#666" }}>
-              Tu navegador no soporta notificaciones push. Te recomendamos usar Chrome, Edge o Firefox.
-            </p>
-          </div>
-        )}
-
-        {(notifSupported || notifIOS) && (
-          <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              padding: "10px 16px",
-              borderRadius: "8px",
-              background: hasToken ? "#e8f5e9" : "#f3f4f6",
-              border: `1px solid ${hasToken ? "#c8e6c9" : "#e5e7eb"}`,
-            }}>
-              <span style={{ fontSize: "0.8rem" }}>{hasToken ? "🟢" : "⚪"}</span>
-              <span style={{ fontSize: "0.85rem", fontWeight: 700, color: hasToken ? "#2e7d32" : "#555" }}>
-                {hasToken ? "Activadas" : "Desactivadas"}
-              </span>
+              <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Dirección</label>
+              <input type="text" value={direccion} onChange={e => setDireccion(e.target.value)} style={{ width: "100%", padding: "11px", borderRadius: "8px", border: "1.5px solid #eee", fontSize: "0.95rem" }} />
             </div>
 
-            {!hasToken ? (
-              <button
-                id="config-activar-notificaciones"
-                onClick={handleActivarNotificaciones}
-                disabled={notifLoading || notifStatus === "denied"}
-                style={{
-                  padding: "12px 24px",
-                  background: notifStatus === "denied" ? "#9ca3af" : "linear-gradient(135deg, #1a3a6b, #2563eb)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontWeight: 700,
-                  fontSize: "0.9rem",
-                  cursor: notifStatus === "denied" ? "not-allowed" : "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                🔔 {notifLoading ? "Activando..." : notifStatus === "denied" ? "Bloqueado en el navegador" : "Activar Notificaciones"}
-              </button>
-            ) : (
-              <button
-                id="config-desactivar-notificaciones"
-                onClick={handleDesactivarNotificaciones}
-                disabled={notifLoading}
-                style={{
-                  padding: "12px 24px",
-                  background: "#fff",
-                  color: "var(--primary-red)",
-                  border: "1px solid var(--primary-red)",
-                  borderRadius: "8px",
-                  fontWeight: 700,
-                  fontSize: "0.9rem",
-                  cursor: "pointer",
-                }}
-              >
-                {notifLoading ? "..." : "Desactivar"}
-              </button>
-            )}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+              <div className="form-group">
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Teléfono</label>
+                <input type="text" value={telefono} onChange={e => setTelefono(e.target.value)} style={{ width: "100%", padding: "11px", borderRadius: "8px", border: "1.5px solid #eee", fontSize: "0.95rem" }} />
+              </div>
+              <div className="form-group">
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Cargo</label>
+                <select value={cargo} onChange={e => setCargo(e.target.value)} style={{ width: "100%", padding: "11px", borderRadius: "8px", border: "1.5px solid #eee", fontSize: "0.95rem", background: "#fff" }}>
+                  <option value="">Seleccionar...</option>
+                  {["Propietario", "Gerente", "Responsable de Seguridad", "Encargado", "Administrativo", "Técnico", "Otro"].map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            </div>
 
-            {notifMessage && (
-              <span style={{
-                fontSize: "0.88rem",
-                fontWeight: 600,
-                color: notifMessage.startsWith("✓") ? "#2e7d32" : notifMessage.startsWith("✗") ? "var(--primary-red)" : "#555",
+            <div style={{ marginTop: "10px", display: "flex", alignItems: "center", gap: "15px" }}>
+              <button type="submit" className="btn-red" disabled={saving} style={{ padding: "12px 30px", fontSize: "0.9rem" }}>
+                {saving ? "Guardando..." : "Actualizar Perfil"}
+              </button>
+              {message && <span style={{ fontSize: "0.85rem", fontWeight: 700, color: message.startsWith("✓") ? "#2e7d32" : "var(--primary-red)" }}>{message}</span>}
+            </div>
+          </form>
+        </div>
+
+        {/* Preferences / Notifs */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "25px" }}>
+          
+          <div style={{ background: "#fff", borderRadius: "16px", padding: "30px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
+            <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "20px", borderBottom: "1px solid #eee", paddingBottom: "15px" }}>
+              🔔 Notificaciones Push
+            </h3>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", lineHeight: 1.6, marginBottom: "20px" }}>
+              Activá las alertas para recibir avisos de vencimientos y novedades importantes de ARIFA.
+            </p>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+              <div style={{ 
+                flex: 1, padding: "15px", borderRadius: "12px", 
+                background: hasToken ? "#e8f5e9" : "#f5f5f5",
+                border: `1px solid ${hasToken ? "#c8e6c9" : "#eee"}`,
+                textAlign: "center"
               }}>
-                {notifMessage}
-              </span>
+                <div style={{ fontSize: "1.2rem", marginBottom: "5px" }}>{hasToken ? "✅" : "❌"}</div>
+                <div style={{ fontSize: "0.8rem", fontWeight: 800, color: hasToken ? "#2e7d32" : "#888", textTransform: "uppercase" }}>
+                  {hasToken ? "Activadas" : "Desactivadas"}
+                </div>
+              </div>
+
+              <div style={{ flex: 1.5 }}>
+                {hasToken ? (
+                  <button onClick={handleDesactivarNotificaciones} disabled={notifLoading} className="btn-white" style={{ width: "100%", border: "1px solid var(--primary-red)", color: "var(--primary-red)" }}>
+                    {notifLoading ? "..." : "Desactivar"}
+                  </button>
+                ) : (
+                  <button onClick={handleActivarNotificaciones} disabled={notifLoading || notifStatus === "denied"} className="btn-blue" style={{ width: "100%", opacity: notifStatus === "denied" ? 0.5 : 1 }}>
+                    {notifLoading ? "Activando..." : "Activar Ahora"}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {notifMessage && <div style={{ marginTop: "15px", fontSize: "0.85rem", fontWeight: 600, color: notifMessage.startsWith("✓") ? "#2e7d32" : "var(--primary-red)", textAlign: "center" }}>{notifMessage}</div>}
+
+            {notifStatus === "denied" && (
+              <p style={{ marginTop: "15px", fontSize: "0.75rem", color: "#666", textAlign: "center" }}>
+                ⚠️ Notificaciones bloqueadas en el navegador. Habilitálas desde el candado (🔒) de la barra de direcciones.
+              </p>
             )}
           </div>
-        )}
 
-        {notifStatus === "denied" && (
-          <p style={{ marginTop: "12px", fontSize: "0.82rem", color: "#666", lineHeight: 1.6 }}>
-            Las notificaciones están bloqueadas en tu navegador. Para habilitarlas, andá a{" "}
-            <strong>Configuración del sitio</strong> (🔒 en la barra de direcciones) y cambiá los permisos de notificación a <strong>Permitir</strong>.
-          </p>
-        )}
-      </div>
+          <div style={{ background: "#fff", borderRadius: "16px", padding: "30px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
+            <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "15px" }}>🔐 Seguridad</h3>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5, marginBottom: "20px" }}>Para cambiar tu contraseña debés cerrar sesión e iniciar el proceso de recuperación.</p>
+            <button onClick={() => auth.signOut()} style={{ background: "none", border: "1px solid #ddd", color: "#666", padding: "10px 15px", borderRadius: "8px", fontWeight: 700, fontSize: "0.8rem", width: "100%", cursor: "pointer" }}>Cerrar Sesión</button>
+          </div>
 
-      {/* Security */}
-      <div style={{ marginTop: "30px", padding: "30px", background: "var(--bg-light)", borderRadius: "12px", border: "1px solid #ddd" }}>
-        <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "15px" }}>
-          Seguridad de la cuenta
-        </h3>
-        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "20px", lineHeight: 1.6 }}>
-          Para cambiar tu contraseña, debés cerrar sesión e iniciar el proceso de recuperación de contraseña en el panel de ingreso.
-        </p>
-        <button
-          onClick={() => auth.signOut()}
-          style={{ background: "none", border: "1px solid var(--primary-red)", color: "var(--primary-red)", padding: "10px 20px", borderRadius: "6px", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer" }}
-        >
-          Cerrar Sesión para Cambiar Contraseña
-        </button>
+        </div>
+
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ export default function OrdenesAdmin() {
   const fetchOrdenes = async (uid: string, role: string) => {
     try {
       let q;
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'superadmin') {
         q = query(collection(db, "ordenes_trabajo"), orderBy("fechaCreacion", "desc"));
       } else {
         q = query(collection(db, "ordenes_trabajo"), where("userId", "==", uid), orderBy("fechaCreacion", "desc"));
@@ -72,7 +72,7 @@ export default function OrdenesAdmin() {
 
   if (loading) return <div style={{padding: '50px', textAlign:'center', color:'var(--text-muted)'}}>Cargando Órdenes...</div>;
 
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'superadmin';
 
   return (
     <div style={{ maxWidth: "1200px" }}>

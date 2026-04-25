@@ -1592,3 +1592,104 @@ ul { list-style: none; }
   }
 }
 
+/* ======= ADMIN PANEL — MOBILE RESPONSIVE ======= */
+
+/* Tables inside admin — always scrollable horizontally */
+.admin-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+}
+
+/* On mobile, tighten table cell padding */
+@media (max-width: 640px) {
+  /* Dashboard stat cards → 2 columns */
+  .dashboard-stat-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* Quick-access cards → single column */
+  .dashboard-quick-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Modal max-width fits screen */
+  .admin-modal-inner {
+    padding: 20px !important;
+    margin: 0 8px !important;
+    border-radius: 10px !important;
+  }
+
+  /* Tighten table cells on mobile */
+  table td,
+  table th {
+    padding: 10px 12px !important;
+    font-size: 0.82rem !important;
+  }
+
+  /* Admin page headers: stack vertically */
+  .admin-page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  /* Filter chips scrollable */
+  .filter-chips-row {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 6px;
+  }
+
+  /* Image grid in HyS modal: 2 columns on mobile */
+  .hys-img-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+
+  /* HyS stat badges wrap on mobile */
+  .hys-stat-badges {
+    gap: 8px !important;
+  }
+
+  /* Product card grid */
+  .prod-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 14px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .prod-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Smooth scrollbars for tables on webkit */
+::-webkit-scrollbar { height: 5px; width: 5px; }
+::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ======= DASHBOARD MODULE CARDS ======= */
+
+/* 2 cols on small mobile */
+@media (max-width: 500px) {
+  /* hide description text inside module cards */
+  .module-desc {
+    display: none !important;
+  }
+}
+
+/* Ensure admin main content never overflows */
+.admin-main {
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+/* All admin pages: full width, no overflow */
+.admin-main > div {
+  width: 100%;
+  min-width: 0;
+}
+
+

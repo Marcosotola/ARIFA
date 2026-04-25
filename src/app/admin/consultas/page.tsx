@@ -26,7 +26,7 @@ export default function ConsultasAdmin() {
   const fetchConsultas = async (email: string | null, role: string) => {
     try {
       let q;
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'superadmin') {
         q = query(collection(db, "consultas"), orderBy("fecha", "desc"));
       } else {
         q = query(collection(db, "consultas"), where("email", "==", email), orderBy("fecha", "desc"));
@@ -66,7 +66,7 @@ export default function ConsultasAdmin() {
 
   if (loading) return <div style={{padding: '50px', textAlign:'center', color:'var(--text-muted)'}}>Cargando Consultas...</div>;
 
-  const isAdmin = role === 'admin';
+  const isAdmin = role === 'admin' || role === 'superadmin';
 
   return (
     <div style={{ maxWidth: "1200px" }}>

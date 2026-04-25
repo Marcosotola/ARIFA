@@ -54,7 +54,7 @@ export default function DetalleMantenimientoPage() {
   if (loading) return <div style={{ padding: "100px", textAlign: "center" }}>Cargando ficha...</div>;
   if (!ficha) return <div style={{ padding: "100px", textAlign: "center" }}>No se encontró la ficha técnica.</div>;
 
-  const isAdmin = role === "admin";
+  const isAdmin = role === "admin" || role === "superadmin";
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", paddingBottom: "100px" }}>
