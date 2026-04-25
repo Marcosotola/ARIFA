@@ -114,12 +114,15 @@ export default function AdminDashboard() {
     return () => unsub();
   }, []);
 
-  const isClient = role === "cliente";
-  const isSuperAdmin = role === "superadmin";
-  const isStaff = role === "admin" || role === "tecnico" || role === "secretaria" || isSuperAdmin;
+  const isClient = role?.toLowerCase() === "cliente";
+  const isSuperAdmin = role?.toLowerCase() === "superadmin";
+  const isStaff = ["admin", "tecnico", "secretaria", "superadmin"].includes(role?.toLowerCase() || "");
 
   // Filter modules by role
-  const visibleModules = MODULES.filter(m => role && m.roles.includes(role));
+  const visibleModules = MODULES.filter(m => {
+    const currentRole = role?.toLowerCase() || "";
+    return m.roles.some(r => r.toLowerCase() === currentRole);
+  });
 
   const greeting = () => {
     const h = new Date().getHours();

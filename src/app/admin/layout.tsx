@@ -68,10 +68,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading) return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontStyle:'italic', color:'var(--text-muted)'}}>Cargando Panel ARIFA...</div>;
 
-  const isSuperAdmin = role === "superadmin";
-  const isAdmin = role === "admin" || isSuperAdmin;
-  const isTecnico = role === "tecnico";
-  const isClient = role === "cliente";
+  const r = role?.toLowerCase();
+  const isSuperAdmin = r === "superadmin";
+  const isAdmin = r === "admin" || isSuperAdmin;
+  const isTecnico = r === "tecnico";
+  const isClient = r === "cliente";
+  const isSecretaria = r === "secretaria";
 
   // Subscription logic
   const isExpired = subscription?.estado === "vencido" || (subscription?.vencimiento && subscription.vencimiento.toDate() < new Date());
@@ -136,7 +138,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   // Notifications — admin and tecnico only
-  if (isAdmin || isTecnico) {
+  if (isAdmin || isTecnico || isSecretaria) {
     sidebarLinks.push({ label: "Notificaciones", href: "/admin/notificaciones", icon: "🔔" });
   }
 
