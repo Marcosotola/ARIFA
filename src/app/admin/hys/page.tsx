@@ -46,6 +46,7 @@ export default function HySPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Filters
@@ -103,12 +104,14 @@ export default function HySPage() {
     setFCliente(""); setFFecha(new Date().toISOString().split("T")[0]);
     setFTipo("Visita"); setFDescripcion(""); setFImagenes([]);
     setSelectedDoc(null); setModal("create");
+    setShowSuggestions(false);
   };
 
   const openEdit = (d: HySDoc) => {
     setFCliente(d.cliente); setFFecha(d.fecha);
     setFTipo(d.tipo); setFDescripcion(d.descripcion || ""); setFImagenes([...d.imagenes]);
     setSelectedDoc(d); setModal("edit");
+    setShowSuggestions(false);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -248,16 +251,17 @@ export default function HySPage() {
       <div style={{ display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
         {TIPOS.map(t => {
           const count = docs.filter(d => d.tipo === t).length;
-          const { bg, color } = TIPO_COLORS[t];
+          const { color, dot } = TIPO_COLORS[t];
           return (
-            <div key={t} style={{ background: bg, color, padding: "8px 16px", borderRadius: "20px", fontSize: "0.78rem", fontWeight: 800 }}>
-              {t}: {count}
+            <div key={t} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", fontWeight: 700, color: "#666" }}>
+              <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: dot }} />
+              {t}: <span style={{ color }}>{count}</span>
             </div>
           );
         })}
       </div>
 
-      {/* ── Table ── */}
+      {/* ── Table / Cards View ── */}
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>Cargando...</div>
       ) : filtered.length === 0 ? (
@@ -266,74 +270,117 @@ export default function HySPage() {
           <div style={{ fontWeight: 700 }}>No hay documentos que coincidan con los filtros.</div>
         </div>
       ) : (
-        <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
-              <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
-                <tr>
-                  {["Fecha", "Cliente", "Tipo", "Descripción", "Fotos", "Acciones"].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(d => {
-                  const { bg, color, dot } = TIPO_COLORS[d.tipo];
-                  return (
-                    <tr key={d.id} style={{ borderBottom: "1px solid #f5f5f5" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#fafcff")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "")}>
-                      <td style={{ padding: "14px 18px", whiteSpace: "nowrap", fontSize: "0.88rem", fontWeight: 600 }}>{fmtFecha(d.fecha)}</td>
-                      <td style={{ padding: "14px 18px", fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.92rem" }}>{d.cliente}</td>
-                      <td style={{ padding: "14px 18px" }}>
-                        <span style={{ background: bg, color, fontSize: "0.72rem", fontWeight: 800, padding: "4px 11px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                          <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: dot, flexShrink: 0 }} />
-                          {d.tipo}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 18px", fontSize: "0.85rem", color: "#555", maxWidth: "250px" }}>
-                        {d.descripcion ? (
-                          <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>{d.descripcion}</span>
-                        ) : <span style={{ color: "#ccc" }}>—</span>}
-                      </td>
-                      {/* Image thumbnails */}
-                      <td style={{ padding: "14px 18px" }}>
-                        {d.imagenes.length > 0 ? (
-                          <div style={{ display: "flex", gap: "6px", flexWrap: "nowrap" }}>
-                            {d.imagenes.slice(0, 3).map((img, i) => (
-                              <div key={i} onClick={() => setLightbox(img)}
-                                style={{ width: "44px", height: "44px", borderRadius: "6px", overflow: "hidden", cursor: "pointer", border: "2px solid #eee", position: "relative", flexShrink: 0 }}>
-                                <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                              </div>
-                            ))}
-                            {d.imagenes.length > 3 && (
-                              <div onClick={() => openEdit(d)}
-                                style={{ width: "44px", height: "44px", borderRadius: "6px", background: "#f0f4ff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "0.72rem", fontWeight: 800, color: "var(--primary-blue)", flexShrink: 0 }}>
-                                +{d.imagenes.length - 3}
-                              </div>
-                            )}
-                          </div>
-                        ) : <span style={{ color: "#ccc", fontSize: "0.82rem" }}>Sin fotos</span>}
-                      </td>
-                      <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
-                        {!isReadOnly ? (
-                          <>
-                            <button onClick={() => openEdit(d)} title="Editar"
-                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px" }}>✏️</button>
-                            <button onClick={() => setDeleteConfirm(d.id)} title="Eliminar"
-                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px", marginLeft: "2px" }}>🗑️</button>
-                          </>
-                        ) : (
-                          <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <>
+          {/* Desktop Table */}
+          <div className="hide-on-mobile" style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee", marginBottom: "20px" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
+                <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
+                  <tr>
+                    {["Fecha", "Cliente", "Tipo", "Descripción", "Fotos", "Acciones"].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(d => {
+                    const { bg, color, dot } = TIPO_COLORS[d.tipo];
+                    return (
+                      <tr key={d.id} style={{ borderBottom: "1px solid #f5f5f5" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "#fafcff")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "")}>
+                        <td style={{ padding: "14px 18px", whiteSpace: "nowrap", fontSize: "0.88rem", fontWeight: 600 }}>{fmtFecha(d.fecha)}</td>
+                        <td style={{ padding: "14px 18px", fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.92rem" }}>{d.cliente}</td>
+                        <td style={{ padding: "14px 18px" }}>
+                          <span style={{ background: bg, color, fontSize: "0.72rem", fontWeight: 800, padding: "4px 11px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: dot, flexShrink: 0 }} />
+                            {d.tipo}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 18px", fontSize: "0.85rem", color: "#555", maxWidth: "250px" }}>
+                          {d.descripcion ? (
+                            <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>{d.descripcion}</span>
+                          ) : <span style={{ color: "#ccc" }}>—</span>}
+                        </td>
+                        <td style={{ padding: "14px 18px" }}>
+                          {d.imagenes.length > 0 ? (
+                            <div style={{ display: "flex", gap: "6px", flexWrap: "nowrap" }}>
+                              {d.imagenes.slice(0, 3).map((img, i) => (
+                                <div key={i} onClick={() => setLightbox(img)}
+                                  style={{ width: "44px", height: "44px", borderRadius: "6px", overflow: "hidden", cursor: "pointer", border: "2px solid #eee", position: "relative", flexShrink: 0 }}>
+                                  <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                </div>
+                              ))}
+                              {d.imagenes.length > 3 && (
+                                <div onClick={() => openEdit(d)}
+                                  style={{ width: "44px", height: "44px", borderRadius: "6px", background: "#f0f4ff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "0.72rem", fontWeight: 800, color: "var(--primary-blue)", flexShrink: 0 }}>
+                                  +{d.imagenes.length - 3}
+                                </div>
+                              )}
+                            </div>
+                          ) : <span style={{ color: "#ccc", fontSize: "0.82rem" }}>Sin fotos</span>}
+                        </td>
+                        <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
+                          {!isReadOnly ? (
+                            <>
+                              <button onClick={() => openEdit(d)} title="Editar"
+                                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px" }}>✏️</button>
+                              <button onClick={() => setDeleteConfirm(d.id)} title="Eliminar"
+                                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px", marginLeft: "2px" }}>🗑️</button>
+                            </>
+                          ) : (
+                            <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
+
+          {/* Mobile Cards */}
+          <div className="show-on-mobile" style={{ display: "none", flexDirection: "column", gap: "12px" }}>
+            {filtered.map(d => {
+              const { bg, color, dot } = TIPO_COLORS[d.tipo];
+              return (
+                <div key={d.id} style={{ background: "#fff", borderRadius: "12px", padding: "16px", border: "1px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                    <div>
+                      <div style={{ fontSize: "0.75rem", color: "#999", fontWeight: 600, marginBottom: "2px" }}>{fmtFecha(d.fecha)}</div>
+                      <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>{d.cliente}</div>
+                    </div>
+                    <span style={{ background: bg, color, fontSize: "0.65rem", fontWeight: 900, padding: "4px 10px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px", textTransform: "uppercase" }}>
+                      <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: dot }} />
+                      {d.tipo}
+                    </span>
+                  </div>
+                  
+                  {d.descripcion && (
+                    <p style={{ fontSize: "0.85rem", color: "#555", margin: "10px 0", lineHeight: "1.4" }}>{d.descripcion}</p>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "12px" }}>
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {d.imagenes.slice(0, 4).map((img, i) => (
+                        <div key={i} onClick={() => setLightbox(img)} style={{ width: "38px", height: "38px", borderRadius: "6px", overflow: "hidden", border: "1.5px solid #eee" }}>
+                          <img src={img} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        </div>
+                      ))}
+                    </div>
+                    {!isReadOnly && (
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button onClick={() => openEdit(d)} style={{ background: "#f0f7ff", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer" }}>✏️</button>
+                        <button onClick={() => setDeleteConfirm(d.id)} style={{ background: "#fff1f0", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer" }}>🗑️</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       {/* ── Lightbox ── */}
@@ -372,22 +419,45 @@ export default function HySPage() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               {/* Cliente + Fecha */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-                <div>
+              <div className="modal-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                <div style={{ position: "relative" }}>
                   <label style={labelSt}>Cliente *</label>
                   <input 
                     style={inputSt} 
                     value={fCliente} 
-                    onChange={e => setFCliente(e.target.value)} 
+                    onChange={e => { setFCliente(e.target.value); setShowSuggestions(true); }} 
+                    onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
                     placeholder="Escribí nombre o empresa..." 
-                    list="usuarios-list"
                   />
-                  <datalist id="usuarios-list">
-                    {usuarios.map(u => {
-                      const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
-                      return <option key={u.id} value={display} />;
-                    })}
-                  </datalist>
+                  {showSuggestions && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, maxHeight: "220px", overflowY: "auto", marginTop: "5px" }}>
+                      {usuarios
+                        .filter(u => {
+                          if (!fCliente) return true;
+                          const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase();
+                          return searchStr.includes(fCliente.toLowerCase());
+                        })
+                        .map(u => {
+                          const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
+                          return (
+                            <div 
+                              key={u.id} 
+                              onClick={() => { setFCliente(display); setShowSuggestions(false); }}
+                              style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"}
+                              onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                            >
+                              <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{display}</div>
+                            </div>
+                          );
+                        })}
+                      {usuarios.length > 0 && usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase().includes(fCliente.toLowerCase())).length === 0 && fCliente && (
+                        <div style={{ padding: "12px 15px", color: "#666", fontSize: "0.8rem", background: "#fff9f0" }}>
+                          ✨ No hay coincidencias exactas. Se guardará como: <strong>"{fCliente}"</strong>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label style={labelSt}>Fecha *</label>
@@ -456,6 +526,14 @@ export default function HySPage() {
           </div>
         </div>
       )}
+      {/* ── Styles ── */}
+      <style jsx>{`
+        @media (max-width: 768px) {
+          .hide-on-mobile { display: none !important; }
+          .show-on-mobile { display: flex !important; }
+          .modal-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

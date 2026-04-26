@@ -202,8 +202,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         >
           {sidebarOpen ? '✕' : '☰'}
         </button>
-        <div style={{ fontWeight: 800, fontSize: '1.1rem' }}>
-          ARIFA {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : "PANEL"}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img src="/logos/logoFondoTransparente.svg" alt="ARIFA" style={{ height: '60px' }} />
+          <span style={{ fontSize: '0.6rem', fontWeight: 400, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '1px' }}>
+            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : "PANEL"}
+          </span>
         </div>
         <div style={{ width: '40px' }}></div>
       </div>
@@ -239,13 +242,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }} 
         className={`admin-aside ${sidebarOpen ? 'open' : ''}`}
       >
-        <div style={{ marginBottom: "40px", textAlign: "center" }}>
-          <h2 style={{ fontSize: "1.5rem", fontWeight: 900, letterSpacing: "1px" }}>
-            ARIFA{" "}
-            <span style={{fontSize:'0.7rem', fontWeight:400, opacity:0.6}}>
-              {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : "PANEL"}
-            </span>
-          </h2>
+        <div style={{ marginBottom: "40px", textAlign: "center", display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+          <img src="/logos/logoFondoTransparente.svg" alt="ARIFA Logo" style={{ height: '90px' }} />
+          <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.7, letterSpacing: '2px', textTransform: 'uppercase' }}>
+            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : "PANEL"}
+          </span>
         </div>
         
         <nav style={{ flex: 1 }}>

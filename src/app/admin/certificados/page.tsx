@@ -186,7 +186,7 @@ export default function CertificadosPage() {
         </button>
       </div>
 
-      <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden" }}>
+      <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden", marginBottom: "20px" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>Cargando certificados...</div>
         ) : filteredCerts.length === 0 ? (
@@ -196,73 +196,121 @@ export default function CertificadosPage() {
             <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Ajustá los filtros para encontrar lo que buscás.</p>
           </div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "650px" }}>
-              <thead>
-                <tr style={{ background: "#f8f9fc", borderBottom: "2px solid #eef0f3" }}>
-                  {["N° Cert.", "Fecha", "Vigencia", "Cliente", "Sistema", "Rubro", "Estado", ""].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "14px 16px", fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCerts.map(c => {
-                  const ec = ESTADO_COLORS[c.estado] || ESTADO_COLORS.borrador;
-                  const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento) : null;
-                  const vencido = venc && venc < new Date();
-                  return (
-                    <tr key={c.id} style={{ borderBottom: "1px solid #f2f5f9" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "#fafbff")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                      <td style={{ padding: "14px 16px" }}>
-                        <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--primary-blue)" }}>
-                          N°{String(c.numero || "?").padStart(4, "0")}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: "0.88rem", color: "#555", whiteSpace: "nowrap" }}>
-                        {c.fechaInspeccion ? new Date(c.fechaInspeccion).toLocaleDateString("es-AR") : "-"}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: "0.88rem", whiteSpace: "nowrap" }}>
-                        <span style={{ color: vencido ? "#c62828" : "#2e7d32", fontWeight: 700 }}>
-                          {venc ? venc.toLocaleDateString("es-AR") : "-"}
-                        </span>
-                        {vencido && <span style={{ display: "block", fontSize: "0.68rem", color: "#c62828" }}>VENCIDO</span>}
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{c.clienteNombre || "-"}</div>
-                        {c.clienteEmpresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{c.clienteEmpresa}</div>}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: "0.82rem", color: "#555", maxWidth: "180px" }}>
-                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.sistemaCertificado || "-"}</div>
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <span style={{ fontSize: "0.72rem", background: "#f0f4ff", color: "var(--primary-blue)", padding: "2px 8px", borderRadius: "10px", fontWeight: 600 }}>
-                          {c.rubro || "-"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <span style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: "20px", fontWeight: 800, textTransform: "capitalize", background: ec.bg, color: ec.color }}>
-                          {c.estado || "borrador"}
-                        </span>
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <div style={{ display: "flex", gap: "6px" }}>
-                          <Link href={`/admin/certificados/${c.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
-                            {isReadOnly ? "Ver" : "Ver / Editar"}
-                          </Link>
-                          {(role === "admin" || role === "superadmin") && !isReadOnly && (
-                            <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)" }}>
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            {/* Desktop Table */}
+            <div className="hide-on-mobile" style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "650px" }}>
+                <thead>
+                  <tr style={{ background: "#f8f9fc", borderBottom: "2px solid #eef0f3" }}>
+                    {["N° Cert.", "Fecha", "Vigencia", "Cliente", "Sistema", "Rubro", "Estado", ""].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "14px 16px", fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredCerts.map(c => {
+                    const ec = ESTADO_COLORS[c.estado] || ESTADO_COLORS.borrador;
+                    const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento) : null;
+                    const vencido = venc && venc < new Date();
+                    return (
+                      <tr key={c.id} style={{ borderBottom: "1px solid #f2f5f9" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "#fafbff")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                        <td style={{ padding: "14px 16px" }}>
+                          <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--primary-blue)" }}>
+                            N°{String(c.numero || "?").padStart(4, "0")}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 16px", fontSize: "0.88rem", color: "#555", whiteSpace: "nowrap" }}>
+                          {c.fechaInspeccion ? new Date(c.fechaInspeccion).toLocaleDateString("es-AR") : "-"}
+                        </td>
+                        <td style={{ padding: "14px 16px", fontSize: "0.88rem", whiteSpace: "nowrap" }}>
+                          <span style={{ color: vencido ? "#c62828" : "#2e7d32", fontWeight: 700 }}>
+                            {venc ? venc.toLocaleDateString("es-AR") : "-"}
+                          </span>
+                          {vencido && <span style={{ display: "block", fontSize: "0.68rem", color: "#c62828" }}>VENCIDO</span>}
+                        </td>
+                        <td style={{ padding: "14px 16px" }}>
+                          <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{c.clienteNombre || "-"}</div>
+                          {c.clienteEmpresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{c.clienteEmpresa}</div>}
+                        </td>
+                        <td style={{ padding: "14px 16px", fontSize: "0.82rem", color: "#555", maxWidth: "180px" }}>
+                          <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.sistemaCertificado || "-"}</div>
+                        </td>
+                        <td style={{ padding: "14px 16px" }}>
+                          <span style={{ fontSize: "0.72rem", background: "#f0f4ff", color: "var(--primary-blue)", padding: "2px 8px", borderRadius: "10px", fontWeight: 600 }}>
+                            {c.rubro || "-"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 16px" }}>
+                          <span style={{ fontSize: "0.72rem", padding: "4px 10px", borderRadius: "20px", fontWeight: 800, textTransform: "capitalize", background: ec.bg, color: ec.color }}>
+                            {c.estado || "borrador"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 16px" }}>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <Link href={`/admin/certificados/${c.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
+                              {isReadOnly ? "Ver" : "Ver / Editar"}
+                            </Link>
+                            {(role === "admin" || role === "superadmin") && !isReadOnly && (
+                              <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)" }}>
+                                🗑️
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="show-on-mobile" style={{ display: "none", flexDirection: "column", gap: "12px", padding: "12px" }}>
+              {filteredCerts.map(c => {
+                const ec = ESTADO_COLORS[c.estado] || ESTADO_COLORS.borrador;
+                const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento) : null;
+                const vencido = venc && venc < new Date();
+                return (
+                  <div key={c.id} style={{ background: "#fff", borderRadius: "12px", padding: "16px", border: "1.5px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                      <div>
+                        <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1.1rem" }}>N°{String(c.numero || "?").padStart(4, "0")}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#999", fontWeight: 600 }}>Inspección: {c.fechaInspeccion ? new Date(c.fechaInspeccion).toLocaleDateString("es-AR") : "-"}</div>
+                      </div>
+                      <span style={{ fontSize: "0.65rem", padding: "4px 10px", borderRadius: "20px", fontWeight: 800, textTransform: "capitalize", background: ec.bg, color: ec.color }}>{c.estado}</span>
+                    </div>
+
+                    <div style={{ marginBottom: "12px" }}>
+                      <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{c.clienteNombre}</div>
+                      <div style={{ fontSize: "0.8rem", color: "#888" }}>{c.clienteEmpresa}</div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "15px", background: "#f8fafc", padding: "10px", borderRadius: "8px" }}>
+                      <div>
+                        <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Sistema</div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.sistemaCertificado}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Vencimiento</div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, color: vencido ? "#c62828" : "#2e7d32" }}>{venc ? venc.toLocaleDateString("es-AR") : "-"}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <Link href={`/admin/certificados/${c.id}`} style={{ flex: 1, textAlign: "center", padding: "10px", borderRadius: "8px", background: "#f1f5f9", color: "var(--primary-blue)", textDecoration: "none", fontWeight: 700, fontSize: "0.85rem" }}>
+                        {isReadOnly ? "Ver Detalles" : "Ver / Editar"}
+                      </Link>
+                      {(role === "admin" || role === "superadmin") && !isReadOnly && (
+                        <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "10px 15px", borderRadius: "8px", background: "#fff5f4", border: "1px solid #ffddd9", color: "var(--primary-red)" }}>🗑️</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
@@ -278,6 +326,13 @@ export default function CertificadosPage() {
           </div>
         </div>
       )}
+      {/* STYLES */}
+      <style jsx>{`
+        @media (max-width: 768px) {
+          .hide-on-mobile { display: none !important; }
+          .show-on-mobile { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }

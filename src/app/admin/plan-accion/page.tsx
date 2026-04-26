@@ -205,60 +205,105 @@ export default function PlanAccionPage() {
       </div>
 
       {/* LISTADO */}
-      <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden", border: "1px solid #eee" }}>
+      <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden", border: "1px solid #eee", marginBottom: "20px" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>Cargando propuestas...</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px", color: "#999" }}>No se encontraron registros en el Plan de Acción.</div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
-              <thead>
-                <tr style={{ background: "#fafafa", borderBottom: "2px solid #eee" }}>
-                  {["Fecha", "Cliente / Consorcio", "Detalle / Observación", "Prioridad", "Costo", "Estado", "Acciones"].map(h => (
-                    <th key={h} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map(item => {
-                  const pc = PRIORIDAD_COLORS[item.prioridad];
-                  return (
-                    <tr key={item.id} style={{ borderBottom: "1px solid #f5f5f5" }}>
-                      <td style={{ padding: "14px 18px", fontSize: "0.85rem", whiteSpace: "nowrap" }}>{new Date(item.fecha + "T12:00:00").toLocaleDateString("es-AR")}</td>
-                      <td style={{ padding: "14px 18px" }}>
-                        <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.9rem" }}>{item.cliente}</div>
-                        <div style={{ fontSize: "0.75rem", color: "#888" }}>{item.consorcio || "Sin consorcio"}</div>
-                      </td>
-                      <td style={{ padding: "14px 18px", fontSize: "0.85rem", color: "#555", maxWidth: "300px" }}>{item.detalle}</td>
-                      <td style={{ padding: "14px 18px" }}>
-                        <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "4px 10px", borderRadius: "20px", background: pc.bg, color: pc.color, border: `1px solid ${pc.border}` }}>{item.prioridad}</span>
-                      </td>
-                      <td style={{ padding: "14px 18px", fontWeight: 700, color: "#2e7d32" }}>
-                        {item.costo ? `$${Number(item.costo).toLocaleString("es-AR")}` : <span style={{ color: "#ccc" }}>—</span>}
-                      </td>
-                      <td style={{ padding: "14px 18px" }}>
+          <>
+            {/* Desktop Table */}
+            <div className="hide-on-mobile" style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
+                <thead>
+                  <tr style={{ background: "#fafafa", borderBottom: "2px solid #eee" }}>
+                    {["Fecha", "Cliente / Consorcio", "Detalle / Observación", "Prioridad", "Costo", "Estado", "Acciones"].map(h => (
+                      <th key={h} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(item => {
+                    const pc = PRIORIDAD_COLORS[item.prioridad];
+                    return (
+                      <tr key={item.id} style={{ borderBottom: "1px solid #f5f5f5" }}>
+                        <td style={{ padding: "14px 18px", fontSize: "0.85rem", whiteSpace: "nowrap" }}>{new Date(item.fecha + "T12:00:00").toLocaleDateString("es-AR")}</td>
+                        <td style={{ padding: "14px 18px" }}>
+                          <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.9rem" }}>{item.cliente}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#888" }}>{item.consorcio || "Sin consorcio"}</div>
+                        </td>
+                        <td style={{ padding: "14px 18px", fontSize: "0.85rem", color: "#555", maxWidth: "300px" }}>{item.detalle}</td>
+                        <td style={{ padding: "14px 18px" }}>
+                          <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "4px 10px", borderRadius: "20px", background: pc.bg, color: pc.color, border: `1px solid ${pc.border}` }}>{item.prioridad}</span>
+                        </td>
+                        <td style={{ padding: "14px 18px", fontWeight: 700, color: "#2e7d32" }}>
+                          {item.costo ? `$${Number(item.costo).toLocaleString("es-AR")}` : <span style={{ color: "#ccc" }}>—</span>}
+                        </td>
+                        <td style={{ padding: "14px 18px" }}>
+                          {item.realizado ? (
+                            <span style={{ color: "#16a34a", fontSize: "0.75rem", fontWeight: 700 }}>✅ Realizado<br/><small style={{fontWeight:400}}>{item.fechaRealizacion ? new Date(item.fechaRealizacion + "T12:00:00").toLocaleDateString("es-AR") : ""}</small></span>
+                          ) : (
+                            <span style={{ color: "#f59e0b", fontSize: "0.75rem", fontWeight: 700 }}>⏳ Pendiente</span>
+                          )}
+                        </td>
+                        <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
+                          {!isReadOnly && (
+                            <>
+                              <button onClick={() => openEdit(item)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }} title="Editar">✏️</button>
+                              <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", marginLeft: "5px" }} title="Eliminar">🗑️</button>
+                            </>
+                          )}
+                          {isReadOnly && <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="show-on-mobile" style={{ display: "none", flexDirection: "column", gap: "12px", padding: "12px" }}>
+              {filtered.map(item => {
+                const pc = PRIORIDAD_COLORS[item.prioridad];
+                return (
+                  <div key={item.id} style={{ background: "#fff", borderRadius: "12px", padding: "16px", border: "1.5px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                      <div>
+                        <div style={{ fontSize: "0.7rem", color: "#999", fontWeight: 600 }}>{new Date(item.fecha + "T12:00:00").toLocaleDateString("es-AR")}</div>
+                        <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "0.95rem" }}>{item.cliente}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#888" }}>{item.consorcio}</div>
+                      </div>
+                      <span style={{ fontSize: "0.65rem", fontWeight: 900, padding: "4px 10px", borderRadius: "20px", background: pc.bg, color: pc.color, border: `1px solid ${pc.border}`, textTransform: "uppercase" }}>{item.prioridad}</span>
+                    </div>
+                    
+                    <p style={{ fontSize: "0.85rem", color: "#555", margin: "10px 0", lineHeight: "1.4" }}>{item.detalle}</p>
+                    
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                      <div>
+                        <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Costo</div>
+                        <div style={{ fontWeight: 800, color: "#2e7d32" }}>{item.costo ? `$${Number(item.costo).toLocaleString("es-AR")}` : "—"}</div>
+                      </div>
+                      <div style={{ textAlign: "right" }}>
                         {item.realizado ? (
-                          <span style={{ color: "#16a34a", fontSize: "0.75rem", fontWeight: 700 }}>✅ Realizado<br/><small style={{fontWeight:400}}>{item.fechaRealizacion ? new Date(item.fechaRealizacion + "T12:00:00").toLocaleDateString("es-AR") : ""}</small></span>
+                          <span style={{ color: "#16a34a", fontSize: "0.75rem", fontWeight: 700 }}>✅ Realizado</span>
                         ) : (
                           <span style={{ color: "#f59e0b", fontSize: "0.75rem", fontWeight: 700 }}>⏳ Pendiente</span>
                         )}
-                      </td>
-                      <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
-                        {!isReadOnly && (
-                          <>
-                            <button onClick={() => openEdit(item)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }} title="Editar">✏️</button>
-                            <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", marginLeft: "5px" }} title="Eliminar">🗑️</button>
-                          </>
-                        )}
-                        {isReadOnly && <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+
+                    {!isReadOnly && (
+                      <div style={{ display: "flex", gap: "8px", marginTop: "12px", justifyContent: "flex-end" }}>
+                        <button onClick={() => openEdit(item)} style={{ background: "#f0f7ff", border: "none", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "0.9rem" }}>✏️ Editar</button>
+                        <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "#fff1f0", border: "none", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "0.9rem" }}>🗑️</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
@@ -367,6 +412,13 @@ export default function PlanAccionPage() {
           </div>
         </div>
       )}
+      {/* STYLES */}
+      <style jsx>{`
+        @media (max-width: 768px) {
+          .hide-on-mobile { display: none !important; }
+          .show-on-mobile { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 }
