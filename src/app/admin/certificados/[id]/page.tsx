@@ -34,6 +34,7 @@ export default function CertificadoEditorPage() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [nextNum, setNextNum] = useState(1);
+  const [role, setRole] = useState<string | null>(null);
 
   // Datos
   const [numero, setNumero] = useState("");
@@ -73,6 +74,8 @@ export default function CertificadoEditorPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
+      const userDoc = await getDoc(doc(db, "usuarios", u.uid));
+      setRole(userDoc.exists() ? userDoc.data().rol : "cliente");
       await Promise.all([loadClientes(), loadNextNum()]);
       if (isNuevo && fromOt) {
         await importFromOT(fromOt);
@@ -381,6 +384,9 @@ export default function CertificadoEditorPage() {
 
   if (loading) return <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)" }}>Cargando...</div>;
 
+  const isClient = role?.toLowerCase() === "cliente";
+  const isAdmin = ["admin", "superadmin"].includes(role?.toLowerCase() || "");
+
   const clientesFiltrados = clientes.filter(c =>
     clienteSearch.length < 2 ? false :
     `${c.nombre || ""} ${c.razonSocial || ""} ${c.empresa || ""} ${c.email || ""}`.toLowerCase().includes(clienteSearch.toLowerCase())
@@ -402,11 +408,43 @@ export default function CertificadoEditorPage() {
           <button onClick={handlePDF} style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem" }}>
             📥 Descargar PDF
           </button>
-          <button onClick={() => handleSave("emitido")} disabled={saving} className="btn-red" style={{ padding: "10px 20px" }}>
-            {saving ? "Guardando..." : "💾 Guardar"}
-          </button>
+          {!isClient && (
+            <button onClick={() => handleSave("emitido")} disabled={saving} className="btn-red" style={{ padding: "10px 20px" }}>
+              {saving ? "Guardando..." : "💾 Guardar"}
+            </button>
+          )}
         </div>
       </div>
+
+      {isClient ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={cardSt}>
+            <h2 style={{ fontWeight: 800, color: 'var(--primary-blue)', marginBottom: '15px', fontSize: '1.2rem' }}>Resumen del Certificado</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', fontSize: '0.9rem' }}>
+              <div><span style={{ fontWeight: 700, color: '#666' }}>Fecha Inspección:</span> {fechaInspeccion ? new Date(fechaInspeccion).toLocaleDateString('es-AR') : '-'}</div>
+              <div><span style={{ fontWeight: 700, color: '#666' }}>Vencimiento:</span> {fechaVencimiento ? new Date(fechaVencimiento).toLocaleDateString('es-AR') : '-'}</div>
+              <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Sistema Certificado:</span> {sistemaCertificado || '-'}</div>
+              <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Rubro:</span> {rubro === 'Otro' ? rubroCustom : rubro}</div>
+              <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Ubicación:</span> {clienteSeleccionado?.direccion || clienteDireccion || '-'}</div>
+            </div>
+          </div>
+          <div style={cardSt}>
+             <h3 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "15px" }}>Memoria Descriptiva</h3>
+             <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: '#444', lineHeight: '1.6' }}>{memoriaDescriptiva}</div>
+          </div>
+          {fotos.length > 0 && (
+            <div style={cardSt}>
+              <h3 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "15px" }}>Galería Fotográfica</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+                {fotos.map((url, i) => (
+                  <img key={i} src={url} alt="Evidencia" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '8px' }} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
 
       {/* Stepper */}
       <div style={{ background: "#fff", borderRadius: "10px", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", marginBottom: "28px", display: "flex" }}>
@@ -647,6 +685,8 @@ export default function CertificadoEditorPage() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

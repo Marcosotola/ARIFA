@@ -14,7 +14,7 @@ const MODULES = [
     description: "Mensajes entrantes y seguimiento de clientes.",
     href: "/admin/consultas",
     color: "#A31F1D",
-    roles: ["admin", "tecnico", "superadmin", "secretaria"],
+    roles: ["admin", "superadmin", "secretaria"],
     showBadge: true,
   },
   {
@@ -41,7 +41,7 @@ const MODULES = [
     description: "Emisión y gestión de certificados de instalación.",
     href: "/admin/certificados",
     color: "#0369a1",
-    roles: ["admin", "tecnico", "superadmin", "cliente"],
+    roles: ["admin", "superadmin", "cliente"],
     clientLabel: "Mis Certificados",
     clientDescription: "Certificados de tus instalaciones.",
   },
@@ -51,7 +51,7 @@ const MODULES = [
     description: "Seguimiento de mejoras, prioridades y costos por consorcio.",
     href: "/admin/plan-accion",
     color: "#6b46c1",
-    roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente"],
+    roles: ["admin", "superadmin", "secretaria", "cliente"],
     clientLabel: "Mi Plan de Acción",
     clientDescription: "Mejoras propuestas y estado de ejecución.",
   },
@@ -61,7 +61,7 @@ const MODULES = [
     description: "Visitas, capacitaciones, ATS y programas de seguridad.",
     href: "/admin/hys",
     color: "#15803d",
-    roles: ["admin", "tecnico", "superadmin", "cliente"],
+    roles: ["admin", "superadmin", "cliente"],
   },
   {
     icon: "🛒",
@@ -69,7 +69,7 @@ const MODULES = [
     description: "Catálogo de precios y gestión de stock.",
     href: "/admin/productos",
     color: "#b45309",
-    roles: ["admin", "tecnico", "superadmin"],
+    roles: ["admin", "superadmin"],
   },
   {
     icon: "👥",
@@ -85,7 +85,7 @@ const MODULES = [
     description: "Alertas y comunicados enviados a clientes.",
     href: "/admin/notificaciones",
     color: "#0891b2",
-    roles: ["admin", "tecnico", "superadmin"],
+    roles: ["admin", "superadmin"],
   },
 ];
 
@@ -121,6 +121,8 @@ export default function AdminDashboard() {
   // Filter modules by role
   const visibleModules = MODULES.filter(m => {
     const currentRole = role?.toLowerCase() || "";
+    // Ocultar consultas para clientes (Filtro de seguridad absoluta)
+    if (currentRole === "cliente" && (m.label === "Consultas" || m.href.includes("consultas"))) return false;
     return m.roles.some(r => r.toLowerCase() === currentRole);
   });
 

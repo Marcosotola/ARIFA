@@ -69,9 +69,11 @@ export default function DetalleMantenimientoPage() {
               🗑️
             </button>
           )}
-          <button onClick={() => router.push(`/admin/planillas/matafuegos/mantenimiento/nuevo?edit=${ficha.id}`)} style={{ padding: '12px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-            ✏️ Editar
-          </button>
+          {role !== "cliente" && (
+            <button onClick={() => router.push(`/admin/planillas/matafuegos/mantenimiento/nuevo?edit=${ficha.id}`)} style={{ padding: '12px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, cursor: 'pointer' }}>
+              ✏️ Editar
+            </button>
+          )}
           <button onClick={handleDownloadPDF} className="btn-red" style={{ padding: "12px 25px", fontWeight: 700 }}>
             📥 Descargar PDF
           </button>

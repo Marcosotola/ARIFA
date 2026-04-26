@@ -77,6 +77,9 @@ function OTFormContent() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const isClient = role?.toLowerCase() === "cliente";
+  const isAdmin = ["admin", "superadmin"].includes(role?.toLowerCase() || "");
+
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [tecnicosDB, setTecnicosDB] = useState<Tecnico[]>([]);
@@ -117,6 +120,7 @@ function OTFormContent() {
     });
     return () => unsub();
   }, []);
+
 
   const loadPlantillas = async () => {
     const snap = await getDocs(query(collection(db, "plantillas_inspeccion"), orderBy("codigo")));
@@ -404,19 +408,103 @@ function OTFormContent() {
             <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>{isNueva ? "Nueva OT" : `OT-${numero}`}</h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-            {!isNueva && <button onClick={handlePDF} className="btn-blue" style={{ background: '#f1f5f9', color: '#0f172a' }}>📥 PDF</button>}
-            <button onClick={() => handleSave(estado === "firmada" ? "firmada" : "completada")} disabled={saving} className="btn-red">{saving ? "Guardando..." : "Finalizar"}</button>
+            {!isNueva && <button onClick={handlePDF} className="btn-blue" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>📥 Descargar PDF</button>}
+            {!isClient && <button onClick={() => handleSave(estado === "firmada" ? "firmada" : "completada")} disabled={saving} className="btn-red" style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>{saving ? "Guardando..." : "Finalizar"}</button>}
         </div>
       </header>
 
-      <div style={{ display: "flex", background: "#fff", borderRadius: "12px", overflow: "hidden", marginBottom: "25px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
-        {PASOS.map((p, i) => (
-          <button key={p} onClick={() => setPaso(i)} style={{ flex: 1, padding: "14px 5px", border: "none", cursor: "pointer", background: i === paso ? "var(--primary-blue)" : "#fff", color: i === paso ? "#fff" : "#94a3b8", fontWeight: 700 }}>
-            <div style={{ fontSize: "1.1rem" }}>{PASOS_ICONS[i]}</div>
-            <div style={{ fontSize: "0.65rem" }}>{p}</div>
-          </button>
-        ))}
-      </div>
+      {isClient ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          <div style={cardSt}>
+            <h2 style={{ fontWeight: 800, color: 'var(--primary-blue)', marginBottom: '15px', fontSize: '1.2rem' }}>Resumen del Servicio</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', fontSize: '0.9rem' }}>
+              <div><span style={{ fontWeight: 700, color: '#666' }}>Fecha:</span> {fecha ? new Date(fecha).toLocaleDateString('es-AR') : '-'}</div>
+              <div><span style={{ fontWeight: 700, color: '#666' }}>Estado:</span> <span style={{ textTransform: 'uppercase', fontWeight: 800, fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', background: '#e0f2fe', color: '#0369a1' }}>{estado.replace('_', ' ')}</span></div>
+              <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Cliente:</span> {clienteSeleccionado?.nombre || clienteNombre}</div>
+              <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Ubicación:</span> {clienteSeleccionado?.direccion || clienteDireccion}</div>
+            </div>
+          </div>
+
+          {planillasEnOT.map((p, pIdx) => (
+            <div key={p.plantillaId} style={{ ...cardSt, borderLeft: '5px solid var(--primary-blue)' }}>
+              <h3 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "15px" }}>{p.nombre}</h3>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ background: "#f8fafc", borderBottom: "1.5px solid #eee" }}>
+                      <th style={{ padding: "10px", textAlign: "left", fontSize: "0.75rem", color: "#666" }}>{p.tipo === 'checklist' ? 'Ítem' : p.columnas[0]}</th>
+                      <th style={{ padding: "10px", textAlign: "center", fontSize: "0.75rem", color: "#666" }}>Resultado</th>
+                      <th style={{ padding: "10px", textAlign: "left", fontSize: "0.75rem", color: "#666" }}>Observaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {p.tipo === 'checklist' ? (
+                      p.filasChecklist.map((f, iIdx) => (
+                        <tr key={iIdx} style={{ borderBottom: '1px solid #f9f9f9' }}>
+                          <td style={{ padding: '10px', fontSize: '0.85rem', fontWeight: f.esGrupo ? 800 : 400, background: f.esGrupo ? '#f1f5f9' : 'transparent' }}>{f.descripcion}</td>
+                          {!f.esGrupo && (
+                            <>
+                              <td style={{ padding: '10px', textAlign: 'center' }}>
+                                <span style={{ 
+                                  fontSize: '0.7rem', fontWeight: 800, padding: '2px 8px', borderRadius: '10px',
+                                  background: f.valor === 'ok' || f.valor === 'si' ? '#ecfdf5' : f.valor === 'nok' || f.valor === 'no' ? '#fef2f2' : '#f1f5f9',
+                                  color: f.valor === 'ok' || f.valor === 'si' ? '#059669' : f.valor === 'nok' || f.valor === 'no' ? '#dc2626' : '#64748b',
+                                  textTransform: 'uppercase'
+                                }}>{f.valor || '-'}</span>
+                              </td>
+                              <td style={{ padding: '10px', fontSize: '0.8rem', color: '#666' }}>{f.observacion || '-'}</td>
+                            </>
+                          )}
+                          {f.esGrupo && <td colSpan={2}></td>}
+                        </tr>
+                      ))
+                    ) : (
+                      p.filasTabla.map((f, fIdx) => (
+                        <tr key={fIdx} style={{ borderBottom: '1px solid #f9f9f9' }}>
+                          {p.columnas.map((c, cIdx) => (
+                            <td key={cIdx} style={{ padding: '10px', fontSize: '0.85rem' }}>{f.celdas[c] || '-'}</td>
+                          ))}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+
+          {nuevaObs && (
+            <div style={cardSt}>
+              <h3 style={{ fontWeight: 800, color: 'var(--primary-blue)', marginBottom: '10px', fontSize: '1rem' }}>Observaciones Generales</h3>
+              <p style={{ fontSize: '0.9rem', color: '#555', whiteSpace: 'pre-wrap' }}>{nuevaObs}</p>
+            </div>
+          )}
+
+          {fotos.length > 0 && (
+            <div style={cardSt}>
+              <h3 style={{ fontWeight: 800, color: 'var(--primary-blue)', marginBottom: '15px', fontSize: '1rem' }}>Registro Fotográfico</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '15px' }}>
+                {fotos.map((f, i) => (
+                  <img key={i} src={f} alt="" style={{ width: '100%', height: '120px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }} onClick={() => window.open(f, '_blank')} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <button onClick={handlePDF} className="btn-red" style={{ padding: '15px 40px', fontSize: '1.1rem', borderRadius: '12px' }}>📥 Descargar Documento Oficial (PDF)</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", background: "#fff", borderRadius: "12px", overflow: "hidden", marginBottom: "25px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
+            {PASOS.map((p, i) => (
+              <button key={p} onClick={() => setPaso(i)} style={{ flex: 1, padding: "14px 5px", border: "none", cursor: "pointer", background: i === paso ? "var(--primary-blue)" : "#fff", color: i === paso ? "#fff" : "#94a3b8", fontWeight: 700 }}>
+                <div style={{ fontSize: "1.1rem" }}>{PASOS_ICONS[i]}</div>
+                <div style={{ fontSize: "0.65rem" }}>{p}</div>
+              </button>
+            ))}
+          </div>
 
       {paso === 0 && (
         <div style={cardSt}>
@@ -667,7 +755,9 @@ function OTFormContent() {
            <button onClick={() => handleSave("firmada")} disabled={saving} className="btn-red" style={{ width: "100%", padding: "20px", fontSize: "1.2rem", borderRadius: '15px', fontWeight: 900 }}>GUARDAR Y FINALIZAR</button>
         </div>
       )}
-    </div>
+    </>
+  )}
+</div>
   );
 }
 

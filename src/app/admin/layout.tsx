@@ -74,6 +74,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isTecnico = r === "tecnico";
   const isClient = r === "cliente";
   const isSecretaria = r === "secretaria";
+  const isStaff = ["admin", "superadmin", "tecnico", "secretaria"].includes(r || "");
 
   // Subscription logic
   const isExpired = subscription?.estado === "vencido" || (subscription?.vencimiento && subscription.vencimiento.toDate() < new Date());
@@ -120,8 +121,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: "Mi Panel", href: "/admin", icon: "📊" },
   ];
 
-  // Consultas — admin, tecnico, secretaria (clientes NO ven esto)
-  if (!isClient) {
+  // Consultas — solo staff (clientes NO ven esto bajo ninguna circunstancia)
+  // Consultas — solo admin y secretaria
+  if (isAdmin || isSecretaria) {
     sidebarLinks.push({
       label: "Consultas",
       href: "/admin/consultas",
@@ -142,29 +144,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: "🧯" });
   }
 
-  // Certificados — admin, tecnico y cliente (cliente: solo lectura)
-  sidebarLinks.push({
-    label: "Certificados",
-    href: "/admin/certificados",
-    icon: "📜",
-  });
+  // Certificados — admin y cliente (cliente: solo lectura)
+  if (isAdmin || isClient) {
+    sidebarLinks.push({
+      label: "Certificados",
+      href: "/admin/certificados",
+      icon: "📜",
+    });
+  }
 
-  // Plan de Acción — admin, tecnico y cliente (cliente: solo lectura)
-  sidebarLinks.push({
-    label: "Plan de Acción",
-    href: "/admin/plan-accion",
-    icon: "📈",
-  });
+  // Plan de Acción — admin y cliente (cliente: solo lectura)
+  if (isAdmin || isClient) {
+    sidebarLinks.push({
+      label: "Plan de Acción",
+      href: "/admin/plan-accion",
+      icon: "📈",
+    });
+  }
 
-  // HyS — admin, tecnico y cliente (cliente: solo lectura)
-  sidebarLinks.push({
-    label: "HyS",
-    href: "/admin/hys",
-    icon: "🦺",
-  });
+  // HyS — admin y cliente (cliente: solo lectura)
+  if (isAdmin || isClient) {
+    sidebarLinks.push({
+      label: "HyS",
+      href: "/admin/hys",
+      icon: "🦺",
+    });
+  }
 
-  // Productos — admin y tecnico
-  if (isAdmin || isTecnico) {
+  // Productos — solo admin
+  if (isAdmin) {
     sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: "🛒" });
   }
 
@@ -173,8 +181,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: "👥" });
   }
 
-  // Notificaciones — admin, tecnico y secretaria
-  if (isAdmin || isTecnico || isSecretaria) {
+  // Notificaciones — admin y secretaria
+  if (isAdmin || isSecretaria) {
     sidebarLinks.push({ label: "Notificaciones", href: "/admin/notificaciones", icon: "🔔" });
   }
 

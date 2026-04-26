@@ -213,10 +213,12 @@ export default function HySPage() {
               {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
-          <div>
-            <label style={labelSt}>Cliente</label>
-            <input style={inputSt} value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} placeholder="Filtrar por cliente..." />
-          </div>
+          {!isReadOnly && (
+            <div>
+              <label style={labelSt}>Cliente</label>
+              <input style={inputSt} value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} placeholder="Filtrar por cliente..." />
+            </div>
+          )}
           <div>
             <label style={labelSt}>Fecha desde</label>
             <input type="date" style={inputSt} value={filtroFechaDesde} onChange={e => setFiltroFechaDesde(e.target.value)} />
@@ -277,8 +279,8 @@ export default function HySPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
                 <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
                   <tr>
-                    {["Fecha", "Cliente", "Tipo", "Descripción", "Fotos", "Acciones"].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
+                    {["Fecha", "Cliente", "Tipo", "Descripción", "Fotos", !isReadOnly && "Acciones"].filter(Boolean).map(h => (
+                      <th key={h as string} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -320,18 +322,14 @@ export default function HySPage() {
                             </div>
                           ) : <span style={{ color: "#ccc", fontSize: "0.82rem" }}>Sin fotos</span>}
                         </td>
-                        <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
-                          {!isReadOnly ? (
-                            <>
-                              <button onClick={() => openEdit(d)} title="Editar"
-                                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px" }}>✏️</button>
-                              <button onClick={() => setDeleteConfirm(d.id)} title="Eliminar"
-                                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px", marginLeft: "2px" }}>🗑️</button>
-                            </>
-                          ) : (
-                            <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>
-                          )}
-                        </td>
+                        {!isReadOnly && (
+                          <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
+                            <button onClick={() => openEdit(d)} title="Editar"
+                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px" }}>✏️</button>
+                            <button onClick={() => setDeleteConfirm(d.id)} title="Eliminar"
+                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px", marginLeft: "2px" }}>🗑️</button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

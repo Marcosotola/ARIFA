@@ -185,7 +185,7 @@ export default function PlanAccionPage() {
       <div style={{ background: "#fff", padding: "20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "24px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
         <div style={{ flex: 1, minWidth: "250px" }}>
           <label style={labelSt}>Buscar</label>
-          <input style={inputSt} placeholder="Cliente, consorcio o detalle..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input style={inputSt} placeholder={isReadOnly ? "Consorcio o detalle..." : "Cliente, consorcio o detalle..."} value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div style={{ width: "150px" }}>
           <label style={labelSt}>Prioridad</label>
@@ -217,8 +217,8 @@ export default function PlanAccionPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
                 <thead>
                   <tr style={{ background: "#fafafa", borderBottom: "2px solid #eee" }}>
-                    {["Fecha", "Cliente / Consorcio", "Detalle / Observación", "Prioridad", "Costo", "Estado", "Acciones"].map(h => (
-                      <th key={h} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
+                    {["Fecha", "Cliente / Consorcio", "Detalle / Observación", "Prioridad", "Costo", "Estado", !isReadOnly && "Acciones"].filter(Boolean).map(h => (
+                      <th key={h as string} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -246,15 +246,12 @@ export default function PlanAccionPage() {
                             <span style={{ color: "#f59e0b", fontSize: "0.75rem", fontWeight: 700 }}>⏳ Pendiente</span>
                           )}
                         </td>
-                        <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
-                          {!isReadOnly && (
-                            <>
-                              <button onClick={() => openEdit(item)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }} title="Editar">✏️</button>
-                              <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", marginLeft: "5px" }} title="Eliminar">🗑️</button>
-                            </>
-                          )}
-                          {isReadOnly && <span style={{ color: "#ccc", fontSize: "0.8rem" }}>—</span>}
-                        </td>
+                        {!isReadOnly && (
+                          <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
+                            <button onClick={() => openEdit(item)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }} title="Editar">✏️</button>
+                            <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", marginLeft: "5px" }} title="Eliminar">🗑️</button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}

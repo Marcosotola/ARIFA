@@ -306,8 +306,10 @@ export default function OTUnifiedPage() {
           {/* FILTROS OT */}
           <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
             <div style={{ flex: 1, minWidth: "220px" }}>
-              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Buscar por OT o Cliente</label>
-              <input type="text" placeholder="N°, cliente o empresa..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.9rem" }} />
+              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>
+                {isClient ? "Buscar OT" : "Buscar por OT o Cliente"}
+              </label>
+              <input type="text" placeholder={isClient ? "Número de OT..." : "N°, cliente o empresa..."} value={search} onChange={e => setSearch(e.target.value)} style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.9rem" }} />
             </div>
             <div style={{ width: "160px" }}>
               <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Desde</label>
@@ -353,7 +355,7 @@ export default function OTUnifiedPage() {
                           <td style={{ padding: "14px 16px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: "5px", justifyContent: "flex-end" }}>
                               <Link href={`/admin/planillas/deteccion/${ot.id}`} style={{ padding: "6px 10px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", textDecoration: "none", fontSize: "0.75rem", fontWeight: 700 }}>
-                                {isReadOnly ? "Ver" : "Editar"}
+                                {isReadOnly ? "Ver Documento" : "Ver / Editar"}
                               </Link>
                               {isAdmin && !isReadOnly && <button onClick={() => setDeleteConfirm({ id: ot.id, type: "ot" })} style={{ padding: "6px 10px", borderRadius: "6px", border: "none", background: "#fee2e2", color: "#b91c1c", cursor: "pointer" }}>🗑️</button>}
                             </div>

@@ -160,7 +160,7 @@ export default function ExtincionPage() {
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ display: "flex", gap: "6px" }}>
                           <Link href={`/admin/planillas/extincion/${ot.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
-                            Ver / Editar
+                            {!isStaff ? "Ver Documento" : "Ver / Editar"}
                           </Link>
                           {(role === "admin" || role === "superadmin") && (
                             <button onClick={() => setDeleteConfirm(ot.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)", fontSize: "0.82rem" }}>

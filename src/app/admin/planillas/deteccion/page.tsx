@@ -255,9 +255,9 @@ export default function DeteccionPage() {
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ display: "flex", gap: "6px" }}>
                           <Link href={`/admin/planillas/deteccion/${ot.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
-                            Ver / Editar
+                            {!isStaff ? "Ver Documento" : "Ver / Editar"}
                           </Link>
-                          {['firmada', 'completada'].includes(ot.estado) && (
+                          {isStaff && ['firmada', 'completada'].includes(ot.estado) && (
                             <Link href={`/admin/certificados/nuevo?fromOt=${ot.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #e8f5e9", background: "#e8f5e9", fontSize: "0.82rem", fontWeight: 700, color: "#2e7d32", whiteSpace: "nowrap" }}>
                               📜 Certificar
                             </Link>

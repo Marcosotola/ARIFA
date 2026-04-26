@@ -151,7 +151,9 @@ export default function CertificadosPage() {
       {/* FILTERS */}
       <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
         <div style={{ flex: 1, minWidth: "220px" }}>
-          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Buscar por Certificado o Cliente</label>
+          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>
+            {isReadOnly ? "Buscar por Certificado o Sistema" : "Buscar por Certificado o Cliente"}
+          </label>
           <input 
             type="text" 
             placeholder="N°, nombre, sistema..." 
@@ -250,7 +252,7 @@ export default function CertificadosPage() {
                         <td style={{ padding: "14px 16px" }}>
                           <div style={{ display: "flex", gap: "6px" }}>
                             <Link href={`/admin/certificados/${c.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
-                              {isReadOnly ? "Ver" : "Ver / Editar"}
+                              {isReadOnly ? "Ver Documento" : "Ver / Editar"}
                             </Link>
                             {(role === "admin" || role === "superadmin") && !isReadOnly && (
                               <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)" }}>
@@ -300,7 +302,7 @@ export default function CertificadosPage() {
 
                     <div style={{ display: "flex", gap: "8px" }}>
                       <Link href={`/admin/certificados/${c.id}`} style={{ flex: 1, textAlign: "center", padding: "10px", borderRadius: "8px", background: "#f1f5f9", color: "var(--primary-blue)", textDecoration: "none", fontWeight: 700, fontSize: "0.85rem" }}>
-                        {isReadOnly ? "Ver Detalles" : "Ver / Editar"}
+                        {isReadOnly ? "Ver Documento" : "Ver / Editar"}
                       </Link>
                       {(role === "admin" || role === "superadmin") && !isReadOnly && (
                         <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "10px 15px", borderRadius: "8px", background: "#fff5f4", border: "1px solid #ffddd9", color: "var(--primary-red)" }}>🗑️</button>
