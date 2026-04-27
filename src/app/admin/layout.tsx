@@ -66,8 +66,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setSidebarOpen(false);
   }, [pathname]);
 
-  if (loading) return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontStyle:'italic', color:'var(--text-muted)'}}>Cargando Panel ARIFA...</div>;
-
   const r = role?.toLowerCase();
   const isSuperAdmin = r === "superadmin";
   const isAdmin = r === "admin" || isSuperAdmin;
@@ -94,6 +92,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.push("/admin/config/suscripcion");
     }
   }, [shouldBlock, isAdmin, pathname, router]);
+
+  if (loading) return <div style={{height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', fontStyle:'italic', color:'var(--text-muted)'}}>Cargando Panel ARIFA...</div>;
 
   // Prevent rendering layout if we are about to redirect an admin
   if (shouldBlock && isAdmin && pathname !== "/admin/config/suscripcion") {
