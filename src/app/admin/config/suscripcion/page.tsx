@@ -36,7 +36,12 @@ export default function SuscripcionPage() {
         setCosto(data.costo || 120000);
         setEstado(data.estado || "activo");
         if (data.vencimiento) {
-          setVencimientoStr(data.vencimiento.toDate().toISOString().split('T')[0]);
+          try {
+            const date = typeof data.vencimiento.toDate === 'function' ? data.vencimiento.toDate() : new Date(data.vencimiento);
+            setVencimientoStr(date.toISOString().split('T')[0]);
+          } catch (e) {
+            console.error("Error parsing date:", e);
+          }
         }
       } else {
         const initial = {
@@ -147,7 +152,17 @@ export default function SuscripcionPage() {
           <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
               <span style={{ color: "#666" }}>Vencimiento:</span>
-              <span style={{ fontWeight: 700 }}>{subscription?.vencimiento ? subscription.vencimiento.toDate().toLocaleDateString('es-AR') : "Sin fecha"}</span>
+              <span style={{ fontWeight: 700 }}>
+                {(() => {
+                  if (!subscription?.vencimiento) return "Sin fecha";
+                  try {
+                    const date = typeof subscription.vencimiento.toDate === 'function' ? subscription.vencimiento.toDate() : new Date(subscription.vencimiento);
+                    return date.toLocaleDateString('es-AR');
+                  } catch (e) {
+                    return "Formato inválido";
+                  }
+                })()}
+              </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
               <span style={{ color: "#666" }}>Costo Mensual:</span>

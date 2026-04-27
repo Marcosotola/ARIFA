@@ -77,7 +77,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isStaff = ["admin", "superadmin", "tecnico", "secretaria"].includes(r || "");
 
   // Subscription logic
-  const isExpired = subscription?.estado === "vencido" || (subscription?.vencimiento && subscription.vencimiento.toDate() < new Date());
+  const getSubDate = () => {
+    if (!subscription?.vencimiento) return null;
+    try {
+      return typeof subscription.vencimiento.toDate === 'function' ? subscription.vencimiento.toDate() : new Date(subscription.vencimiento);
+    } catch (e) { return null; }
+  };
+  const subDate = getSubDate();
+  const isExpired = subscription?.estado === "vencido" || (subDate && subDate < new Date());
   const isMaintenance = subscription?.estado === "mantenimiento";
   const shouldBlock = (isExpired || isMaintenance) && !isSuperAdmin;
 
