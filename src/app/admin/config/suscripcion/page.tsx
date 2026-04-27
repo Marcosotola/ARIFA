@@ -267,15 +267,23 @@ export default function SuscripcionPage() {
             <tbody>
               {pagos.length > 0 ? pagos.map((pago) => (
                 <tr key={pago.id} style={{ borderBottom: "1px solid #f5f5f5" }}>
-                  <td style={{ padding: "15px" }}>{pago.fecha?.toDate().toLocaleDateString('es-AR')}</td>
-                  <td style={{ padding: "15px", color: "var(--text-muted)", fontSize: "0.8rem" }}>{pago.paymentId}</td>
-                  <td style={{ padding: "15px", fontWeight: 700 }}>${pago.monto?.toLocaleString('es-AR')}</td>
+                  <td style={{ padding: "15px" }}>
+                    {(() => {
+                      if (!pago.fecha) return "Sin fecha";
+                      try {
+                        const date = typeof pago.fecha.toDate === 'function' ? pago.fecha.toDate() : new Date(pago.fecha);
+                        return date.toLocaleDateString('es-AR');
+                      } catch (e) { return "Error fecha"; }
+                    })()}
+                  </td>
+                  <td style={{ padding: "15px", color: "var(--text-muted)", fontSize: "0.8rem" }}>{pago.paymentId || "N/A"}</td>
+                  <td style={{ padding: "15px", fontWeight: 700 }}>${pago.monto?.toLocaleString('es-AR') || "0"}</td>
                   <td style={{ padding: "15px", textAlign: "center" }}>
                     <span style={{ 
                       padding: "4px 10px", borderRadius: "100px", background: "#dcfce7", 
                       color: "#166534", fontSize: "0.75rem", fontWeight: 700 
                     }}>
-                      Aprobado
+                      {pago.estado || "Aprobado"}
                     </span>
                   </td>
                 </tr>
