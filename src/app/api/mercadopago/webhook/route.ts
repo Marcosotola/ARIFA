@@ -11,15 +11,12 @@ export async function POST(request: Request) {
     if (type === "payment" && id) {
       const accessToken = process.env.MP_ACCESS_TOKEN;
       const response = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-        },
+        headers: { "Authorization": `Bearer ${accessToken}` },
       });
 
       const paymentData = await response.json();
 
       if (paymentData.status === "approved") {
-        // 1. Actualizar estado general
         const nextMonth = new Date();
         nextMonth.setMonth(nextMonth.getMonth() + 1);
 
@@ -31,7 +28,6 @@ export async function POST(request: Request) {
           tipoPago: paymentData.operation_type 
         });
 
-        // 2. Registrar en el Historial de Pagos
         await adminDb.collection("pagos_suscripcion").add({
           paymentId: id,
           monto: paymentData.transaction_amount,
@@ -41,8 +37,28 @@ export async function POST(request: Request) {
           metodo: paymentData.payment_method_id,
           tipo: paymentData.operation_type
         });
+      }
+    } else if ((type === "subscription_preapproval" || body.entity === "preapproval") && id) {
+      // Manejo de Suscripciones (Preapproval)
+      const accessToken = process.env.MP_ACCESS_TOKEN;
+      const response = await fetch(`https://api.mercadopago.com/preapproval/${id}`, {
+        headers: { "Authorization": `Bearer ${accessToken}` },
+      });
 
-        console.log("Subscription and History updated successfully for payment:", id);
+      const subData = await response.json();
+
+      if (subData.status === "authorized") {
+        const nextMonth = new Date();
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+        await adminDb.collection("configuracion").doc("suscripcion").update({
+          estado: "activo",
+          vencimiento: admin.firestore.Timestamp.fromDate(nextMonth),
+          ultimoPago: admin.firestore.Timestamp.now(),
+          subId: id,
+          updatedAt: admin.firestore.Timestamp.now()
+        });
+        console.log("Subscription activated via preapproval:", id);
       }
     }
 
