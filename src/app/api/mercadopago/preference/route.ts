@@ -33,10 +33,18 @@ export async function POST(request: Request) {
 
     const data = await response.json();
     
+    if (!response.ok) {
+      console.error("Mercado Pago Error Details:", data);
+      return NextResponse.json({ 
+        error: "Mercado Pago API Error", 
+        details: data.message || data.error || data
+      }, { status: response.status });
+    }
+
     // El link de suscripción viene en init_point
     return NextResponse.json({ id: data.id, init_point: data.init_point });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating MP subscription:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: "Internal Server Error", message: error.message }, { status: 500 });
   }
 }

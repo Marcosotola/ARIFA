@@ -52,6 +52,8 @@ export default function PlanAccionPage() {
 
   // Form State
   const [fCliente, setFCliente] = useState("");
+  const [fClienteId, setFClienteId] = useState("");
+  const [fClienteManual, setFClienteManual] = useState(false);
   const [fConsorcio, setFConsorcio] = useState("");
   const [fFecha, setFFecha] = useState(new Date().toISOString().split("T")[0]);
   const [fDetalle, setFDetalle] = useState("");
@@ -84,13 +86,27 @@ export default function PlanAccionPage() {
       let all = snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanItem));
       // Filtro para cliente: solo sus items
       if (r === "cliente" && userData) {
-        const clientName = userData.empresa 
-          ? `${userData.empresa} - ${userData.nombre} ${userData.apellido}`
-          : `${userData.nombre} ${userData.apellido}`;
-        all = all.filter(i =>
-          i.clienteId === userData.uid ||
-          i.cliente?.toLowerCase().includes((userData.empresa || userData.nombre || "").toLowerCase())
-        );
+        const uid = userData.uid;
+        const emp = userData.empresa?.toLowerCase() || "";
+        const nom = userData.nombre?.toLowerCase() || "";
+        
+        // Si no tiene UID ni empresa ni nombre, por seguridad no mostramos nada
+        if (!uid && !emp && !nom) {
+          all = [];
+        } else {
+          all = all.filter(i => {
+            // 1. Coincidencia por ID (más seguro)
+            if (i.clienteId === uid) return true;
+            
+            // 2. Coincidencia por nombre de empresa (si existe)
+            if (emp && i.cliente?.toLowerCase().includes(emp)) return true;
+            
+            // 3. Coincidencia por nombre de persona (si existe)
+            if (nom && i.cliente?.toLowerCase().includes(nom)) return true;
+            
+            return false;
+          });
+        }
       }
       setItems(all);
     } catch (e) { console.error(e); }
@@ -107,7 +123,7 @@ export default function PlanAccionPage() {
   };
 
   const openCreate = () => {
-    setFCliente(""); setFConsorcio(""); setFDetalle(""); 
+    setFCliente(""); setFClienteId(""); setFClienteManual(false); setFConsorcio(""); setFDetalle(""); 
     setFPrioridad("Leve"); setFCosto(""); setFRealizado(false); setFFechaRealizacion("");
     setFFecha(new Date().toISOString().split("T")[0]);
     setSelectedItem(null); setModal("create");
@@ -115,7 +131,7 @@ export default function PlanAccionPage() {
   };
 
   const openEdit = (item: PlanItem) => {
-    setFCliente(item.cliente); setFConsorcio(item.consorcio); setFFecha(item.fecha);
+    setFCliente(item.cliente); setFClienteId(item.clienteId || ""); setFClienteManual(!item.clienteId); setFConsorcio(item.consorcio); setFFecha(item.fecha);
     setFDetalle(item.detalle); setFPrioridad(item.prioridad); setFCosto(String(item.costo || ""));
     setFRealizado(item.realizado || false); setFFechaRealizacion(item.fechaRealizacion || "");
     setSelectedItem(item); setModal("edit");
@@ -128,6 +144,8 @@ export default function PlanAccionPage() {
     try {
       const payload: any = {
         cliente: fCliente,
+        clienteId: fClienteManual ? null : fClienteId,
+        clienteManual: fClienteManual,
         consorcio: fConsorcio,
         fecha: fFecha,
         detalle: fDetalle,
@@ -145,7 +163,7 @@ export default function PlanAccionPage() {
         await updateDoc(doc(db, "plan_accion", selectedItem.id), payload);
       }
       setModal(null);
-      fetchItems();
+      fetchItems(role as string, currentUser);
     } catch (e) { alert("Error al guardar."); }
     finally { setSaving(false); }
   };
@@ -154,7 +172,7 @@ export default function PlanAccionPage() {
     try {
       await deleteDoc(doc(db, "plan_accion", id));
       setDeleteConfirm(null);
-      fetchItems();
+      fetchItems(role as string, currentUser);
     } catch { alert("Error al eliminar."); }
   };
 
@@ -312,43 +330,65 @@ export default function PlanAccionPage() {
             
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
               <div style={{ gridColumn: "span 2", position: "relative" }}>
-                <label style={labelSt}>Cliente *</label>
-                <input 
-                  style={inputSt} 
-                  value={fCliente} 
-                  onChange={e => { setFCliente(e.target.value); setShowSuggestions(true); }} 
-                  onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
-                  placeholder="Escribí nombre o empresa..." 
-                />
-                {showSuggestions && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, maxHeight: "220px", overflowY: "auto", marginTop: "5px" }}>
-                    {usuarios
-                      .filter(u => {
-                        if (!fCliente) return true; // Mostrar todos si está vacío
-                        const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""} ${u.email || ""}`.toLowerCase();
-                        return searchStr.includes(fCliente.toLowerCase());
-                      })
-                      .map(u => {
-                        const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
-                        return (
-                          <div 
-                            key={u.id} 
-                            onClick={() => { setFCliente(display); setShowSuggestions(false); }}
-                            style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
-                            onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"}
-                            onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-                          >
-                            <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{display}</div>
-                            <div style={{ fontSize: "0.7rem", color: "#888" }}>{u.email} - {u.rol}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                  <label style={labelSt}>Cliente *</label>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--primary-blue)', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <input type="checkbox" checked={fClienteManual} onChange={e => { setFClienteManual(e.target.checked); if(e.target.checked) setFClienteId(""); }} />
+                    Carga Manual
+                  </label>
+                </div>
+                
+                {!fClienteManual ? (
+                  <>
+                    <input 
+                      style={inputSt} 
+                      value={fCliente} 
+                      onChange={e => { setFCliente(e.target.value); setShowSuggestions(true); }} 
+                      onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
+                      placeholder="Buscar cliente registrado..." 
+                    />
+                    {showSuggestions && (
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, maxHeight: "220px", overflowY: "auto", marginTop: "5px" }}>
+                        {usuarios
+                          .filter(u => {
+                            if (!fCliente) return true;
+                            const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""} ${u.email || ""}`.toLowerCase();
+                            return searchStr.includes(fCliente.toLowerCase());
+                          })
+                          .map(u => {
+                            const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
+                            return (
+                              <div 
+                                key={u.id} 
+                                onClick={() => { 
+                                  setFCliente(display); 
+                                  setFClienteId(u.id);
+                                  setShowSuggestions(false); 
+                                }}
+                                style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
+                                onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"}
+                                onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                              >
+                                <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{display}</div>
+                                <div style={{ fontSize: "0.7rem", color: "#888" }}>{u.email}</div>
+                              </div>
+                            );
+                          })}
+                        {usuarios.length > 0 && usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase().includes(fCliente.toLowerCase())).length === 0 && fCliente && (
+                          <div style={{ padding: "12px 15px", color: "#666", fontSize: "0.8rem", background: "#f8f9fa", fontStyle: 'italic' }}>
+                            No se encontraron clientes registrados con ese nombre.
                           </div>
-                        );
-                      })}
-                    {usuarios.length > 0 && usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase().includes(fCliente.toLowerCase())).length === 0 && fCliente && (
-                      <div style={{ padding: "12px 15px", color: "#666", fontSize: "0.8rem", background: "#fff9f0" }}>
-                        ✨ No hay coincidencias exactas. Se guardará como: <strong>"{fCliente}"</strong>
+                        )}
                       </div>
                     )}
-                  </div>
+                  </>
+                ) : (
+                  <input 
+                    style={inputSt} 
+                    value={fCliente} 
+                    onChange={e => setFCliente(e.target.value)} 
+                    placeholder="Nombre del cliente o empresa (Manual)..." 
+                  />
                 )}
               </div>
               <div>

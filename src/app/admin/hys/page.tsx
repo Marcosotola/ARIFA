@@ -58,6 +58,8 @@ export default function HySPage() {
   // Form
   const [usuarios, setUsuarios] = useState<{id: string, nombre: string, apellido: string, empresa?: string}[]>([]);
   const [fCliente, setFCliente] = useState("");
+  const [fClienteId, setFClienteId] = useState("");
+  const [fClienteManual, setFClienteManual] = useState(false);
   const [fFecha, setFFecha] = useState(new Date().toISOString().split("T")[0]);
   const [fTipo, setFTipo] = useState<TipoDoc>("Visita");
   const [fDescripcion, setFDescripcion] = useState("");
@@ -92,8 +94,19 @@ export default function HySPage() {
       let all = snap.docs.map(d => ({ id: d.id, ...d.data() } as HySDoc));
       // Filtro para cliente: solo sus documentos
       if (r === "cliente" && userData) {
-        const searchStr = (userData.empresa || userData.nombre || "").toLowerCase();
-        all = all.filter(d => d.cliente?.toLowerCase().includes(searchStr));
+        const uid = userData.uid;
+        const emp = userData.empresa?.toLowerCase() || "";
+        const nom = userData.nombre?.toLowerCase() || "";
+        
+        if (!uid && !emp && !nom) {
+          all = [];
+        } else {
+          all = all.filter(d => 
+            d.clienteId === uid || 
+            (emp && d.cliente?.toLowerCase().includes(emp)) ||
+            (nom && d.cliente?.toLowerCase().includes(nom))
+          );
+        }
       }
       setDocs(all);
     } catch (e) { console.error(e); }
@@ -101,14 +114,14 @@ export default function HySPage() {
   };
 
   const openCreate = () => {
-    setFCliente(""); setFFecha(new Date().toISOString().split("T")[0]);
+    setFCliente(""); setFClienteId(""); setFClienteManual(false); setFFecha(new Date().toISOString().split("T")[0]);
     setFTipo("Visita"); setFDescripcion(""); setFImagenes([]);
     setSelectedDoc(null); setModal("create");
     setShowSuggestions(false);
   };
 
   const openEdit = (d: HySDoc) => {
-    setFCliente(d.cliente); setFFecha(d.fecha);
+    setFCliente(d.cliente); setFClienteId(d.clienteId || ""); setFClienteManual(!d.clienteId); setFFecha(d.fecha);
     setFTipo(d.tipo); setFDescripcion(d.descripcion || ""); setFImagenes([...d.imagenes]);
     setSelectedDoc(d); setModal("edit");
     setShowSuggestions(false);
@@ -142,6 +155,8 @@ export default function HySPage() {
     try {
       const payload: any = {
         cliente: fCliente.trim(),
+        clienteId: fClienteManual ? null : fClienteId,
+        clienteManual: fClienteManual,
         fecha: fFecha,
         tipo: fTipo,
         descripcion: fDescripcion.trim(),
@@ -156,7 +171,7 @@ export default function HySPage() {
         await updateDoc(doc(db, "hys_documentos", selectedDoc.id), payload);
       }
       setModal(null);
-      await fetchDocs();
+      await fetchDocs(role as string, currentUser);
     } catch (e) { alert("Error al guardar: " + e); }
     finally { setSaving(false); }
   };
@@ -419,42 +434,64 @@ export default function HySPage() {
               {/* Cliente + Fecha */}
               <div className="modal-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                 <div style={{ position: "relative" }}>
-                  <label style={labelSt}>Cliente *</label>
-                  <input 
-                    style={inputSt} 
-                    value={fCliente} 
-                    onChange={e => { setFCliente(e.target.value); setShowSuggestions(true); }} 
-                    onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
-                    placeholder="Escribí nombre o empresa..." 
-                  />
-                  {showSuggestions && (
-                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, maxHeight: "220px", overflowY: "auto", marginTop: "5px" }}>
-                      {usuarios
-                        .filter(u => {
-                          if (!fCliente) return true;
-                          const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase();
-                          return searchStr.includes(fCliente.toLowerCase());
-                        })
-                        .map(u => {
-                          const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
-                          return (
-                            <div 
-                              key={u.id} 
-                              onClick={() => { setFCliente(display); setShowSuggestions(false); }}
-                              style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
-                              onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"}
-                              onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-                            >
-                              <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{display}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                    <label style={labelSt}>Cliente / Inmueble *</label>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--primary-blue)', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <input type="checkbox" checked={fClienteManual} onChange={e => { setFClienteManual(e.target.checked); if(e.target.checked) setFClienteId(""); }} />
+                      Carga Manual
+                    </label>
+                  </div>
+
+                  {!fClienteManual ? (
+                    <>
+                      <input 
+                        style={inputSt} 
+                        value={fCliente} 
+                        onChange={e => { setFCliente(e.target.value); setShowSuggestions(true); }} 
+                        onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
+                        placeholder="Buscar cliente registrado..." 
+                      />
+                      {showSuggestions && (
+                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, maxHeight: "220px", overflowY: "auto", marginTop: "5px" }}>
+                          {usuarios
+                            .filter(u => {
+                              if (!fCliente) return true;
+                              const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase();
+                              return searchStr.includes(fCliente.toLowerCase());
+                            })
+                            .map(u => {
+                              const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
+                              return (
+                                <div 
+                                  key={u.id} 
+                                  onClick={() => { 
+                                    setFCliente(display); 
+                                    setFClienteId(u.id);
+                                    setShowSuggestions(false); 
+                                  }}
+                                  style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
+                                  onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"}
+                                  onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+                                >
+                                  <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{display}</div>
+                                </div>
+                              );
+                            })}
+                          {usuarios.length > 0 && usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase().includes(fCliente.toLowerCase())).length === 0 && fCliente && (
+                            <div style={{ padding: "12px 15px", color: "#666", fontSize: "0.8rem", background: "#f8f9fa", fontStyle: 'italic' }}>
+                              No se encontraron clientes registrados con ese nombre.
                             </div>
-                          );
-                        })}
-                      {usuarios.length > 0 && usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase().includes(fCliente.toLowerCase())).length === 0 && fCliente && (
-                        <div style={{ padding: "12px 15px", color: "#666", fontSize: "0.8rem", background: "#fff9f0" }}>
-                          ✨ No hay coincidencias exactas. Se guardará como: <strong>"{fCliente}"</strong>
+                          )}
                         </div>
                       )}
-                    </div>
+                    </>
+                  ) : (
+                    <input 
+                      style={inputSt} 
+                      value={fCliente} 
+                      onChange={e => setFCliente(e.target.value)} 
+                      placeholder="Nombre del cliente o empresa (Manual)..." 
+                    />
                   )}
                 </div>
                 <div>

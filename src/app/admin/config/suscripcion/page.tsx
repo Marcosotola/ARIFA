@@ -99,7 +99,8 @@ export default function SuscripcionPage() {
       if (data.init_point) {
         window.location.href = data.init_point;
       } else {
-        alert("Error al generar el link de pago. Verificá la configuración de Mercado Pago.");
+        const errorMsg = data.details || data.error || "Error desconocido";
+        alert(`Error al generar el link de pago: ${errorMsg}. Verificá la configuración de Mercado Pago.`);
       }
     } catch (error) {
       console.error(error);

@@ -82,9 +82,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const shouldBlock = (isExpired || isMaintenance) && !isSuperAdmin;
 
   // Special case for Admin: Redirect to subscription page if blocked
+  useEffect(() => {
+    if (shouldBlock && isAdmin && pathname !== "/admin/config/suscripcion") {
+      router.push("/admin/config/suscripcion");
+    }
+  }, [shouldBlock, isAdmin, pathname, router]);
+
+  // Prevent rendering layout if we are about to redirect an admin
   if (shouldBlock && isAdmin && pathname !== "/admin/config/suscripcion") {
-    router.push("/admin/config/suscripcion");
-    return null;
+    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontStyle: 'italic', color: 'var(--text-muted)' }}>Redirigiendo a suscripción...</div>;
   }
 
   // Block everyone else with a maintenance screen
