@@ -49,7 +49,9 @@ const MODULES = [
     description: "Gestión de remitos de logística y fichas técnicas de taller.",
     href: "/admin/planillas/matafuegos",
     color: "#c2410c",
-    roles: ["admin", "tecnico", "superadmin"],
+    roles: ["admin", "tecnico", "superadmin", "cliente"],
+    clientLabel: "Mis Matafuegos",
+    clientDescription: "Estado de mantenimiento y remitos de tus extintores.",
   },
   {
     icon: <FileCheck size={24} />,

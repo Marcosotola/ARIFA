@@ -42,6 +42,7 @@ export default function CertificadosPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filtroSede, setFiltroSede] = useState("Todas");
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   const router = useRouter();
 
@@ -49,9 +50,11 @@ export default function CertificadosPage() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
       const snap = await getDoc(doc(db, "usuarios", u.uid));
-      const r = snap.exists() ? snap.data().rol : "cliente";
+      const userData = snap.exists() ? snap.data() : {};
+      const r = userData.rol || "cliente";
       setRole(r);
       setUid(u.uid);
+      setCurrentUser({ uid: u.uid, ...userData });
       fetchCerts(r, u.uid);
     });
     return () => unsub();
@@ -67,9 +70,10 @@ export default function CertificadosPage() {
         try {
           snap = await getDocs(q);
         } catch {
-          snap = await getDocs(collection(db, "certificados"));
+          const qFallback = query(collection(db, "certificados"), where("clienteId", "==", currentUid));
+          snap = await getDocs(qFallback);
           const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as Certificado));
-          setCerts((all as any[]).filter(c => c.clienteId === currentUid));
+          setCerts(all);
           return;
         }
       } else {
@@ -231,7 +235,9 @@ export default function CertificadosPage() {
     return matchesSearch && matchesDate && matchesSede;
   });
 
-  const sedesDisponibles = Array.from(new Set(certs.map(c => (c as any).sedeNombre).filter(Boolean))) as string[];
+  const sedesDisponibles = (isReadOnly && currentUser?.sedes 
+    ? currentUser.sedes.map((s: any) => s.nombre)
+    : Array.from(new Set(certs.map(c => (c as any).sedeNombre).filter(Boolean)))) as string[];
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>

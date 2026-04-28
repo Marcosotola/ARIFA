@@ -65,6 +65,7 @@ export default function PlanAccionPage() {
   const [search, setSearch] = useState("");
   const [filtroPrioridad, setFiltroPrioridad] = useState<Prioridad | "Todas">("Todas");
   const [filtroRealizado, setFiltroRealizado] = useState<"Todos" | "Si" | "No">("Todos");
+  const [filtroSede, setFiltroSede] = useState("Todas");
 
   // Form State
   const [fCliente, setFCliente] = useState("");
@@ -92,16 +93,30 @@ export default function PlanAccionPage() {
       setRole(r);
       setUid(u.uid);
       setCurrentUser({ uid: u.uid, ...userData });
-      fetchItems(r, userData);
+      fetchItems(r, userData, u.uid);
       if (r !== "cliente") fetchUsuarios();
     });
     return () => unsub();
   }, [router]);
 
-  const fetchItems = async (r?: string, userData?: any) => {
+  const fetchItems = async (r?: string, userData?: any, uid: string = "") => {
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, "plan_accion"), orderBy("createdAt", "desc")));
+      const isStaff = ["admin", "superadmin", "secretaria"].includes(r || "");
+      const q = isStaff 
+        ? query(collection(db, "plan_accion"), orderBy("createdAt", "desc"))
+        : query(collection(db, "plan_accion"), where("clienteId", "==", uid), orderBy("createdAt", "desc"));
+      
+      let snap;
+      try {
+        snap = await getDocs(q);
+      } catch (e) {
+        // Fallback sin ordenamiento
+        const qFallback = isStaff
+          ? query(collection(db, "plan_accion"))
+          : query(collection(db, "plan_accion"), where("clienteId", "==", uid));
+        snap = await getDocs(qFallback);
+      }
       let all = snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanItem));
       // Filtro para cliente: solo sus items
       if (r === "cliente" && userData) {
@@ -213,7 +228,8 @@ export default function PlanAccionPage() {
                           i.detalle.toLowerCase().includes(search.toLowerCase());
     const matchesPrioridad = filtroPrioridad === "Todas" || i.prioridad === filtroPrioridad;
     const matchesRealizado = filtroRealizado === "Todos" || (filtroRealizado === "Si" ? i.realizado : !i.realizado);
-    return matchesSearch && matchesPrioridad && matchesRealizado;
+    const matchesSede = filtroSede === "Todas" || i.sedeNombre === filtroSede;
+    return matchesSearch && matchesPrioridad && matchesRealizado && matchesSede;
   });
 
   const isReadOnly = role === "cliente";
@@ -258,6 +274,23 @@ export default function PlanAccionPage() {
             <option value="No">Pendientes</option>
           </select>
         </div>
+        <div style={{ width: "180px" }}>
+          <label style={labelSt}>Sede / Obra</label>
+          <select style={inputSt} value={filtroSede} onChange={e => setFiltroSede(e.target.value)}>
+            <option value="Todas">Todas las sedes</option>
+            {isReadOnly && currentUser?.sedes ? (
+              currentUser.sedes.map((s: any) => <option key={s.id} value={s.nombre}>{s.nombre}</option>)
+            ) : (
+              (Array.from(new Set(items.map(i => i.sedeNombre).filter(Boolean))) as string[]).map(s => <option key={s} value={s}>{s}</option>)
+            )}
+          </select>
+        </div>
+        <button 
+          onClick={() => { setSearch(""); setFiltroPrioridad("Todas"); setFiltroRealizado("Todos"); setFiltroSede("Todas"); }}
+          style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}
+        >
+          Limpiar
+        </button>
       </div>
 
       {/* LISTADO */}

@@ -98,7 +98,7 @@ export default function HySPage() {
       const r = userData.rol || "cliente";
       setRole(r);
       setCurrentUser({ uid: u.uid, ...userData });
-      await fetchDocs(r, userData);
+      await fetchDocs(r, userData, u.uid);
       if (r !== "cliente") await fetchUsuarios();
     });
     return () => unsub();
@@ -112,10 +112,24 @@ export default function HySPage() {
     } catch (e) { console.error(e); }
   };
 
-  const fetchDocs = async (r?: string, userData?: any) => {
+  const fetchDocs = async (r?: string, userData?: any, uid: string = "") => {
     setLoading(true);
     try {
-      const snap = await getDocs(query(collection(db, "hys_documentos"), orderBy("createdAt", "desc")));
+      const isStaff = ["admin", "superadmin", "tecnico"].includes(r || "");
+      const q = isStaff
+        ? query(collection(db, "hys_documentos"), orderBy("createdAt", "desc"))
+        : query(collection(db, "hys_documentos"), where("clienteId", "==", uid), orderBy("createdAt", "desc"));
+      
+      let snap;
+      try {
+        snap = await getDocs(q);
+      } catch (e) {
+        // Fallback sin ordenamiento
+        const qFallback = isStaff
+          ? query(collection(db, "hys_documentos"))
+          : query(collection(db, "hys_documentos"), where("clienteId", "==", uid));
+        snap = await getDocs(qFallback);
+      }
       let all = snap.docs.map(d => {
         const data = d.data();
         // Migración al vuelo: si tipo es string, lo convertimos a array
@@ -236,7 +250,9 @@ export default function HySPage() {
 
   const isReadOnly = role === "cliente";
   const isAdmin = role === "admin" || role === "superadmin";
-  const sedesDisponibles = Array.from(new Set(docs.map(d => d.sedeNombre).filter(Boolean))) as string[];
+  const sedesDisponibles = (isReadOnly && currentUser?.sedes
+    ? currentUser.sedes.map((s: any) => s.nombre)
+    : Array.from(new Set(docs.map(d => d.sedeNombre).filter(Boolean)))) as string[];
 
   return (
     <div style={{ maxWidth: "1350px", margin: "0 auto" }}>

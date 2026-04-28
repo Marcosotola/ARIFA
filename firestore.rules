@@ -34,20 +34,20 @@ service cloud.firestore {
 
     // Órdenes de Trabajo (OT)
     match /ordenes_trabajo/{otId} {
-      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
       allow write: if request.auth != null && (isAdmin() || getRole() == 'tecnico');
       allow delete: if isAdmin();
     }
 
     // Matafuegos (Remitos y Fichas)
     match /remitos_matafuegos/{id} {
-      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
       allow create, update: if request.auth != null && (isAdmin() || getRole() == 'tecnico');
       allow delete: if isAdmin();
     }
     
     match /mantenimiento_matafuegos/{id} {
-      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
       allow create, update: if request.auth != null && (isAdmin() || getRole() == 'tecnico');
       allow delete: if isAdmin();
     }
@@ -59,26 +59,26 @@ service cloud.firestore {
     }
 
     match /matafuegos_activos/{id} {
-      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
       allow create, update: if isStaffMember();
       allow delete: if isAdmin();
     }
 
     // Higiene y Seguridad (HyS)
     match /hys_documentos/{id} {
-      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
       allow write: if request.auth != null && (isAdmin() || getRole() == 'tecnico');
     }
 
     // Plan de Acción
     match /plan_accion/{id} {
-      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
       allow write: if request.auth != null && (isAdmin() || getRole() == 'secretaria');
     }
 
     // Certificados
     match /certificados/{id} {
-      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
       allow write: if isAdmin();
     }
 

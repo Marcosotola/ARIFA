@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";
@@ -26,6 +26,8 @@ interface Remito {
   fecha: string;
   clienteNombre: string;
   clienteEmpresa: string;
+  clienteId?: string;
+  sedeNombre?: string;
   tecnicoNombre: string;
   equipos?: any[];
   createdAt: any;
@@ -37,6 +39,8 @@ interface Ficha {
   fechaServicio: string;
   clienteNombre: string;
   clienteEmpresa: string;
+  clienteId?: string;
+  sedeNombre?: string;
   tecnicoNombre: string;
   items: any[];
   createdAt: any;
@@ -53,11 +57,13 @@ function MatafuegosUnifiedContent() {
   const [editInventory, setEditInventory] = useState<any | null>(null);
   const [savingInventory, setSavingInventory] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   // Filtros
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [filtroSede, setFiltroSede] = useState("Todas");
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -69,40 +75,66 @@ function MatafuegosUnifiedContent() {
     }
   }, [searchParams]);
 
-  const fetchRemitos = useCallback(async () => {
+  const fetchRemitos = useCallback(async (r?: string, uid?: string) => {
     setLoading(true);
     try {
-      const q = query(collection(db, "remitos_matafuegos"), orderBy("numero", "desc"));
+      let q = query(collection(db, "remitos_matafuegos"), orderBy("numero", "desc"));
+      if (r === "cliente" && uid) {
+        q = query(collection(db, "remitos_matafuegos"), where("clienteId", "==", uid), orderBy("numero", "desc"));
+      }
       const snap = await getDocs(q);
       setRemitos(snap.docs.map(d => ({ id: d.id, ...d.data() } as Remito)));
     } catch (e) {
-      const snap = await getDocs(collection(db, "remitos_matafuegos"));
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Remito));
+      console.error("Index missing or query error, falling back:", e);
+      let qFallback = query(collection(db, "remitos_matafuegos"));
+      if (r === "cliente" && uid) {
+        qFallback = query(collection(db, "remitos_matafuegos"), where("clienteId", "==", uid));
+      }
+      const snap = await getDocs(qFallback);
+      let data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Remito));
       setRemitos(data.sort((a,b) => (b.numero || 0) - (a.numero || 0)));
     } finally { setLoading(false); }
   }, []);
 
-  const fetchFichas = useCallback(async () => {
+  const fetchFichas = useCallback(async (r?: string, uid?: string) => {
     setLoading(true);
     try {
-      const q = query(collection(db, "mantenimiento_matafuegos"), orderBy("numeroFicha", "desc"));
+      let q = query(collection(db, "mantenimiento_matafuegos"), orderBy("numeroFicha", "desc"));
+      if (r === "cliente" && uid) {
+        q = query(collection(db, "mantenimiento_matafuegos"), where("clienteId", "==", uid), orderBy("numeroFicha", "desc"));
+      }
       const snap = await getDocs(q);
       setFichas(snap.docs.map(d => ({ id: d.id, ...d.data() } as Ficha)));
     } catch (e) {
-      const snap = await getDocs(collection(db, "mantenimiento_matafuegos"));
-      const data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Ficha));
+      console.error("Index missing or query error, falling back:", e);
+      let qFallback = query(collection(db, "mantenimiento_matafuegos"));
+      if (r === "cliente" && uid) {
+        qFallback = query(collection(db, "mantenimiento_matafuegos"), where("clienteId", "==", uid));
+      }
+      const snap = await getDocs(qFallback);
+      let data = snap.docs.map(d => ({ id: d.id, ...d.data() } as Ficha));
       setFichas(data.sort((a,b) => (b.numeroFicha || 0) - (a.numeroFicha || 0)));
     } finally { setLoading(false); }
   }, []);
 
-  const fetchMatafuegos = useCallback(async () => {
+  const fetchMatafuegos = useCallback(async (r?: string, uid?: string) => {
     setLoading(true);
     try {
-      const q = query(collection(db, "matafuegos_activos"), orderBy("updatedAt", "desc"));
+      let q = query(collection(db, "matafuegos_activos"), orderBy("updatedAt", "desc"));
+      if (r === "cliente" && uid) {
+        q = query(collection(db, "matafuegos_activos"), where("clienteId", "==", uid), orderBy("updatedAt", "desc"));
+      }
       const snap = await getDocs(q);
       setMatafuegos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
-      console.error("Error fetching matafuegos:", e);
+      console.error("Index missing or query error, falling back:", e);
+      let qFallback = query(collection(db, "matafuegos_activos"));
+      if (r === "cliente" && uid) {
+        qFallback = query(collection(db, "matafuegos_activos"), where("clienteId", "==", uid));
+      }
+      const snap = await getDocs(qFallback);
+      let data = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      setMatafuegos(data);
     } finally { setLoading(false); }
   }, []);
 
@@ -110,10 +142,14 @@ function MatafuegosUnifiedContent() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
       const userDoc = await getDoc(doc(db, "usuarios", u.uid));
-      setRole(userDoc.exists() ? userDoc.data().rol : "cliente");
-      if (activeTab === "remitos") fetchRemitos();
-      else if (activeTab === "fichas") fetchFichas();
-      else fetchMatafuegos();
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      const userRole = userData.rol || "cliente";
+      setRole(userRole);
+      setCurrentUser({ uid: u.uid, ...userData });
+
+      if (activeTab === "remitos") fetchRemitos(userRole, u.uid);
+      else if (activeTab === "fichas") fetchFichas(userRole, u.uid);
+      else fetchMatafuegos(userRole, u.uid);
     });
     return () => unsub();
   }, [router, activeTab, fetchRemitos, fetchFichas, fetchMatafuegos]);
@@ -167,7 +203,8 @@ function MatafuegosUnifiedContent() {
       if (dateFrom && rDate < new Date(dateFrom)) matchesDate = false;
       if (dateTo && rDate > new Date(dateTo)) matchesDate = false;
     }
-    return matchesSearch && matchesDate;
+    const matchesSede = filtroSede === "Todas" || (r as any).sedeNombre === filtroSede;
+    return matchesSearch && matchesDate && matchesSede;
   });
 
   const filteredFichas = fichas.filter(f => {
@@ -178,7 +215,8 @@ function MatafuegosUnifiedContent() {
       if (dateFrom && fDate < new Date(dateFrom)) matchesDate = false;
       if (dateTo && fDate > new Date(dateTo)) matchesDate = false;
     }
-    return matchesSearch && matchesDate;
+    const matchesSede = filtroSede === "Todas" || (f as any).sedeNombre === filtroSede;
+    return matchesSearch && matchesDate && matchesSede;
   });
 
   const isStaff = role === "admin" || role === "tecnico" || role === "superadmin";
@@ -296,7 +334,26 @@ function MatafuegosUnifiedContent() {
             </div>
           </>
         )}
-        <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+        {/* SEDE FILTER */}
+        <div style={{ width: "200px" }}>
+          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Sede / Obra</label>
+          <select 
+            value={filtroSede} 
+            onChange={e => setFiltroSede(e.target.value)}
+            style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.85rem", background: "#fff" }}
+          >
+            <option value="Todas">Todas las sedes</option>
+            {isReadOnly ? (
+              currentUser?.sedes?.map((s: any) => <option key={s.id} value={s.nombre}>{s.nombre}</option>)
+            ) : (
+              (Array.from(new Set([
+                ...(activeTab === "remitos" ? remitos : activeTab === "fichas" ? fichas : matafuegos).map((x: any) => x.sedeNombre)
+              ].filter(Boolean))) as string[]).map(s => <option key={s} value={s}>{s}</option>)
+            )}
+          </select>
+        </div>
+
+        <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
       </div>
 
       {/* CONTENIDO */}
@@ -420,9 +477,14 @@ function MatafuegosUnifiedContent() {
               </tr>
             </thead>
             <tbody>
-              {matafuegos.filter(m => 
-                m.nroTarjeta?.toLowerCase().includes(search.toLowerCase())
-              ).map((m, idx) => {
+              {matafuegos.filter(m => {
+                const matchesSearch = 
+                  m.nroTarjeta?.toLowerCase().includes(search.toLowerCase()) ||
+                  m.clienteNombre?.toLowerCase().includes(search.toLowerCase()) ||
+                  m.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
+                const matchesSede = filtroSede === "Todas" || m.sedeNombre === filtroSede;
+                return matchesSearch && matchesSede;
+              }).map((m, idx) => {
                 const proxPH = m.historial?.proximaPH;
                 const isUrgent = proxPH && new Date(proxPH) < new Date();
                 

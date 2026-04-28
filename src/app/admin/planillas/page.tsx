@@ -22,6 +22,8 @@ interface OT {
   clienteNombre: string;
   clienteEmpresa: string;
   clienteId?: string;
+  sedeId?: string;
+  sedeNombre?: string;
   tecnicos: string[];
   estado: string;
   planillasSeleccionadas: { nombre: string; codigo?: string }[];
@@ -95,10 +97,12 @@ export default function OTUnifiedPage() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [filtroSede, setFiltroSede] = useState("Todas");
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   const router = useRouter();
 
-  const isStaffRole = (r: string) => ["admin", "tecnico", "superadmin"].includes(r);
+  const isStaffRole = (r: string) => ["admin", "tecnico", "superadmin", "secretaria"].includes(r);
 
   const fetchOTs = useCallback(async (r: string, uid: string) => {
     setLoading(true);
@@ -111,7 +115,10 @@ export default function OTUnifiedPage() {
       try {
         snap = await getDocs(q);
       } catch {
-        snap = await getDocs(collection(db, "ordenes_trabajo"));
+        const qFallback = isStaffRole(r)
+          ? query(collection(db, "ordenes_trabajo"))
+          : query(collection(db, "ordenes_trabajo"), where("clienteId", "==", uid));
+        snap = await getDocs(qFallback);
       }
 
       let docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as OT));
@@ -142,8 +149,10 @@ export default function OTUnifiedPage() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
       const userDoc = await getDoc(doc(db, "usuarios", u.uid));
-      const r = userDoc.exists() ? userDoc.data().rol : "cliente";
+      const userData = userDoc.exists() ? userDoc.data() : {};
+      const r = userData.rol || "cliente";
       setRole(r);
+      setCurrentUser({ uid: u.uid, ...userData });
       if (activeTab === "ots") fetchOTs(r, u.uid);
       else fetchPlantillas();
     });
@@ -234,14 +243,24 @@ export default function OTUnifiedPage() {
   const removeInfoField = (idx: number) => setFormPlantilla(f => ({ ...f, infoFields: f.infoFields!.filter((_, i) => i !== idx) }));
 
   const filteredOts = ots.filter(ot => {
-    const matchesSearch = String(ot.numero).includes(search) || ot.clienteNombre?.toLowerCase().includes(search.toLowerCase()) || ot.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
+    const q = search.toLowerCase();
+    const matchesSearch = 
+      String(ot.numero).includes(q) || 
+      ot.clienteNombre?.toLowerCase().includes(q) ||
+      ot.clienteEmpresa?.toLowerCase().includes(q);
+    
     const otDate = ot.fecha ? new Date(ot.fecha) : null;
     let matchesDate = true;
     if (otDate) {
       if (dateFrom && otDate < new Date(dateFrom)) matchesDate = false;
-      if (dateTo && otDate > new Date(dateTo)) matchesDate = false;
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        if (otDate > toDate) matchesDate = false;
+      }
     }
-    return matchesSearch && matchesDate;
+    const matchesSede = filtroSede === "Todas" || ot.sedeNombre === filtroSede;
+    return matchesSearch && matchesDate && matchesSede;
   });
 
   const isStaff = isStaffRole(role ?? "");
@@ -330,7 +349,23 @@ export default function OTUnifiedPage() {
               <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Hasta</label>
               <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.85rem" }} />
             </div>
-            <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+            {/* SEDE FILTER */}
+            <div style={{ width: "180px" }}>
+              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Sede / Obra</label>
+              <select 
+                value={filtroSede} 
+                onChange={e => setFiltroSede(e.target.value)}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.85rem", background: "#fff" }}
+              >
+                <option value="Todas">Todas las sedes</option>
+                {isClient ? (
+                  currentUser?.sedes?.map((s: any) => <option key={s.id} value={s.nombre}>{s.nombre}</option>)
+                ) : (
+                  (Array.from(new Set(ots.map(o => o.sedeNombre).filter(Boolean))) as string[]).map(s => <option key={s} value={s}>{s}</option>)
+                )}
+              </select>
+            </div>
+            <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
           </div>
 
           {/* TABLA OT */}
