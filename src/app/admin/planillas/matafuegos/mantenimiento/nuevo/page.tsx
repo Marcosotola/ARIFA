@@ -49,6 +49,7 @@ function FichaFormContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tecnico, setTecnico] = useState<any>(null);
+  const [proximaOblea, setProximaOblea] = useState<number>(1);
 
   // Datos de cabecera
   const [numeroFichaExistente, setNumeroFichaExistente] = useState<number | null>(null);
@@ -59,6 +60,9 @@ function FichaFormContent() {
   const [nombre, setNombre] = useState("");
   const [empresa, setEmpresa] = useState("");
   const [clienteSearch, setClienteSearch] = useState("");
+  const [sedeId, setSedeId] = useState("");
+  const [sedeNombre, setSedeNombre] = useState("");
+  const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
 
   const [items, setItems] = useState<MantenimientoItem[]>([]);
 
@@ -76,8 +80,14 @@ function FichaFormContent() {
         const tecData = { uid: u.uid, nombre: (userDoc.exists() ? userDoc.data().nombre : "") || u.email };
         setTecnico(tecData);
         
-        const allClients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const allClients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() } as any));
         setClientes(allClients);
+
+        // Cargar configuración de obleas
+        const configDoc = await getDoc(doc(db, "configuracion", "matafuegos"));
+        if (configDoc.exists()) {
+          setProximaOblea(configDoc.data().proximaTarjeta || 1);
+        }
 
         // SI HAY EDICION, CARGAR FICHA AHORA QUE TENEMOS CLIENTES
         if (editId) {
@@ -92,7 +102,12 @@ function FichaFormContent() {
             
             if (data.clienteId) {
               const matched = allClients.find(c => c.id === data.clienteId);
-              if (matched) setClienteSeleccionado(matched);
+              if (matched) {
+                setClienteSeleccionado(matched);
+                setFilteredSedes(matched.sedes || []);
+                setSedeId(data.sedeId || "");
+                setSedeNombre(data.sedeNombre || "");
+              }
             } else {
               setClienteManual(true);
             }
@@ -119,6 +134,9 @@ function FichaFormContent() {
       setClienteSeleccionado(c);
       setNombre(c.nombre || c.razonSocial || "");
       setEmpresa(c.empresa || c.razonSocial || "");
+      setFilteredSedes(c.sedes || []);
+      setSedeId("");
+      setSedeNombre("");
       setClienteSearch("");
     }
   };
@@ -157,6 +175,43 @@ function FichaFormContent() {
     setItems(newItems);
   };
 
+  const handleObleaBlur = async (idx: number, nroTarjeta: string) => {
+    if (!nroTarjeta || nroTarjeta.trim() === "") return;
+    
+    try {
+      // Buscar el matafuego por número de tarjeta
+      const q = query(collection(db, "matafuegos_activos"), where("nroTarjeta", "==", nroTarjeta.trim()));
+      const snap = await getDocs(q);
+      
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        const tec = data.datosTecnicos || {};
+        const hist = data.historial || {};
+        
+        const newItems = [...items];
+        newItems[idx] = {
+          ...newItems[idx],
+          agente: tec.agente || newItems[idx].agente,
+          capacidad: tec.capacidad || newItems[idx].capacidad,
+          marca: tec.marca || newItems[idx].marca,
+          anioFab: tec.anioFab || newItems[idx].anioFab,
+          claseFuego: tec.claseFuego || newItems[idx].claseFuego,
+          ultimaPH: hist.ultimaPH || newItems[idx].ultimaPH,
+          proximaPH: hist.proximaPH || newItems[idx].proximaPH,
+          vencimientoCarga: hist.vencimientoCarga || newItems[idx].vencimientoCarga
+        };
+        setItems(newItems);
+      }
+    } catch (e) {
+      console.error("Error buscando oblea:", e);
+    }
+  };
+
+  const asignarProximaOblea = (idx: number) => {
+    updateItem(idx, 'nroTarjeta', proximaOblea.toString());
+    setProximaOblea(prev => prev + 1);
+  };
+
   const handleSave = async () => {
     if (!nombre.trim()) return alert("El nombre del cliente es obligatorio.");
     if (items.length === 0) return alert("Debes agregar al menos un extintor.");
@@ -175,6 +230,8 @@ function FichaFormContent() {
         clienteId: clienteSeleccionado?.id || null,
         clienteNombre: nombre,
         clienteEmpresa: empresa,
+        sedeId: sedeId || null,
+        sedeNombre: sedeNombre || "",
         tecnicoId: tecnico.uid,
         tecnicoNombre: tecnico.nombre,
         items,
@@ -187,8 +244,50 @@ function FichaFormContent() {
         await addDoc(collection(db, "mantenimiento_matafuegos"), { ...payload, createdAt: serverTimestamp() });
       }
 
+      // 4. Sincronizar Matafuegos Activos e incrementar contador de obleas
+      const updates = items.map(async (it) => {
+        const mfRef = doc(db, "matafuegos_activos", it.nroTarjeta);
+        const mfData = {
+          nroTarjeta: it.nroTarjeta,
+          clienteId: clienteSeleccionado?.id || null,
+          clienteNombre: nombre,
+          clienteEmpresa: empresa,
+          sedeId: sedeId || null,
+          sedeNombre: sedeNombre || "",
+          datosTecnicos: {
+            agente: it.agente,
+            capacidad: it.capacidad,
+            marca: it.marca,
+            anioFab: it.anioFab,
+            claseFuego: it.claseFuego
+          },
+          historial: {
+            ultimaPH: it.ultimaPH,
+            proximaPH: it.proximaPH,
+            vencimientoCarga: it.vencimientoCarga
+          },
+          updatedAt: serverTimestamp()
+        };
+        await updateDoc(mfRef, mfData).catch(async () => {
+           // Si no existe, lo creamos (el ID es el nroTarjeta para fácil acceso)
+           const { setDoc } = await import("firebase/firestore");
+           await setDoc(mfRef, { ...mfData, createdAt: serverTimestamp() });
+        });
+      });
+
+      // Actualizar contador global si se usaron nuevas obleas
+      const maxObleaUsada = Math.max(...items.map(it => parseInt(it.nroTarjeta)).filter(n => !isNaN(n)));
+      if (maxObleaUsada >= proximaOblea) {
+        await updateDoc(doc(db, "configuracion", "matafuegos"), { proximaTarjeta: maxObleaUsada + 1 }).catch(async () => {
+          const { setDoc } = await import("firebase/firestore");
+          await setDoc(doc(db, "configuracion", "matafuegos"), { proximaTarjeta: maxObleaUsada + 1 });
+        });
+      }
+
+      await Promise.all(updates);
+
       alert("Ficha técnica guardada con éxito.");
-      router.push("/admin/planillas/matafuegos/mantenimiento");
+      router.push("/admin/planillas/matafuegos?tab=fichas");
     } catch (e) {
       console.error(e);
       alert("Error al guardar.");
@@ -261,6 +360,23 @@ function FichaFormContent() {
                 )}
               </div>
             )}
+            {clienteSeleccionado && filteredSedes.length > 0 && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>SEDE / UBICACIÓN</label>
+                <select 
+                  value={sedeId}
+                  onChange={e => {
+                    const s = filteredSedes.find(x => x.id === e.target.value);
+                    setSedeId(e.target.value);
+                    setSedeNombre(s ? s.nombre : "");
+                  }}
+                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', background: '#f8fafc' }}
+                >
+                  <option value="">-- Seleccionar Sede (Opcional) --</option>
+                  {filteredSedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.direccion || "Sin dirección"})</option>)}
+                </select>
+              </div>
+            )}
             <div>
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>FECHA DE SERVICIO</label>
               <input type="date" value={fechaServicio} onChange={(e) => setFechaServicio(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
@@ -306,7 +422,21 @@ function FichaFormContent() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>TARJETA N°</label>
-                <input value={item.nroTarjeta} onChange={e => updateItem(idx, 'nroTarjeta', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <input 
+                    value={item.nroTarjeta} 
+                    onChange={e => updateItem(idx, 'nroTarjeta', e.target.value)} 
+                    onBlur={e => handleObleaBlur(idx, e.target.value)}
+                    placeholder="0000"
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} 
+                  />
+                  <button 
+                    onClick={() => asignarProximaOblea(idx)}
+                    title="Asignar Siguiente Oblea Correlativa"
+                    style={{ padding: '0 10px', borderRadius: '8px', border: '1px solid #3b82f6', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}>
+                    AUTO
+                  </button>
+                </div>
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>AGENTE</label>

@@ -21,7 +21,8 @@ import {
 const SignatureCanvas = dynamic(() => import("react-signature-canvas"), { ssr: false }) as any;
 
 interface EquipoRemito {
-  id: string;
+  id: string; // ID interno (opcional)
+  nroTarjeta: string; // Oblea
   tipo: string;
   capacidad: string;
   cantidad: string;
@@ -60,6 +61,7 @@ export default function NuevoRemitoPage() {
   const [tecnico, setTecnico] = useState<any>(null);
   const [aclaracion, setAclaracion] = useState("");
   const [numeroExistente, setNumeroExistente] = useState<number | null>(null);
+  const [proximaOblea, setProximaOblea] = useState<number>(1);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -75,6 +77,12 @@ export default function NuevoRemitoPage() {
         setTecnico(tecnicoData);
         const allClients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setClientes(allClients);
+
+        // Cargar configuración de obleas
+        const configDoc = await getDoc(doc(db, "configuracion", "matafuegos"));
+        if (configDoc.exists()) {
+          setProximaOblea(configDoc.data().proximaTarjeta || 1);
+        }
 
         if (editId) {
           const remitoDoc = await getDoc(doc(db, "remitos_matafuegos", editId));
@@ -135,8 +143,41 @@ export default function NuevoRemitoPage() {
   );
 
   const agregarEquipo = () => {
-    const nuevo: EquipoRemito = { id: "", tipo: "ABC", capacidad: "5kg", cantidad: "", marca: "", esPrestamo: false, estado: "recarga" };
-    setEquipos([...equipos, nuevo]);
+    setEquipos([...equipos, { 
+      id: '', 
+      nroTarjeta: '',
+      tipo: 'ABC', 
+      capacidad: '5kg', 
+      cantidad: '1', 
+      marca: '', 
+      esPrestamo: false, 
+      estado: 'bueno' 
+    }]);
+  };
+
+  const handleObleaBlur = async (idx: number, nroTarjeta: string) => {
+    if (!nroTarjeta || nroTarjeta.trim() === "") return;
+    try {
+      const q = query(collection(db, "matafuegos_activos"), where("nroTarjeta", "==", nroTarjeta.trim()));
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        const tec = data.datosTecnicos || {};
+        const newEquipos = [...equipos];
+        newEquipos[idx] = {
+          ...newEquipos[idx],
+          tipo: tec.agente || newEquipos[idx].tipo,
+          capacidad: tec.capacidad || newEquipos[idx].capacidad,
+          marca: tec.marca || newEquipos[idx].marca,
+        };
+        setEquipos(newEquipos);
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const asignarProximaOblea = (idx: number) => {
+    updateEquipo(idx, 'nroTarjeta', proximaOblea.toString());
+    setProximaOblea(prev => prev + 1);
   };
 
   const eliminarEquipo = (idx: number) => {
@@ -193,8 +234,43 @@ export default function NuevoRemitoPage() {
         await addDoc(collection(db, "remitos_matafuegos"), { ...payload, createdAt: serverTimestamp() });
       }
 
+      // Sincronizar Matafuegos Activos
+      const updates = equipos.map(async (eq) => {
+        if (!eq.nroTarjeta) return;
+        const mfRef = doc(db, "matafuegos_activos", eq.nroTarjeta);
+        const mfData = {
+          nroTarjeta: eq.nroTarjeta,
+          clienteId: clienteSeleccionado?.id || null,
+          clienteNombre: nombre,
+          clienteEmpresa: empresa,
+          sedeId: sedeId || null,
+          sedeNombre: sedeNombre || "",
+          datosTecnicos: {
+            agente: eq.tipo,
+            capacidad: eq.capacidad,
+            marca: eq.marca,
+          },
+          updatedAt: serverTimestamp()
+        };
+        await updateDoc(mfRef, mfData).catch(async () => {
+           const { setDoc } = await import("firebase/firestore");
+           await setDoc(mfRef, { ...mfData, createdAt: serverTimestamp() });
+        });
+      });
+
+      // Actualizar contador global
+      const maxObleaUsada = Math.max(...equipos.map(it => parseInt(it.nroTarjeta)).filter(n => !isNaN(n)));
+      if (maxObleaUsada >= proximaOblea) {
+        await updateDoc(doc(db, "configuracion", "matafuegos"), { proximaTarjeta: maxObleaUsada + 1 }).catch(async () => {
+          const { setDoc } = await import("firebase/firestore");
+          await setDoc(doc(db, "configuracion", "matafuegos"), { proximaTarjeta: maxObleaUsada + 1 });
+        });
+      }
+
+      await Promise.all(updates);
+
       alert(editId ? "¡Remito actualizado!" : "¡Remito generado con éxito!");
-      router.push("/admin/planillas/matafuegos");
+      router.push("/admin/planillas/matafuegos?tab=remitos");
     } catch (e) {
       console.error(e);
       alert("Error al guardar.");
@@ -354,8 +430,25 @@ export default function NuevoRemitoPage() {
                         <input type="number" placeholder="Cant" value={eq.cantidad || ""} onChange={(e) => updateEquipo(idx, 'cantidad', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
                       </div>
                       <div>
-                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>ID / CÓDIGO</label>
-                        <input placeholder="Cod. Equipo" value={eq.id || ""} onChange={(e) => updateEquipo(idx, 'id', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>TARJETA N°</label>
+                        <div style={{ display: 'flex', gap: '5px' }}>
+                          <input 
+                            placeholder="0000" 
+                            value={eq.nroTarjeta || ""} 
+                            onChange={(e) => updateEquipo(idx, 'nroTarjeta', e.target.value)} 
+                            onBlur={e => handleObleaBlur(idx, e.target.value)}
+                            style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} 
+                          />
+                          <button 
+                            onClick={() => asignarProximaOblea(idx)}
+                            style={{ padding: '0 8px', borderRadius: '8px', border: '1px solid #3b82f6', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 700 }}>
+                            AUTO
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>MARCA</label>
+                        <input placeholder="Marca" value={eq.marca || ""} onChange={(e) => updateEquipo(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
                       </div>
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>TIPO</label>

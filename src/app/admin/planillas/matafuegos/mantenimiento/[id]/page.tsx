@@ -60,7 +60,7 @@ export default function DetalleMantenimientoPage() {
   const handleDelete = async () => {
     try {
       await deleteDoc(doc(db, "mantenimiento_matafuegos", id as string));
-      router.push("/admin/planillas/matafuegos/mantenimiento");
+      router.push("/admin/planillas/matafuegos?tab=fichas");
     } catch (e) {
       alert("Error al eliminar la ficha.");
     }

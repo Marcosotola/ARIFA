@@ -5,12 +5,9 @@ service cloud.firestore {
     
     // --- FUNCIONES CENTRALES ---
     
-    function getUserData() {
-      return get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data;
-    }
-    
     function getRole() {
-      return getUserData().rol;
+      let userPath = /databases/$(database)/documents/usuarios/$(request.auth.uid);
+      return exists(userPath) ? get(userPath).data.rol : 'cliente';
     }
     
     function isAdmin() {
@@ -23,22 +20,26 @@ service cloud.firestore {
 
     // --- REGLAS DE COLECCIONES ---
 
+    // Usuarios
     match /usuarios/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isStaffMember());
       allow write: if request.auth != null && (isAdmin() || request.auth.uid == userId);
     }
 
+    // Plantillas
     match /plantillas_inspeccion/{id} {
       allow read: if request.auth != null;
       allow write: if isAdmin();
     }
 
+    // Órdenes de Trabajo (OT)
     match /ordenes_trabajo/{otId} {
       allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
       allow write: if request.auth != null && (isAdmin() || getRole() == 'tecnico');
       allow delete: if isAdmin();
     }
 
+    // Matafuegos (Remitos y Fichas)
     match /remitos_matafuegos/{id} {
       allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
       allow create, update: if request.auth != null && (isAdmin() || getRole() == 'tecnico');
@@ -51,31 +52,49 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // NUEVO: Gestión de Activos y Obleas
+    match /configuracion/matafuegos {
+      allow read: if request.auth != null;
+      allow write: if isStaffMember();
+    }
+
+    match /matafuegos_activos/{id} {
+      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow create, update: if isStaffMember();
+      allow delete: if isAdmin();
+    }
+
+    // Higiene y Seguridad (HyS)
     match /hys_documentos/{id} {
       allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
       allow write: if request.auth != null && (isAdmin() || getRole() == 'tecnico');
     }
 
+    // Plan de Acción
     match /plan_accion/{id} {
       allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
       allow write: if request.auth != null && (isAdmin() || getRole() == 'secretaria');
     }
 
+    // Certificados
     match /certificados/{id} {
       allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
       allow write: if isAdmin();
     }
 
+    // Configuración y Suscripciones
     match /configuracion/suscripcion {
       allow read: if true;
       allow write: if request.auth != null && getRole() == 'superadmin';
     }
 
+    // Productos
     match /productos/{prodId} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
+    // Consultas y Notificaciones
     match /consultas/{id} {
       allow read: if request.auth != null && (isAdmin() || getRole() == 'secretaria');
       allow create: if true;

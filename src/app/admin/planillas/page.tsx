@@ -276,35 +276,36 @@ export default function OTUnifiedPage() {
         )}
       </header>
 
-      {/* TABS */}
-      <div style={{ 
-        display: "inline-flex", 
-        background: "#e2e8f0", 
-        padding: "4px", 
-        borderRadius: "12px", 
-        marginBottom: "24px",
-        gap: "4px"
-      }}>
+      {/* TABS (Segmented Control style) */}
+      <div style={{ display: 'flex', gap: '8px', background: '#f1f5f9', padding: '6px', borderRadius: '14px', marginBottom: '24px', width: 'fit-content' }}>
         <button 
-          onClick={() => setActiveTab("ots")}
+          onClick={() => { setActiveTab("ots"); setSearch(""); }}
           style={{ 
-            padding: "10px 30px", cursor: "pointer", border: "none", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 800, transition: "0.2s",
-            background: activeTab === "ots" ? "#fff" : "transparent",
-            color: activeTab === "ots" ? "var(--primary-blue)" : "#64748b",
-            boxShadow: activeTab === "ots" ? "0 4px 10px rgba(0,0,0,0.08)" : "none",
-            display: "flex", alignItems: "center", gap: "8px"
+            padding: '10px 18px', borderRadius: '10px', border: '1.5px solid', 
+            borderColor: activeTab === "ots" ? '#3b82f6' : '#bfdbfe',
+            background: activeTab === "ots" ? '#fff' : '#eff6ff', 
+            fontWeight: 800, 
+            color: '#3b82f6', 
+            cursor: 'pointer', 
+            boxShadow: activeTab === "ots" ? '0 4px 12px rgba(59, 130, 246, 0.15)' : 'none', 
+            display: 'flex', alignItems: 'center', gap: '8px',
+            transition: '0.3s'
           }}>
           <ClipboardList size={18} strokeWidth={2.5} /> Listado OT
         </button>
         {isAdmin && !isReadOnly && (
           <button 
-            onClick={() => setActiveTab("gestor")}
+            onClick={() => { setActiveTab("gestor"); setSearch(""); }}
             style={{ 
-              padding: "10px 30px", cursor: "pointer", border: "none", borderRadius: "10px", fontSize: "0.85rem", fontWeight: 800, transition: "0.2s",
-              background: activeTab === "gestor" ? "#fff" : "transparent",
-              color: activeTab === "gestor" ? "var(--primary-blue)" : "#64748b",
-              boxShadow: activeTab === "gestor" ? "0 4px 10px rgba(0,0,0,0.08)" : "none",
-              display: "flex", alignItems: "center", gap: "8px"
+              padding: '10px 18px', borderRadius: '10px', border: '1.5px solid', 
+              borderColor: activeTab === "gestor" ? '#7c3aed' : '#ddd6fe',
+              background: activeTab === "gestor" ? '#fff' : '#f5f3ff', 
+              fontWeight: 800, 
+              color: '#7c3aed', 
+              cursor: 'pointer', 
+              boxShadow: activeTab === "gestor" ? '0 4px 12px rgba(124, 58, 237, 0.15)' : 'none', 
+              display: 'flex', alignItems: 'center', gap: '8px',
+              transition: '0.3s'
             }}>
             <Folder size={18} strokeWidth={2.5} /> Gestor
           </button>
