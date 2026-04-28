@@ -945,7 +945,7 @@ export default function ExtincionOTPage() {
             </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
