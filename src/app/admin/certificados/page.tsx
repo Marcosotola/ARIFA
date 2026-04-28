@@ -6,6 +6,11 @@ import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc } fr
 import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Plus, Eye, Edit, Download, Trash2, Scroll } from "lucide-react";
+
+// PDF libs
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface Certificado {
   id: string;
@@ -36,6 +41,7 @@ export default function CertificadosPage() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [filtroSede, setFiltroSede] = useState("Todas");
   
   const router = useRouter();
 
@@ -103,7 +109,101 @@ export default function CertificadosPage() {
     } catch (e) { alert("Error: " + e); }
   };
 
+  // ── PDF GENERATION ────────────────────────────────────────────────────────
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const handleDownloadPDF = async (certId: string) => {
+    setDownloadingId(certId);
+    try {
+      const snap = await getDoc(doc(db, "certificados", certId));
+      if (!snap.exists()) { alert("Certificado no encontrado"); return; }
+      const data = snap.data() as any;
+      
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+      const nCert = String(data.numero || "").padStart(4, "0");
+      const fInsp = data.fechaInspeccion ? new Date(data.fechaInspeccion).toLocaleDateString("es-AR") : "-";
+      const fVenc = data.fechaVencimiento ? new Date(data.fechaVencimiento).toLocaleDateString("es-AR") : "-";
+
+      // Logo
+      let logoDataUrl: string | null = null;
+      try {
+        const resp = await fetch("/logos/logoFondoTransparente.svg");
+        const svgText = await resp.text();
+        const blob = new Blob([svgText], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+        const cnv = document.createElement("canvas");
+        cnv.width = img.naturalWidth || 300; cnv.height = img.naturalHeight || 150;
+        cnv.getContext("2d")!.drawImage(img, 0, 0);
+        logoDataUrl = cnv.toDataURL("image/png");
+        URL.revokeObjectURL(url);
+      } catch {}
+
+      const drawHeader = (p: any) => {
+        const H = 36; const T = 10;
+        p.setDrawColor(0, 34, 68); p.setLineWidth(0.5); p.rect(ML, T, TW, H);
+        p.setFillColor(255, 255, 255); p.rect(ML, T, 36, H, "F");
+        if (logoDataUrl) p.addImage(logoDataUrl, "PNG", ML + 2, T + 3, 31, 26);
+        p.line(ML + 36, T, ML + 36, T + H);
+        const rx = W - MR - 52; const cx = ML + 36 + (rx - ML - 36) / 2;
+        p.setFont(undefined, "bold"); p.setFontSize(9); p.setTextColor(0, 34, 68);
+        p.text("Certificado de Instalaciones", cx, T + 8, { align: "center" });
+        p.text("contra incendio, y emergencias", cx, T + 13, { align: "center" });
+        p.setFontSize(7.5); p.setTextColor(163, 31, 29);
+        p.text("DOCUMENTO TIENE CARÁCTER DE DECLARACIÓN JURADA.", cx, T + 19, { align: "center" });
+        p.setTextColor(0); p.setFontSize(9); p.text(`CERTIFICADO N°${nCert}`, cx, T + 28, { align: "center" });
+        p.line(rx, T, rx, T + H);
+        const rows = [["Rubro:", data.rubro || "-"], ["Fecha:", fInsp], ["Rev. planos:", data.revPlanos || "-"], ["Pagina:", String(p.getCurrentPageInfo().pageNumber)]];
+        rows.forEach(([k, v], i) => {
+          const ry = T + (H / 4) * i + (H / 8) + 1.5;
+          p.setFont(undefined, "bold"); p.text(k, rx + 2, ry);
+          p.setFont(undefined, "normal"); p.text(v, rx + 24, ry);
+          if (i < 3) p.line(rx, T + (H / 4) * (i + 1), W - MR, T + (H / 4) * (i + 1));
+        });
+        return T + H + 6;
+      };
+
+      let y = drawHeader(pdf);
+      autoTable(pdf, {
+        startY: y, margin: { left: ML, right: MR },
+        body: [
+          [{ content: "Fecha de Inspección", styles: { fontStyle: "bold", cellWidth: 45 } }, fInsp, { content: "Fecha de Vencimiento", styles: { fontStyle: "bold", cellWidth: 45 } }, fVenc],
+          [{ content: "Sistema certificado:", styles: { fontStyle: "bold" } }, { content: data.sistemaCertificado || "-", colSpan: 3, styles: { fontStyle: "bold", textColor: [163, 31, 29] } }],
+          [{ content: "Cliente:", styles: { fontStyle: "bold" } }, { content: data.clienteNombre + (data.sedeNombre ? ` - SEDE: ${data.sedeNombre}` : ""), colSpan: 3, styles: { halign: "center", fontStyle: "bold" } }],
+          [{ content: "Domicilio:", styles: { fontStyle: "bold" } }, { content: data.clienteDireccion || "-", colSpan: 3 }],
+          [{ content: "Responsable certificado:", styles: { fontStyle: "bold" } }, { content: data.responsableCertificado || "-", colSpan: 3 }],
+          [{ content: "Empresa Certificante:", styles: { fontStyle: "bold" } }, { content: "ARIFA — INGENIERIA EN SEGURIDAD CONTRA INCENDIOS | CUIT 20-35108395-7", colSpan: 3, styles: { fontStyle: "bold", textColor: [0, 34, 68] } }],
+        ],
+        styles: { fontSize: 9, cellPadding: 4 }, tableLineColor: [0, 34, 68], tableLineWidth: 0.3,
+      });
+
+      y = (pdf as any).lastAutoTable.finalY + 10;
+      if (data.memoriaDescriptiva) {
+        const wrapped = pdf.splitTextToSize(data.memoriaDescriptiva, TW);
+        pdf.text(wrapped, ML, y);
+        y += wrapped.length * 5 + 10;
+      }
+
+      // Firmas
+      if (y > 220) { pdf.addPage(); y = drawHeader(pdf) + 5; }
+      pdf.setFont(undefined, "bold"); pdf.text("DECLARACION JURADA:", ML, y);
+      y += 6; pdf.setFont(undefined, "normal"); pdf.setFontSize(8);
+      const dj = "La información consignada precedentemente reviste el carácter de Declaración Jurada; su omisión o falsedad precederá al decaimiento de su validez...";
+      pdf.text(pdf.splitTextToSize(dj, TW), ML, y);
+      y += 15;
+      pdf.rect(ML, y, 85, 25); pdf.rect(ML + 95, y, 85, 25);
+      if (data.firmaProfesional) pdf.addImage(data.firmaProfesional, "PNG", ML + 5, y + 5, 75, 15);
+      if (data.firmaCliente) pdf.addImage(data.firmaCliente, "PNG", ML + 100, y + 5, 75, 15);
+
+      pdf.save(`ARIFA-Cert-${nCert}.pdf`);
+    } catch (err) { alert("Error al generar PDF: " + err); }
+    finally { setDownloadingId(null); }
+  };
+
   const isStaff = role === "admin" || role === "tecnico" || role === "superadmin";
+  const isAdmin = role === "admin" || role === "superadmin";
   const isReadOnly = role === "cliente";
 
   const filteredCerts = certs.filter(c => {
@@ -111,6 +211,7 @@ export default function CertificadosPage() {
       String(c.numero).includes(search) || 
       c.clienteNombre?.toLowerCase().includes(search.toLowerCase()) ||
       c.clienteEmpresa?.toLowerCase().includes(search.toLowerCase()) ||
+      (c as any).sedeNombre?.toLowerCase().includes(search.toLowerCase()) ||
       c.sistemaCertificado?.toLowerCase().includes(search.toLowerCase());
     
     const certDate = c.fechaInspeccion ? new Date(c.fechaInspeccion) : null;
@@ -126,15 +227,18 @@ export default function CertificadosPage() {
       matchesDate = false;
     }
     
-    return matchesSearch && matchesDate;
+    const matchesSede = filtroSede === "Todas" || (c as any).sedeNombre === filtroSede;
+    return matchesSearch && matchesDate && matchesSede;
   });
 
+  const sedesDisponibles = Array.from(new Set(certs.map(c => (c as any).sedeNombre).filter(Boolean))) as string[];
+
   return (
-    <div style={{ maxWidth: "1100px" }}>
+    <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
       <header style={{ marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "15px" }}>
         <div>
-          <span style={{ fontSize: "0.8rem", background: "#e8f5e9", color: "#2e7d32", padding: "3px 10px", borderRadius: "20px", fontWeight: 700 }}>
-            📜 Certificados
+          <span style={{ fontSize: "0.8rem", background: "#e8f5e9", color: "#2e7d32", padding: "3px 10px", borderRadius: "20px", fontWeight: 700, display: "inline-flex", alignItems: "center", gap: "6px" }}>
+            <Scroll size={14} strokeWidth={2.5} /> Certificados
           </span>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
             {isReadOnly ? "Mis Certificados" : "Certificados de Instalación"}
@@ -143,7 +247,7 @@ export default function CertificadosPage() {
         </div>
         {isStaff && !isReadOnly && (
           <Link href="/admin/certificados/nuevo" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
-            ➕ Nuevo Certificado
+            <Plus size={18} /> Nuevo Certificado
           </Link>
         )}
       </header>
@@ -180,8 +284,21 @@ export default function CertificadosPage() {
             style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.85rem" }}
           />
         </div>
+        {sedesDisponibles.length > 0 && (
+          <div style={{ width: "180px" }}>
+            <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Sede / Obra</label>
+            <select 
+              value={filtroSede} 
+              onChange={e => setFiltroSede(e.target.value)}
+              style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.85rem", background: "#fff" }}
+            >
+              <option value="Todas">Todas las sedes</option>
+              {sedesDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
         <button 
-          onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); }}
+          onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); }}
           style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}
         >
           Limpiar
@@ -234,6 +351,7 @@ export default function CertificadosPage() {
                         </td>
                         <td style={{ padding: "14px 16px" }}>
                           <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{c.clienteNombre || "-"}</div>
+                          {(c as any).sedeNombre && <div style={{ fontSize: "0.78rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {(c as any).sedeNombre}</div>}
                           {c.clienteEmpresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{c.clienteEmpresa}</div>}
                         </td>
                         <td style={{ padding: "14px 16px", fontSize: "0.82rem", color: "#555", maxWidth: "180px" }}>
@@ -249,14 +367,36 @@ export default function CertificadosPage() {
                             {c.estado || "borrador"}
                           </span>
                         </td>
-                        <td style={{ padding: "14px 16px" }}>
-                          <div style={{ display: "flex", gap: "6px" }}>
-                            <Link href={`/admin/certificados/${c.id}`} style={{ padding: "7px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
-                              {isReadOnly ? "Ver Documento" : "Ver / Editar"}
+                        <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                          <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                            <Link title="Ver Vista Previa" href={`/admin/certificados/${c.id}?view=true`} 
+                              style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                              <Eye size={18} strokeWidth={2.5} />
                             </Link>
-                            {(role === "admin" || role === "superadmin") && !isReadOnly && (
-                              <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)" }}>
-                                🗑️
+
+                            {!isReadOnly && (
+                              <Link title="Editar Documento" href={`/admin/certificados/${c.id}`} 
+                                style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                                <Edit size={18} strokeWidth={2.5} />
+                              </Link>
+                            )}
+
+                            <button 
+                              title="Descargar PDF" 
+                              onClick={() => handleDownloadPDF(c.id)}
+                              disabled={downloadingId === c.id}
+                              style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer" }}>
+                              <Scroll size={18} strokeWidth={2.5} style={{ opacity: downloadingId === c.id ? 0.5 : 1 }} />
+                            </button>
+                            
+                            {isStaff && !isAdmin && !isReadOnly && (
+                               <div style={{ width: "32px" }}></div> 
+                            )}
+
+                            {isAdmin && !isReadOnly &&(
+                              <button title="Eliminar" onClick={() => setDeleteConfirm(c.id)} 
+                                style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <Trash2 size={18} strokeWidth={2.5} />
                               </button>
                             )}
                           </div>
@@ -286,6 +426,7 @@ export default function CertificadosPage() {
 
                     <div style={{ marginBottom: "12px" }}>
                       <div style={{ fontWeight: 700, fontSize: "0.95rem" }}>{c.clienteNombre}</div>
+                      {(c as any).sedeNombre && <div style={{ fontSize: "0.8rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {(c as any).sedeNombre}</div>}
                       <div style={{ fontSize: "0.8rem", color: "#888" }}>{c.clienteEmpresa}</div>
                     </div>
 
@@ -300,14 +441,27 @@ export default function CertificadosPage() {
                       </div>
                     </div>
 
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <Link href={`/admin/certificados/${c.id}`} style={{ flex: 1, textAlign: "center", padding: "10px", borderRadius: "8px", background: "#f1f5f9", color: "var(--primary-blue)", textDecoration: "none", fontWeight: 700, fontSize: "0.85rem" }}>
-                        {isReadOnly ? "Ver Documento" : "Ver / Editar"}
-                      </Link>
-                      {(role === "admin" || role === "superadmin") && !isReadOnly && (
-                        <button onClick={() => setDeleteConfirm(c.id)} style={{ padding: "10px 15px", borderRadius: "8px", background: "#fff5f4", border: "1px solid #ffddd9", color: "var(--primary-red)" }}>🗑️</button>
-                      )}
-                    </div>
+                      <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                        <Link href={`/admin/certificados/${c.id}?view=true`} style={{ flex: 1, textAlign: "center", padding: "10px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                          <Eye size={20} strokeWidth={2.5} />
+                        </Link>
+                        {!isReadOnly && (
+                          <Link href={`/admin/certificados/${c.id}`} style={{ flex: 1, textAlign: "center", padding: "10px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                            <Edit size={20} strokeWidth={2.5} />
+                          </Link>
+                        )}
+                        <button 
+                          onClick={() => handleDownloadPDF(c.id)}
+                          disabled={downloadingId === c.id}
+                          style={{ flex: 1, padding: "10px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Scroll size={20} strokeWidth={2.5} style={{ opacity: downloadingId === c.id ? 0.5 : 1 }} />
+                        </button>
+                        {isAdmin && !isReadOnly && (
+                          <button onClick={() => setDeleteConfirm(c.id)} style={{ width: "42px", borderRadius: "8px", background: "#fff5f4", border: "1px solid #ffddd9", color: "var(--primary-red)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Trash2 size={20} strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </div>
                   </div>
                 );
               })}

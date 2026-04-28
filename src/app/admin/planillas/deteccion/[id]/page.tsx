@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useRef, Suspense } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -9,6 +9,10 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dynamic from "next/dynamic";
+import { 
+  ClipboardList, Search, BarChart, FileText, Camera, PenTool, 
+  ArrowLeft, Check, Save, Plus, X, Shield, Flame, ChevronRight, ChevronLeft, Download
+} from "lucide-react";
 import type SignatureCanvasType from "react-signature-canvas";
 
 const SignatureCanvas = dynamic(() => import("react-signature-canvas"), { ssr: false }) as any;
@@ -39,7 +43,14 @@ interface Tecnico { id: string; nombre?: string; email: string; }
 interface TecnicoAsignado { id?: string; nombre: string; manual: boolean; }
 
 const PASOS = ["Encabezado", "Selección", "Gestión", "Obs.", "Fotos", "Firmas"];
-const PASOS_ICONS = ["📋", "🔍", "📊", "📝", "📷", "✍️"];
+const PASOS_ICONS = [
+  { icon: ClipboardList, color: "#3b82f6" }, 
+  { icon: Search, color: "#10b981" }, 
+  { icon: BarChart, color: "#f59e0b" }, 
+  { icon: FileText, color: "#7c3aed" }, 
+  { icon: Camera, color: "#ec4899" }, 
+  { icon: PenTool, color: "#ef4444" }
+];
 
 const labelSt: React.CSSProperties = { display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "5px", textTransform: "uppercase" };
 const inputSt: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none" };
@@ -77,7 +88,8 @@ function OTFormContent() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const isClient = role?.toLowerCase() === "cliente";
+  const searchParams = useSearchParams();
+  const isReadOnly = role?.toLowerCase() === "cliente" || searchParams.get("view") === "true";
   const isAdmin = ["admin", "superadmin"].includes(role?.toLowerCase() || "");
 
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
@@ -108,14 +120,19 @@ function OTFormContent() {
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
   const [nombreFirmaTecnico, setNombreFirmaTecnico] = useState("");
   const [nombreFirmaCliente, setNombreFirmaCliente] = useState("");
+  const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
+  const [sedeId, setSedeId] = useState("");
+  const [sedeNombre, setSedeNombre] = useState("");
+  const [sedeRazonSocial, setSedeRazonSocial] = useState("");
+  const [clienteSearch, setClienteSearch] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
       const userDoc = await getDoc(doc(db, "usuarios", u.uid));
       setRole(userDoc.exists() ? userDoc.data().rol : "cliente");
-      await Promise.all([loadPlantillas(), loadClientes(), loadTecnicos(), loadNextNum()]);
-      if (!isNueva) await loadOT();
+      const [,,allCli] = await Promise.all([loadPlantillas(), loadTecnicos(), loadClientes(), loadNextNum()]);
+      if (!isNueva) await loadOT(allCli);
       setLoading(false);
     });
     return () => unsub();
@@ -128,9 +145,11 @@ function OTFormContent() {
     setPlantillas(dbPlats);
   };
 
-  const loadClientes = async () => {
+   const loadClientes = async () => {
     const snap = await getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente")));
-    setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Cliente)));
+    const clis = snap.docs.map(d => ({ id: d.id, ...d.data() } as Cliente));
+    setClientes(clis);
+    return clis;
   };
 
   const loadTecnicos = async () => {
@@ -146,19 +165,41 @@ function OTFormContent() {
     if (isNueva) setNumero(String(m + 1));
   };
 
-  const loadOT = async () => {
+  const clientesFiltrados = clientes.filter(c =>
+    clienteSearch.length < 2 ? false :
+    `${c.nombre || ""} ${c.razonSocial || ""} ${c.empresa || ""} ${c.email || ""}`.toLowerCase().includes(clienteSearch.toLowerCase())
+  );
+
+   const loadOT = async (allCli?: Cliente[]) => {
+    const list = allCli || clientes;
     const d = await getDoc(doc(db, "ordenes_trabajo", params.id as string));
     if (!d.exists()) return;
     const data = d.data() as any;
     setNumero(String(data.numero || ""));
     setFecha(data.fecha || "");
     setEstado(data.estado || "borrador");
-    if (data.clienteId) setClienteSeleccionado({ id: data.clienteId, nombre: data.clienteNombre, empresa: data.clienteEmpresa, direccion: data.clienteDireccion });
+    if (data.clienteId) {
+      const fullClient = list.find(c => c.id === data.clienteId);
+      if (fullClient) {
+        setClienteSeleccionado(fullClient);
+        setFilteredSedes((fullClient as any).sedes || []);
+      } else {
+        setClienteSeleccionado({ 
+          id: data.clienteId, 
+          nombre: data.clienteNombre, 
+          empresa: data.clienteEmpresa, 
+          direccion: data.clienteDireccion 
+        });
+      }
+    }
     setClienteManual(data.clienteManual || false);
     setClienteNombre(data.clienteNombre || "");
     setClienteEmpresa(data.clienteEmpresa || "");
     setClienteDireccion(data.clienteDireccion || "");
     setClienteTelefono(data.clienteTelefono || "");
+    setSedeId(data.sedeId || "");
+    setSedeNombre(data.sedeNombre || "");
+    setSedeRazonSocial(data.sedeRazonSocial || "");
     
     // Migración de datos viejos de técnicos
     if (data.tecnicosOT) { setTecnicosOT(data.tecnicosOT); }
@@ -232,12 +273,15 @@ function OTFormContent() {
         clienteId: clienteSeleccionado?.id || null,
         clienteNombre: (clienteSeleccionado?.nombre || clienteNombre) || "",
         clienteEmpresa: (clienteSeleccionado?.empresa || clienteEmpresa) || "",
-        clienteDireccion: (clienteSeleccionado?.direccion || clienteDireccion) || "",
+        clienteDireccion: clienteDireccion || "",
         clienteTelefono: clienteTelefono || "",
         clienteManual,
         tecnicosOT: tecnicosOT, // Nueva estructura
         estado: estadoOverride || estado || "borrador",
         diagnostico: nuevaObs,
+        sedeId,
+        sedeNombre,
+        sedeRazonSocial,
         planillasSeleccionadas: planillasEnOT, fotos,
         firmaTecnico, firmaCliente, nombreFirmaTecnico, nombreFirmaCliente, updatedAt: serverTimestamp()
       };
@@ -297,8 +341,8 @@ function OTFormContent() {
         startY: y, margin: { left: ML, right: MR },
         body: [
             [{ content: "CLIENTE / RAZÓN SOCIAL:", styles: { fontStyle: "bold", cellWidth: 45 } }, (clienteSeleccionado?.nombre || clienteNombre || "-")],
-            [{ content: "EMPRESA:", styles: { fontStyle: "bold" } }, (clienteSeleccionado?.empresa || clienteEmpresa || "-")],
-            [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, clienteSeleccionado?.direccion || clienteDireccion || "-"],
+            [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, (sedeRazonSocial || clienteSeleccionado?.empresa || clienteEmpresa || "-") + (sedeNombre ? ` - SEDE: ${sedeNombre}` : "")],
+            [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, clienteDireccion || (clienteSeleccionado?.direccion || "-")],
             [{ content: "TELÉFONO / CEL:", styles: { fontStyle: "bold" } }, clienteTelefono || "-"],
         ],
         styles: { fontSize: 9, cellPadding: 3 }, tableLineColor: [0,34,68], tableLineWidth: 0.1
@@ -404,16 +448,22 @@ function OTFormContent() {
     <div style={{ maxWidth: "900px", margin: "0 auto", paddingBottom: "100px" }}>
       <header style={{ marginBottom: "25px", display: "flex", justifyContent: "space-between", alignItems: 'center' }}>
         <div>
-            <button onClick={() => router.push("/admin/planillas/deteccion")} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', marginBottom: '5px' }}>← Volver</button>
+            <button onClick={() => router.back()} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "15px" }}>
+            <ArrowLeft size={18} /> Volver
+          </button>
             <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>{isNueva ? "Nueva OT" : `OT-${numero}`}</h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-            {!isNueva && <button onClick={handlePDF} className="btn-blue" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>📥 Descargar PDF</button>}
-            {!isClient && <button onClick={() => handleSave(estado === "firmada" ? "firmada" : "completada")} disabled={saving} className="btn-red" style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer' }}>{saving ? "Guardando..." : "Finalizar"}</button>}
+            {!isNueva && <button onClick={handlePDF} className="btn-blue" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              📄 Descargar PDF
+            </button>}
+            {!isReadOnly && <button onClick={() => handleSave(estado === "firmada" ? "firmada" : "completada")} disabled={saving} className="btn-red" style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {saving ? "Guardando..." : <><Check size={18} /> Finalizar</>}
+            </button>}
         </div>
       </header>
 
-      {isClient ? (
+      {isReadOnly ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={cardSt}>
             <h2 style={{ fontWeight: 800, color: 'var(--primary-blue)', marginBottom: '15px', fontSize: '1.2rem' }}>Resumen del Servicio</h2>
@@ -492,18 +542,30 @@ function OTFormContent() {
           )}
 
           <div style={{ textAlign: 'center', padding: '20px' }}>
-            <button onClick={handlePDF} className="btn-red" style={{ padding: '15px 40px', fontSize: '1.1rem', borderRadius: '12px' }}>📥 Descargar Documento Oficial (PDF)</button>
+            <button onClick={handlePDF} className="btn-red" style={{ padding: '15px 40px', fontSize: '1.1rem', borderRadius: '12px', display: 'inline-flex', alignItems: 'center', gap: '10px' }}><Download size={20} /> Descargar Documento Oficial (PDF)</button>
           </div>
         </div>
       ) : (
-        <>
+        <div className="ot-editor-container">
           <div style={{ display: "flex", background: "#fff", borderRadius: "12px", overflow: "hidden", marginBottom: "25px", boxShadow: "0 2px 10px rgba(0,0,0,0.05)" }}>
-            {PASOS.map((p, i) => (
-              <button key={p} onClick={() => setPaso(i)} style={{ flex: 1, padding: "14px 5px", border: "none", cursor: "pointer", background: i === paso ? "var(--primary-blue)" : "#fff", color: i === paso ? "#fff" : "#94a3b8", fontWeight: 700 }}>
-                <div style={{ fontSize: "1.1rem" }}>{PASOS_ICONS[i]}</div>
-                <div style={{ fontSize: "0.65rem" }}>{p}</div>
-              </button>
-            ))}
+            {PASOS.map((p, i) => {
+              const { icon: Icon, color: stepColor } = PASOS_ICONS[i];
+              const isActive = i === paso;
+              return (
+                <button key={p} onClick={() => setPaso(i)} style={{ 
+                  flex: 1, padding: "14px 5px", border: "none", cursor: "pointer", 
+                  background: isActive ? stepColor : "#fff", 
+                  color: isActive ? "#fff" : "#64748b", 
+                  fontWeight: 700, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px',
+                  transition: 'all 0.2s'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon size={20} strokeWidth={isActive ? 3 : 2} color={isActive ? "#fff" : stepColor} />
+                  </div>
+                  <div style={{ fontSize: "0.65rem", opacity: isActive ? 1 : 0.8 }}>{p}</div>
+                </button>
+              );
+            })}
           </div>
 
       {paso === 0 && (
@@ -519,10 +581,47 @@ function OTFormContent() {
                     <label style={{ fontSize: '0.75rem', color: 'var(--primary-blue)', fontWeight: 700, cursor: 'pointer' }}><input type="checkbox" checked={clienteManual} onChange={e => setClienteManual(e.target.checked)} /> Carga Manual</label>
                 </div>
                 {!clienteManual ? (
-                  <select style={inputSt} value={clienteSeleccionado?.id || ""} onChange={e => setClienteSeleccionado(clientes.find(x => x.id === e.target.value) || null)}>
-                    <option value="">Seleccionar Cliente...</option>
-                    {clientes.map(c => <option key={c.id} value={c.id}>{c.nombre || c.razonSocial}</option>)}
-                  </select>
+                  <div style={{ position: "relative" }}>
+                    <input 
+                      style={inputSt}
+                      placeholder="Nombre, empresa o email..."
+                      value={clienteSeleccionado ? (clienteSeleccionado.nombre || clienteSeleccionado.razonSocial || clienteSeleccionado.empresa || clienteSeleccionado.email) : clienteSearch}
+                      onChange={e => {
+                        setClienteSearch(e.target.value);
+                        setClienteSeleccionado(null);
+                        setFilteredSedes([]);
+                        setSedeId("");
+                        setSedeNombre("");
+                      }}
+                    />
+                    {clientesFiltrados.length > 0 && !clienteSeleccionado && (
+                      <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", maxHeight: "200px", overflowY: "auto", marginTop: "5px" }}>
+                        {clientesFiltrados.map(c => (
+                          <div key={c.id} onClick={() => {
+                            setClienteSeleccionado(c);
+                            setClienteSearch("");
+                            setFilteredSedes((c as any).sedes || []);
+                            setClienteDireccion(c.direccion || "");
+                            setClienteTelefono(c.telefono || "");
+                            setClienteEmpresa(c.empresa || "");
+                          }}
+                            style={{ padding: "12px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+                            onMouseEnter={e => (e.currentTarget.style.background = "#f8f9ff")}
+                            onMouseLeave={e => (e.currentTarget.style.background = "#fff")}>
+                            <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{c.nombre || c.razonSocial || c.email}</div>
+                            {c.empresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{c.empresa}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {clienteSeleccionado && (
+                      <button 
+                        onClick={() => { setClienteSeleccionado(null); setClienteSearch(""); }}
+                        style={{ position: 'absolute', right: '12px', top: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#999', fontSize: '1.2rem' }}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                         <input style={inputSt} placeholder="Nombre Cliente" value={clienteNombre} onChange={e => setClienteNombre(e.target.value)} />
@@ -533,6 +632,33 @@ function OTFormContent() {
                 )}
             </div>
 
+            {clienteSeleccionado && !clienteManual && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={labelSt}>Sede / Obra / Consorcio</label>
+                <select 
+                  style={inputSt} 
+                  value={sedeId} 
+                  onChange={e => {
+                    const s = filteredSedes.find(x => x.id === e.target.value);
+                    if (s) {
+                      setSedeId(s.id);
+                      setSedeNombre(s.nombre);
+                      setSedeRazonSocial(s.razonSocial || "");
+                      setClienteDireccion(s.direccion || clienteSeleccionado.direccion || "");
+                    } else {
+                      setSedeId("");
+                      setSedeNombre("");
+                      setSedeRazonSocial("");
+                      setClienteDireccion(clienteSeleccionado.direccion || "");
+                    }
+                  }}
+                >
+                  <option value="">{filteredSedes.length === 0 ? "Sin sedes registradas" : "Seleccionar Sede (Opcional)"}</option>
+                  {filteredSedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>)}
+                </select>
+              </div>
+            )}
+
             <div style={{ gridColumn: 'span 2', marginTop: '10px' }}>
                 <label style={labelSt}>Equipo Técnico Asignado</label>
                 <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
@@ -541,7 +667,7 @@ function OTFormContent() {
                         {tecnicosOT.map((t, idx) => (
                             <div key={idx} style={{ background: '#eff6ff', color: '#1e40af', padding: '6px 12px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #bfdbfe' }}>
                                 {t.nombre}
-                                <span onClick={() => setTecnicosOT(prev => prev.filter((_, i) => i !== idx))} style={{ cursor: 'pointer', opacity: 0.6 }}>✕</span>
+                                <span onClick={() => setTecnicosOT(prev => prev.filter((_, i) => i !== idx))} style={{ cursor: 'pointer', opacity: 0.6 }}>❌</span>
                             </div>
                         ))}
                     </div>
@@ -561,7 +687,7 @@ function OTFormContent() {
                 </div>
             </div>
           </div>
-          <button onClick={() => setPaso(1)} className="btn-blue" style={{ marginTop: "25px", width: "100%" }}>Siguiente Step →</button>
+          <button onClick={() => setPaso(1)} className="btn-blue" style={{ marginTop: "25px", width: "100%", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>Siguiente Step <ChevronRight size={18} /></button>
         </div>
       )}
 
@@ -577,7 +703,7 @@ function OTFormContent() {
                   border: filtroCat === cat ? `2px solid ${colors[cat]}` : "2px solid #eee", 
                   background: filtroCat === cat ? colors[cat] : "#fff", 
                   color: filtroCat === cat ? "#fff" : "#666" 
-                }}>{cat.toUpperCase()}</button>
+                }}>{cat === "Detección" ? <Search size={14} /> : cat === "Extinción" ? <Shield size={14} /> : cat === "Matafuegos" ? <Flame size={14} /> : null} {cat.toUpperCase()}</button>
               );
             })}
           </div>
@@ -596,7 +722,7 @@ function OTFormContent() {
                 );
             })}
           </div>
-          <button onClick={() => setPaso(2)} className="btn-blue" style={{ marginTop: "25px", width: "100%" }}>Cargar Planillas →</button>
+          <button onClick={() => setPaso(2)} className="btn-blue" style={{ marginTop: "25px", width: "100%", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>Cargar Planillas <ChevronRight size={18} /></button>
         </div>
       )}
 
@@ -705,7 +831,7 @@ function OTFormContent() {
               )}
             </div>
           ))}
-          <button onClick={() => setPaso(3)} className="btn-blue" style={{ width: "100%" }}>Siguiente: Observaciones →</button>
+          <button onClick={() => setPaso(3)} className="btn-blue" style={{ width: "100%", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>Siguiente: Observaciones <ChevronRight size={18} /></button>
         </div>
       )}
 
@@ -713,7 +839,7 @@ function OTFormContent() {
         <div style={cardSt}>
           <h2 style={{ fontWeight: 800, marginBottom: "15px" }}>Observaciones Finales</h2>
           <textarea style={{ ...inputSt, height: "180px" }} value={nuevaObs} onChange={e => setNuevaObs(e.target.value)} placeholder="Conclusiones generales..." />
-          <button onClick={() => setPaso(4)} className="btn-blue" style={{ marginTop: "20px", width: "100%" }}>Siguiente: Fotos →</button>
+          <button onClick={() => setPaso(4)} className="btn-blue" style={{ marginTop: "20px", width: "100%", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>Siguiente: Fotos <ChevronRight size={18} /></button>
         </div>
       )}
 
@@ -725,11 +851,11 @@ function OTFormContent() {
             {fotos.map((f, i) => (
                 <div key={i} style={{ position: 'relative' }}>
                     <img src={f} style={{ width: "100%", borderRadius: "8px", height: '110px', objectFit: 'cover' }} />
-                    <button onClick={() => setFotos(prev => prev.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: 5, right: 5, background: 'red', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px' }}>✕</button>
+                    <button onClick={() => setFotos(prev => prev.filter((_, idx) => idx !== i))} style={{ position: 'absolute', top: 5, right: 5, background: 'red', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px' }}>❌</button>
                 </div>
             ))}
           </div>
-          <button onClick={() => setPaso(5)} className="btn-blue" style={{ marginTop: "25px", width: "100%" }}>Siguiente: Firmas →</button>
+          <button onClick={() => setPaso(5)} className="btn-blue" style={{ marginTop: "25px", width: "100%", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>Siguiente: Firmas <ChevronLeft size={18} /></button>
         </div>
       )}
 
@@ -755,7 +881,7 @@ function OTFormContent() {
            <button onClick={() => handleSave("firmada")} disabled={saving} className="btn-red" style={{ width: "100%", padding: "20px", fontSize: "1.2rem", borderRadius: '15px', fontWeight: 900 }}>GUARDAR Y FINALIZAR</button>
         </div>
       )}
-    </>
+    </div>
   )}
 </div>
   );

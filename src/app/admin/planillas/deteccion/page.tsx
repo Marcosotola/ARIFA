@@ -18,6 +18,7 @@ interface OT {
   tecnicos: string[];
   estado: string;
   planillasSeleccionadas: { nombre: string; codigo?: string }[];
+  sedeNombre?: string;
   createdAt: any;
 }
 
@@ -36,6 +37,7 @@ export default function DeteccionPage() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [filtroSede, setFiltroSede] = useState("Todas");
   
   const router = useRouter();
 
@@ -124,11 +126,15 @@ export default function DeteccionPage() {
         if (otDate > toDate) matchesDate = false;
       }
     } else if (dateFrom || dateTo) {
-      matchesDate = false; // If filtering by date but OT has no date, exclude it
+      matchesDate = false; 
     }
     
-    return matchesSearch && matchesDate;
+    const matchesSede = filtroSede === "Todas" || ot.sedeNombre === filtroSede;
+    
+    return matchesSearch && matchesDate && matchesSede;
   });
+
+  const sedesDisponibles = Array.from(new Set(ots.map(o => o.sedeNombre).filter(Boolean))) as string[];
 
   return (
     <div style={{ maxWidth: "1100px" }}>
@@ -180,8 +186,21 @@ export default function DeteccionPage() {
             style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.85rem" }}
           />
         </div>
+        {sedesDisponibles.length > 0 && (
+          <div style={{ width: "180px" }}>
+            <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Sede / Obra</label>
+            <select 
+              value={filtroSede} 
+              onChange={e => setFiltroSede(e.target.value)}
+              style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.85rem", background: "#fff" }}
+            >
+              <option value="Todas">Todas</option>
+              {sedesDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
         <button 
-          onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); }}
+          onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); }}
           style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}
         >
           Limpiar
@@ -228,6 +247,7 @@ export default function DeteccionPage() {
                       </td>
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{ot.clienteNombre || "-"}</div>
+                        {ot.sedeNombre && <div style={{ fontSize: "0.75rem", color: "var(--primary-blue)", fontWeight: 700 }}>📍 {ot.sedeNombre}</div>}
                         {ot.clienteEmpresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{ot.clienteEmpresa}</div>}
                       </td>
                       <td style={{ padding: "14px 16px" }}>

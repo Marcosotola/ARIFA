@@ -4,12 +4,28 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, getDocs, where, doc, getDoc, orderBy, limit } from "firebase/firestore";
 import Link from "next/link";
+import { 
+  Mail, 
+  ClipboardList, 
+  Flame, 
+  FileCheck, 
+  TrendingUp, 
+  HardHat, 
+  ShoppingCart, 
+  Users, 
+  Bell,
+  LayoutDashboard,
+  LogOut,
+  ChevronRight,
+  Sparkles,
+  ShieldCheck
+} from "lucide-react";
 
 // ─── Module definitions ───────────────────────────────────────────────────────
 // Each module card: icon, label, description, href, color, roles that can see it
 const MODULES = [
   {
-    icon: "📧",
+    icon: <Mail size={24} />,
     label: "Consultas",
     description: "Mensajes entrantes y seguimiento de clientes.",
     href: "/admin/consultas",
@@ -18,7 +34,7 @@ const MODULES = [
     showBadge: true,
   },
   {
-    icon: "📋",
+    icon: <ClipboardList size={24} />,
     label: "OT",
     description: "Inspecciones en campo, checklists de detección, extinción y registros fotográficos.",
     href: "/admin/planillas",
@@ -28,7 +44,7 @@ const MODULES = [
     clientDescription: "Órdenes de trabajo e inspecciones de tus instalaciones.",
   },
   {
-    icon: "🧯",
+    icon: <Flame size={24} />,
     label: "Matafuegos",
     description: "Gestión de remitos de logística y fichas técnicas de taller.",
     href: "/admin/planillas/matafuegos",
@@ -36,7 +52,7 @@ const MODULES = [
     roles: ["admin", "tecnico", "superadmin"],
   },
   {
-    icon: "📜",
+    icon: <FileCheck size={24} />,
     label: "Certificados",
     description: "Emisión y gestión de certificados de instalación.",
     href: "/admin/certificados",
@@ -46,7 +62,7 @@ const MODULES = [
     clientDescription: "Certificados de tus instalaciones.",
   },
   {
-    icon: "📈",
+    icon: <TrendingUp size={24} />,
     label: "Plan de Acción",
     description: "Seguimiento de mejoras, prioridades y costos por consorcio.",
     href: "/admin/plan-accion",
@@ -56,7 +72,7 @@ const MODULES = [
     clientDescription: "Mejoras propuestas y estado de ejecución.",
   },
   {
-    icon: "🦺",
+    icon: <HardHat size={24} />,
     label: "HyS",
     description: "Visitas, capacitaciones, ATS y programas de seguridad.",
     href: "/admin/hys",
@@ -64,7 +80,7 @@ const MODULES = [
     roles: ["admin", "superadmin", "cliente"],
   },
   {
-    icon: "🛒",
+    icon: <ShoppingCart size={24} />,
     label: "Productos",
     description: "Catálogo de precios y gestión de stock.",
     href: "/admin/productos",
@@ -72,7 +88,7 @@ const MODULES = [
     roles: ["admin", "superadmin"],
   },
   {
-    icon: "👥",
+    icon: <Users size={24} />,
     label: "Usuarios",
     description: "Alta, edición y roles de acceso de usuarios.",
     href: "/admin/usuarios",
@@ -80,7 +96,7 @@ const MODULES = [
     roles: ["admin", "superadmin"],
   },
   {
-    icon: "🔔",
+    icon: <Bell size={24} />,
     label: "Notificaciones",
     description: "Alertas y comunicados enviados a clientes.",
     href: "/admin/notificaciones",
@@ -140,24 +156,38 @@ export default function AdminDashboard() {
   );
 
   return (
-    <div style={{ maxWidth: "1100px" }}>
+    <div style={{ maxWidth: "1350px", margin: "0 auto" }}>
       {/* ── Greeting ── */}
-      <header style={{ marginBottom: "36px" }}>
-        <p style={{ fontSize: "0.9rem", color: "var(--text-muted)", marginBottom: "4px" }}>
-          {greeting()},
-        </p>
-        <h1 style={{ fontSize: "1.9rem", fontWeight: 900, color: "var(--primary-blue)", letterSpacing: "-0.3px" }}>
-          {user?.email?.split("@")[0]} 👋
-        </h1>
-        <p style={{ color: "var(--text-muted)", marginTop: "6px", fontSize: "0.88rem" }}>
-          {isClient
-            ? "Panel de Cliente · ARIFA Seguridad"
-            : role?.toLowerCase() === "tecnico"
-            ? "Panel de Técnico · Gestioná OT y Matafuegos"
-            : isStaff
-            ? "Panel de Gestión y Operaciones · ARIFA Seguridad"
-            : "Acceso al sistema."}
-        </p>
+      <header style={{ marginBottom: "40px", display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: "var(--text-muted)", fontSize: "0.95rem", marginBottom: "8px", fontWeight: 600 }}>
+            <Sparkles size={16} style={{ color: '#f59e0b' }} /> {greeting()}
+          </div>
+          <h1 style={{ fontSize: "2.4rem", fontWeight: 900, color: "var(--primary-blue)", letterSpacing: "-1px", margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
+            {user?.email?.split("@")[0]} <span style={{ fontSize: '2rem' }}>👋</span>
+          </h1>
+          <p style={{ color: "var(--text-muted)", marginTop: "10px", fontSize: "1rem", display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldCheck size={18} style={{ color: 'var(--primary-blue)' }} />
+            {isClient
+              ? "Panel de Cliente · ARIFA Seguridad"
+              : role?.toLowerCase() === "tecnico"
+              ? "Panel de Técnico · Gestión de OT y Matafuegos"
+              : isStaff
+              ? "Panel de Gestión y Operaciones · ARIFA Seguridad"
+              : "Acceso al sistema."}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px' }}>
+           <div style={{ padding: '12px 20px', background: '#fff', border: '1.5px solid #eee', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+              <div style={{ width: '35px', height: '35px', borderRadius: '8px', background: 'rgba(0,34,68,0.08)', color: 'var(--primary-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <LayoutDashboard size={20} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Rol Actual</div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--primary-blue)', textTransform: 'capitalize' }}>{role}</div>
+              </div>
+           </div>
+        </div>
       </header>
 
       {/* ── Module Cards ── */}
@@ -210,10 +240,11 @@ export default function AdminDashboard() {
               {/* Icon + badge */}
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "12px" }}>
                 <div style={{
-                  width: "46px", height: "46px", borderRadius: "12px",
+                  width: "48px", height: "48px", borderRadius: "12px",
                   background: `${m.color}15`,
+                  color: m.color,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  fontSize: "1.4rem", flexShrink: 0,
+                  flexShrink: 0,
                 }}>
                   {m.icon}
                 </div>

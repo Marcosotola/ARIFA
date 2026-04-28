@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useRef, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -9,6 +9,10 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dynamic from "next/dynamic";
+import { 
+  ClipboardList, BarChart, FileText, Camera, PenTool, 
+  ArrowLeft, Download, Save, Plus, Search, Shield, X, Check, Trash2, Flame, ChevronRight
+} from "lucide-react";
 import type SignatureCanvasType from "react-signature-canvas";
 
 const SignatureCanvas = dynamic(() => import("react-signature-canvas"), { ssr: false }) as any;
@@ -35,10 +39,16 @@ interface Tecnico { id: string; nombre?: string; email: string; }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const COLECCION = "ordenes_trabajo_extincion";
-const RUTA_LISTADO = "/admin/planillas/extincion";
-const CATEGORIA_LABEL = "🧯 Extinción";
+const RUTA_LISTADO = "/admin/planillas";
+const CATEGORIA_LABEL = "Extinción";
 const PASOS = ["Cabecera", "Planillas", "Observaciones", "Fotos", "Firmas"];
-const PASOS_ICONS = ["📋", "📊", "📝", "📷", "✍️"];
+const PASOS_ICONS = [
+  { icon: ClipboardList, color: "#3b82f6" }, 
+  { icon: BarChart, color: "#f59e0b" }, 
+  { icon: FileText, color: "#7c3aed" }, 
+  { icon: Camera, color: "#ec4899" }, 
+  { icon: PenTool, color: "#ef4444" }
+];
 
 const labelSt: React.CSSProperties = { display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.4px" };
 const inputSt: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none" };
@@ -82,18 +92,25 @@ export default function ExtincionOTPage() {
   const sigCliRef = useRef<any>(null);
   const [firmaTecnico, setFirmaTecnico] = useState<string | null>(null);
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
+  const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
+  const [sedeId, setSedeId] = useState("");
+  const [sedeNombre, setSedeNombre] = useState("");
+  const [sedeRazonSocial, setSedeRazonSocial] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
       const userDoc = await getDoc(doc(db, "usuarios", u.uid));
       setRole(userDoc.exists() ? userDoc.data().rol : "cliente");
-      await Promise.all([loadPlantillas(), loadClientes(), loadTecnicos(), loadNextNum()]);
-      if (!isNueva) await loadOT();
+      const [, allCli] = await Promise.all([loadPlantillas(), loadClientes(), loadTecnicos(), loadNextNum()]);
+      if (!isNueva) await loadOT(allCli);
       setLoading(false);
     });
     return () => unsub();
   }, []);
+  
+  const searchParams = useSearchParams();
+  const isReadOnly = role === "cliente" || searchParams.get("view") === "true";
 
   const loadPlantillas = async () => {
     const snap = await getDocs(query(collection(db, "plantillas_inspeccion"), orderBy("codigo")));
@@ -101,10 +118,10 @@ export default function ExtincionOTPage() {
   };
 
   const loadClientes = async () => {
-    try {
-      const snap = await getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente")));
-      setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Cliente)));
-    } catch { /* ok */ }
+    const snap = await getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente")));
+    const clis = snap.docs.map(d => ({ id: d.id, ...d.data() } as Cliente));
+    setClientes(clis);
+    return clis;
   };
 
   const loadTecnicos = async () => {
@@ -123,7 +140,8 @@ export default function ExtincionOTPage() {
     } catch { setNumero("1"); }
   };
 
-  const loadOT = async () => {
+  const loadOT = async (allCli?: Cliente[]) => {
+    const list = allCli || clientes;
     try {
       const d = await getDoc(doc(db, COLECCION, params.id as string));
       if (!d.exists()) return;
@@ -131,7 +149,23 @@ export default function ExtincionOTPage() {
       setNumero(String(data.numero || ""));
       setFecha(data.fecha || "");
       setEstado(data.estado || "borrador");
-      if (data.clienteId) setClienteSeleccionado({ id: data.clienteId, nombre: data.clienteNombre, empresa: data.clienteEmpresa, direccion: data.clienteDireccion, telefono: data.clienteTelefono, razonSocial: data.clienteEmpresa, email: "" });
+      if (data.clienteId) {
+        const fullClient = list.find(c => c.id === data.clienteId);
+        if (fullClient) {
+          setClienteSeleccionado(fullClient);
+          setFilteredSedes((fullClient as any).sedes || []);
+        } else {
+          setClienteSeleccionado({ 
+            id: data.clienteId, 
+            nombre: data.clienteNombre, 
+            empresa: data.clienteEmpresa, 
+            direccion: data.clienteDireccion, 
+            telefono: data.clienteTelefono, 
+            razonSocial: data.clienteEmpresa, 
+            email: "" 
+          });
+        }
+      }
       setClienteManual(data.clienteManual || false);
       setClienteNombre(data.clienteNombre || "");
       setClienteEmpresa(data.clienteEmpresa || "");
@@ -143,6 +177,9 @@ export default function ExtincionOTPage() {
       setFotos(data.fotos || []);
       setFirmaTecnico(data.firmaTecnico || null);
       setFirmaCliente(data.firmaCliente || null);
+      setSedeId(data.sedeId || "");
+      setSedeNombre(data.sedeNombre || "");
+      setSedeRazonSocial(data.sedeRazonSocial || "");
     } catch (e) { console.error(e); }
   };
 
@@ -218,7 +255,7 @@ export default function ExtincionOTPage() {
         clienteId: clienteSeleccionado?.id || null,
         clienteNombre: clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre,
         clienteEmpresa: clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa,
-        clienteDireccion: clienteSeleccionado?.direccion || clienteDireccion,
+        clienteDireccion: clienteDireccion || "",
         clienteTelefono: clienteSeleccionado?.telefono || clienteTelefono,
         clienteManual,
         tecnicos: tecnicosSeleccionados,
@@ -229,6 +266,9 @@ export default function ExtincionOTPage() {
         firmaTecnico,
         firmaCliente,
         updatedAt: serverTimestamp(),
+        sedeId,
+        sedeNombre,
+        sedeRazonSocial,
       };
       if (isNueva) {
         await addDoc(collection(db, COLECCION), { ...payload, createdAt: serverTimestamp() });
@@ -283,8 +323,8 @@ export default function ExtincionOTPage() {
     const cd = clienteSeleccionado?.direccion || clienteDireccion || "";
     const ct = clienteSeleccionado?.telefono || clienteTelefono || "";
     pdf.setFont(undefined as any, "bold"); pdf.text("Cliente:", ML + 3, y + 6);
-    pdf.setFont(undefined as any, "normal"); pdf.text(`${cn}${ce ? ` — ${ce}` : ""}`, ML + 20, y + 6);
-    pdf.text(`Dir: ${cd}   Tel: ${ct}`, ML + 3, y + 12);
+    pdf.setFont(undefined as any, "normal"); pdf.text(`${cn}${(sedeRazonSocial || ce) ? ` — ${sedeRazonSocial || ce}` : ""}${sedeNombre ? ` (SEDE: ${sedeNombre})` : ""}`, ML + 20, y + 6);
+    pdf.text(`Dir: ${clienteDireccion || cd}   Tel: ${ct}`, ML + 3, y + 12);
     pdf.text(`Técnico(s): ${tecnicosSeleccionados.join(", ") || "-"}`, ML + 3, y + 17);
     y += 22;
 
@@ -389,38 +429,83 @@ export default function ExtincionOTPage() {
       {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px", flexWrap: "wrap", gap: "12px" }}>
         <div>
-          <button onClick={() => router.push(RUTA_LISTADO)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "5px" }}>
-            ← Volver al listado
+          <button onClick={() => router.push(RUTA_LISTADO)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "5px", display: "flex", alignItems: "center", gap: "5px" }}>
+            <ArrowLeft size={14} /> Volver al listado
           </button>
           <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>
             {isNueva ? "Nueva OT — Extinción" : `OT-EXT-${String(numero).padStart(4, "0")}`}
           </h1>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button onClick={handlePDF} style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem" }}>
-            📥 Descargar PDF
+          <button onClick={handlePDF} style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Download size={18} /> Descargar PDF
           </button>
-          <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: "10px 20px" }}>
-            {saving ? "Guardando..." : "💾 Guardar"}
-          </button>
+          {!isReadOnly && (
+            <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: "10px 20px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <Save size={18} /> {saving ? "Guardando..." : "Guardar"}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── Stepper ── */}
-      <div style={{ overflowX: "auto", marginBottom: "28px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
-        <div style={{ display: "flex", minWidth: "420px", background: "#fff", borderRadius: "10px", overflow: "hidden" }}>
-          {PASOS.map((p, i) => (
-            <button key={p} onClick={() => setPaso(i)}
-              style={{ flex: 1, padding: "14px 8px", border: "none", cursor: "pointer", fontWeight: i === paso ? 800 : 500, fontSize: "0.8rem",
-                background: i === paso ? "var(--primary-blue)" : i < paso ? "#e8f0ff" : "#fff",
-                color: i === paso ? "#fff" : i < paso ? "var(--primary-blue)" : "#999",
-                borderRight: i < PASOS.length - 1 ? "1px solid #eee" : "none", transition: "0.2s",
-                minWidth: "76px"
-              }}>
-              <div style={{ fontSize: "1.2rem", marginBottom: "3px" }}>{i < paso ? "✓" : PASOS_ICONS[i]}</div>
-              {p}
-            </button>
+      {isReadOnly ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div style={cardSt}>
+            <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "15px", fontSize: "1.2rem" }}>Resumen del Servicio (Extinción)</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", fontSize: "0.9rem" }}>
+              <div><span style={{ fontWeight: 700, color: "#666" }}>Fecha:</span> {fecha ? new Date(fecha).toLocaleDateString("es-AR") : "-"}</div>
+              <div><span style={{ fontWeight: 700, color: "#666" }}>Estado:</span> <span style={{ textTransform: "uppercase", fontWeight: 800, fontSize: "0.75rem", padding: "3px 8px", borderRadius: "4px", background: "#e0f2fe", color: "#0369a1" }}>{estado.replace("_", " ")}</span></div>
+              <div style={{ gridColumn: "span 2" }}><span style={{ fontWeight: 700, color: "#666" }}>Cliente:</span> {clienteSeleccionado?.nombre || clienteNombre}</div>
+              <div style={{ gridColumn: "span 2" }}><span style={{ fontWeight: 700, color: "#666" }}>Ubicación:</span> {clienteSeleccionado?.direccion || clienteDireccion}</div>
+            </div>
+          </div>
+          
+          {planillasEnOT.map((p, idx) => (
+            <div key={idx} style={cardSt}>
+              <h3 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "12px", borderBottom: "1px solid #eee", paddingBottom: "10px" }}>{p.nombre}</h3>
+              {p.tipo === "checklist" ? (
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {p.filasChecklist.map((f, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #fafafa" }}>
+                      <span style={{ fontSize: "0.85rem", fontWeight: f.esGrupo ? 800 : 400 }}>{f.descripcion}</span>
+                      <span style={{ fontSize: "0.8rem", fontWeight: 700, color: f.valor === "nok" ? "red" : "green" }}>{f.valor.toUpperCase()}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", fontSize: "0.8rem", borderCollapse: "collapse" }}>
+                    <thead><tr style={{ background: "#f8f9fa" }}>{p.columnas.map(c => <th key={c} style={{ padding: "8px", textAlign: "left", border: "1px solid #eee" }}>{c}</th>)}</tr></thead>
+                    <tbody>{p.filasTabla.map((f, i) => <tr key={i}>{p.columnas.map(c => <td key={c} style={{ padding: "8px", border: "1px solid #eee" }}>{f.celdas[c] || "-"}</td>)}</tr>)}</tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           ))}
+        </div>
+      ) : (
+        <div className="ot-editor-container">
+          <div style={{ overflowX: "auto", marginBottom: "28px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+        <div style={{ display: "flex", minWidth: "420px", background: "#fff", borderRadius: "10px", overflow: "hidden" }}>
+          {PASOS.map((p, i) => {
+            const { icon: Icon, color: stepColor } = PASOS_ICONS[i];
+            const isActive = i === paso;
+            const isCompleted = i < paso;
+            return (
+              <button key={p} onClick={() => setPaso(i)}
+                style={{ flex: 1, padding: "14px 8px", border: "none", cursor: "pointer", fontWeight: isActive ? 800 : 500, fontSize: "0.8rem",
+                  background: isActive ? stepColor : isCompleted ? `${stepColor}15` : "#fff",
+                  color: isActive ? "#fff" : isCompleted ? stepColor : "#64748b",
+                  borderRight: i < PASOS.length - 1 ? "1px solid #eee" : "none", transition: "0.2s",
+                  minWidth: "76px", display: "flex", flexDirection: "column", alignItems: "center", gap: "4px"
+                }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {isCompleted ? <Check size={20} strokeWidth={3} /> : <Icon size={20} strokeWidth={isActive ? 3 : 2} color={isActive ? "#fff" : stepColor} />}
+                </div>
+                {p}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -479,11 +564,38 @@ export default function ExtincionOTPage() {
                 )}
                 {clienteSeleccionado && (
                   <div style={{ marginTop: "10px", background: "#f0f4ff", borderRadius: "8px", padding: "12px 15px", display: "flex", justifyContent: "space-between" }}>
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 700 }}>{clienteSeleccionado.nombre || clienteSeleccionado.razonSocial}</div>
                       <div style={{ fontSize: "0.8rem", color: "#666" }}>{clienteSeleccionado.empresa} — {clienteSeleccionado.direccion}</div>
+                      
+                      <div style={{ marginTop: "12px", borderTop: "1px solid #d0d7e6", paddingTop: "12px" }}>
+                        <label style={labelSt}>📍 Seleccionar Sede / Obra</label>
+                        <select 
+                          style={inputSt} 
+                          value={sedeId} 
+                          onChange={e => {
+                            const s = (clienteSeleccionado as any).sedes?.find((x: any) => x.id === e.target.value);
+                            if (s) {
+                              setSedeId(s.id);
+                              setSedeNombre(s.nombre);
+                              setSedeRazonSocial(s.razonSocial || "");
+                              setClienteDireccion(s.direccion || clienteSeleccionado.direccion || "");
+                            } else {
+                              setSedeId("");
+                              setSedeNombre("");
+                              setSedeRazonSocial("");
+                              setClienteDireccion(clienteSeleccionado.direccion || "");
+                            }
+                          }}
+                        >
+                          <option value="">{ (clienteSeleccionado as any).sedes?.length > 0 ? "Seleccionar ubicación (Opcional)" : "Sin sedes registradas" }</option>
+                          {(clienteSeleccionado as any).sedes?.map((s: any) => (
+                            <option key={s.id} value={s.id}>{s.nombre} ({s.direccion || "Sin dirección"})</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <button onClick={() => setClienteSeleccionado(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#999" }}>✕</button>
+                    <button onClick={() => { setClienteSeleccionado(null); setSedeId(""); setSedeNombre(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#999", padding: "5px" }}><X size={18} /></button>
                   </div>
                 )}
               </div>
@@ -511,9 +623,9 @@ export default function ExtincionOTPage() {
                 const nombre = t.nombre || t.email;
                 const sel = tecnicosSeleccionados.includes(nombre);
                 return (
-                  <button key={t.id} onClick={() => setTecnicosSeleccionados(prev => sel ? prev.filter(x => x !== nombre) : [...prev, nombre])}
-                    style={{ padding: "9px 16px", borderRadius: "20px", border: `2px solid ${sel ? "var(--primary-blue)" : "#ddd"}`, background: sel ? "var(--primary-blue)" : "#fff", color: sel ? "#fff" : "#555", fontWeight: sel ? 700 : 500, cursor: "pointer", fontSize: "0.88rem", transition: "0.2s" }}>
-                    {sel ? "✓ " : ""}{nombre}
+                    <button key={t.id} onClick={() => setTecnicosSeleccionados(prev => sel ? prev.filter(x => x !== nombre) : [...prev, nombre])}
+                    style={{ padding: "9px 16px", borderRadius: "20px", border: `2px solid ${sel ? "var(--primary-blue)" : "#ddd"}`, background: sel ? "var(--primary-blue)" : "#fff", color: sel ? "#fff" : "#555", fontWeight: sel ? 700 : 500, cursor: "pointer", fontSize: "0.88rem", transition: "0.2s", display: "flex", alignItems: "center", gap: "6px" }}>
+                    {sel && "✅"} {nombre}
                   </button>
                 );
               })}
@@ -521,7 +633,7 @@ export default function ExtincionOTPage() {
           </div>
 
           <div style={{ textAlign: "right" }}>
-            <button onClick={() => setPaso(1)} className="btn-blue" style={{ padding: "12px 28px" }}>Siguiente → Planillas</button>
+            <button onClick={() => setPaso(1)} className="btn-blue" style={{ padding: "12px 28px", display: "inline-flex", alignItems: "center", gap: "8px" }}>Siguiente <ChevronRight size={18} /></button>
           </div>
         </div>
       )}
@@ -542,12 +654,12 @@ export default function ExtincionOTPage() {
 
             <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
               {(["all", "deteccion", "extincion"] as const).map(cat => (
-                <button key={cat} onClick={() => setFiltroCat(cat)}
+                  <button key={cat} onClick={() => setFiltroCat(cat)}
                   style={{ padding: "7px 16px", borderRadius: "20px", border: `2px solid ${filtroCat === cat ? "var(--primary-blue)" : "#ddd"}`,
                     background: filtroCat === cat ? "var(--primary-blue)" : "#fff",
                     color: filtroCat === cat ? "#fff" : "#666",
-                    fontWeight: filtroCat === cat ? 700 : 500, fontSize: "0.82rem", cursor: "pointer", transition: "0.2s" }}>
-                  {cat === "all" ? "Todas" : cat === "deteccion" ? "🔍 Detección" : "🧯 Extinción"}
+                    fontWeight: filtroCat === cat ? 700 : 500, fontSize: "0.82rem", cursor: "pointer", transition: "0.2s", display: "flex", alignItems: "center", gap: "6px" }}>
+                  {cat === "all" ? "Todas" : cat === "deteccion" ? <><Search size={14} /> Detección</> : <><Shield size={14} /> Extinción</>}
                 </button>
               ))}
             </div>
@@ -575,15 +687,15 @@ export default function ExtincionOTPage() {
                         <div style={{ flex: 1 }}>
                           <div style={{ fontWeight: 700, fontSize: "0.92rem", color: sel ? "var(--primary-blue)" : "var(--text-dark)" }}>{p.nombre}</div>
                           <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", marginTop: "3px", display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                            <span style={{ background: p.categoria === "deteccion" ? "#e3f2fd" : "#fff3e0", color: p.categoria === "deteccion" ? "#1565c0" : "#e65100", padding: "1px 7px", borderRadius: "10px", fontWeight: 600 }}>
-                              {p.categoria === "deteccion" ? "🔍 Detección" : "🧯 Extinción"}
+                            <span style={{ background: p.categoria === "deteccion" ? "#e3f2fd" : "#fff3e0", color: p.categoria === "deteccion" ? "#1565c0" : "#e65100", padding: "1px 7px", borderRadius: "10px", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                              {p.categoria === "deteccion" ? <><Search size={12} /> Detección</> : <><Shield size={12} /> Extinción</>}
                             </span>
                             <span>{p.codigo}</span><span>·</span>
                             <span style={{ textTransform: "capitalize" }}>{p.frecuencia}</span><span>·</span>
                             <span>{p.tipo === "checklist" ? "Checklist" : "Tabla"}</span>
                           </div>
                         </div>
-                        {sel && <span style={{ fontSize: "1.2rem", color: "var(--primary-blue)", flexShrink: 0 }}>✓</span>}
+                        {sel && "✅"}
                       </label>
                     );
                   })}
@@ -701,15 +813,15 @@ export default function ExtincionOTPage() {
                               </td>
                             ))}
                             <td style={{ padding: "6px 4px" }}>
-                              <button onClick={() => removeFilaTabla(pIdx, fIdx)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)" }}>✕</button>
+                              <button onClick={() => removeFilaTabla(pIdx, fIdx)} style={{ padding: "7px 10px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)", display: "flex", alignItems: "center", justifyContent: "center" }}>❌</button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <button onClick={() => addFilaTabla(pIdx)} style={{ marginTop: "10px", padding: "8px 16px", borderRadius: "6px", border: "1px dashed #ccc", background: "#f8f9fa", cursor: "pointer", fontSize: "0.85rem", color: "#666" }}>
-                    + Agregar fila
+                  <button onClick={() => addFilaTabla(pIdx)} style={{ marginTop: "10px", padding: "8px 16px", borderRadius: "6px", border: "1px dashed #ccc", background: "#f8f9fa", cursor: "pointer", fontSize: "0.85rem", color: "#666", display: "flex", alignItems: "center", gap: "6px" }}>
+                    ➕ Agregar fila
                   </button>
                 </div>
               )}
@@ -717,8 +829,10 @@ export default function ExtincionOTPage() {
           ))}
 
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <button onClick={() => setPaso(0)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>← Anterior</button>
-            <button onClick={() => setPaso(2)} className="btn-blue" style={{ padding: "12px 28px" }}>Siguiente → Observaciones</button>
+            <button onClick={() => router.back()} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "15px" }}>
+            ⬅️ Volver
+          </button>
+            <button onClick={() => setPaso(2)} className="btn-blue" style={{ padding: "12px 28px", display: "flex", alignItems: "center", gap: "6px" }}>Siguiente ➡️</button>
           </div>
         </div>
       )}
@@ -743,19 +857,19 @@ export default function ExtincionOTPage() {
               {observacionesExtra.map((o, i) => (
                 <div key={i} style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                   <input style={{ ...inputSt, flex: 1 }} value={o} onChange={e => setObservacionesExtra(prev => prev.map((x, j) => j === i ? e.target.value : x))} />
-                  <button onClick={() => setObservacionesExtra(prev => prev.filter((_, j) => j !== i))} style={{ padding: "10px 14px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)" }}>✕</button>
+                  <button onClick={() => setObservacionesExtra(prev => prev.filter((_, j) => j !== i))} style={{ padding: "10px 14px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)", display: "flex", alignItems: "center", justifyContent: "center" }}>❌</button>
                 </div>
               ))}
               <div style={{ display: "flex", gap: "8px" }}>
                 <input style={{ ...inputSt, flex: 1 }} value={nuevaObs} onChange={e => setNuevaObs(e.target.value)} placeholder="Nueva observación..." onKeyDown={e => { if (e.key === "Enter" && nuevaObs.trim()) { setObservacionesExtra(p => [...p, nuevaObs.trim()]); setNuevaObs(""); } }} />
                 <button onClick={() => { if (nuevaObs.trim()) { setObservacionesExtra(p => [...p, nuevaObs.trim()]); setNuevaObs(""); } }}
-                  style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer" }}>+</button>
+                  style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>➕</button>
               </div>
             </div>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <button onClick={() => setPaso(1)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>← Anterior</button>
-            <button onClick={() => setPaso(3)} className="btn-blue" style={{ padding: "12px 28px" }}>Siguiente → Fotos</button>
+            <button onClick={() => setPaso(1)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>⬅️ Anterior</button>
+            <button onClick={() => setPaso(3)} className="btn-blue" style={{ padding: "12px 28px", display: "flex", alignItems: "center", gap: "6px" }}>Siguiente ➡️</button>
           </div>
         </div>
       )}
@@ -767,8 +881,8 @@ export default function ExtincionOTPage() {
             <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "16px", fontSize: "1rem" }}>Fotos del Servicio</h2>
             <input ref={fileInputRef} type="file" accept="image/*" multiple capture="environment" style={{ display: "none" }} onChange={handleFotoUpload} />
             <button onClick={() => fileInputRef.current?.click()} disabled={uploadingFoto}
-              style={{ width: "100%", padding: "20px", borderRadius: "10px", border: "2px dashed #ccc", background: "#fafafa", cursor: "pointer", fontSize: "1rem", color: "#999", marginBottom: "20px" }}>
-              {uploadingFoto ? "⏳ Subiendo..." : "📷 Agregar fotos (cámara o galería)"}
+              style={{ width: "100%", padding: "20px", borderRadius: "10px", border: "2px dashed #ccc", background: "#fafafa", cursor: "pointer", fontSize: "1rem", color: "#999", marginBottom: "20px", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+              {uploadingFoto ? "⏳ Subiendo..." : <>📷 Agregar fotos (cámara o galería)</>}
             </button>
             {fotos.length > 0 && (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "12px" }}>
@@ -776,7 +890,7 @@ export default function ExtincionOTPage() {
                   <div key={i} style={{ position: "relative", borderRadius: "8px", overflow: "hidden", aspectRatio: "1", background: "#f0f0f0" }}>
                     <img src={url} alt={`Foto ${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     <button onClick={() => setFotos(prev => prev.filter((_, j) => j !== i))}
-                      style={{ position: "absolute", top: "5px", right: "5px", background: "rgba(163,31,29,0.85)", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", color: "#fff", fontWeight: 700, fontSize: "0.7rem" }}>✕</button>
+                      style={{ position: "absolute", top: "5px", right: "5px", background: "rgba(163,31,29,0.85)", border: "none", borderRadius: "50%", width: "26px", height: "26px", cursor: "pointer", color: "#fff", fontWeight: 700, fontSize: "0.7rem", display: "flex", alignItems: "center", justifyContent: "center" }}>❌</button>
                   </div>
                 ))}
               </div>
@@ -784,8 +898,8 @@ export default function ExtincionOTPage() {
             {fotos.length === 0 && <p style={{ color: "var(--text-muted)", textAlign: "center", fontSize: "0.88rem" }}>No hay fotos adjuntas.</p>}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            <button onClick={() => setPaso(2)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>← Anterior</button>
-            <button onClick={() => setPaso(4)} className="btn-blue" style={{ padding: "12px 28px" }}>Siguiente → Firmas</button>
+            <button onClick={() => setPaso(2)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>⬅️ Anterior</button>
+            <button onClick={() => setPaso(4)} className="btn-blue" style={{ padding: "12px 28px", display: "flex", alignItems: "center", gap: "6px" }}>Siguiente ➡️</button>
           </div>
         </div>
       )}
@@ -807,31 +921,34 @@ export default function ExtincionOTPage() {
                 </div>
                 <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                   <button onClick={() => sigRef.current?.clear()}
-                    style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: "0.85rem" }}>
-                    🗑 Limpiar
+                    style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                    🗑️ Limpiar
                   </button>
                   <button onClick={() => { if (!sigRef.current?.isEmpty()) setSig(sigRef.current.getTrimmedCanvas().toDataURL("image/png")); }}
-                    className="btn-blue" style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
-                    ✓ Guardar firma
+                    className="btn-blue" style={{ padding: "8px 16px", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                    ✅ Guardar firma
                   </button>
-                  {sig && <span style={{ fontSize: "0.8rem", color: "#4CAF50", alignSelf: "center" }}>✓ Firma guardada</span>}
+                  {sig && <span style={{ fontSize: "0.8rem", color: "#4CAF50", alignSelf: "center", display: "flex", alignItems: "center", gap: "4px" }}>✅ Firma guardada</span>}
                 </div>
               </div>
             ))}
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
-            <button onClick={() => setPaso(3)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>← Anterior</button>
+            <button onClick={() => setPaso(3)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>⬅️ Anterior</button>
             <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={() => handleSave("borrador")} disabled={saving} style={{ padding: "12px 20px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer" }}>
                 💾 Guardar borrador
               </button>
-              <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: "12px 24px" }}>
-                {saving ? "Guardando..." : "✓ Guardar y Completar"}
+              <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: "8px" }}>
+                ✅ {saving ? "Guardando..." : "Guardar y Completar"}
               </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
+}
+
+export default function ExtincionPage() {
+  return <Suspense fallback={<div>Cargando editor...</div>}><ExtincionOTPage /></Suspense>;
 }

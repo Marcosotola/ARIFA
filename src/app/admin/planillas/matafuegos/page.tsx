@@ -5,6 +5,17 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";
+import { 
+  Package, 
+  Settings, 
+  Plus, 
+  Eye, 
+  Edit, 
+  Trash2, 
+  Download,
+  Scroll
+} from "lucide-react";
 
 interface Remito {
   id: string;
@@ -35,6 +46,7 @@ export default function MatafuegosUnifiedPage() {
   const [fichas, setFichas] = useState<Ficha[]>([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: "remito" | "ficha" } | null>(null);
   
   // Filtros
@@ -118,6 +130,25 @@ export default function MatafuegosUnifiedPage() {
 
   const isStaff = role === "admin" || role === "tecnico" || role === "superadmin";
   const isAdmin = role === "admin" || role === "superadmin";
+  const isReadOnly = role === "cliente";
+
+  const handleDownload = async (id: string, type: "remito" | "ficha") => {
+    setDownloadingId(id);
+    try {
+      const collectionName = type === "remito" ? "remitos_matafuegos" : "mantenimiento_matafuegos";
+      const snap = await getDoc(doc(db, collectionName, id));
+      if (snap.exists()) {
+        const data = { id: snap.id, ...snap.data() };
+        if (type === "remito") await generateRemitoPDF(data);
+        else await generateMantenimientoPDF(data);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Error al descargar el PDF.");
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
@@ -131,8 +162,8 @@ export default function MatafuegosUnifiedPage() {
           <Link 
             href={activeTab === "remitos" ? "/admin/planillas/matafuegos/nuevo" : "/admin/planillas/matafuegos/mantenimiento/nuevo"} 
             className="btn-red" 
-            style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
-            {activeTab === "remitos" ? "➕ NUEVO REMITO" : "➕ NUEVA FICHA"}
+            style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", textTransform: "uppercase", fontSize: "0.8rem", textDecoration: "none" }}>
+            <Plus size={18} strokeWidth={3} /> {activeTab === "remitos" ? "Nuevo Remito" : "Nueva Ficha"}
           </Link>
         )}
       </header>
@@ -160,8 +191,9 @@ export default function MatafuegosUnifiedPage() {
             background: activeTab === "remitos" ? "#fff" : "transparent",
             color: activeTab === "remitos" ? "var(--primary-blue)" : "#64748b",
             boxShadow: activeTab === "remitos" ? "0 4px 10px rgba(0,0,0,0.08)" : "none",
+            display: "flex", alignItems: "center", gap: "8px"
           }}>
-          📦 Remitos
+          <Package size={18} strokeWidth={2.5} color={activeTab === "remitos" ? "var(--primary-blue)" : "#64748b"} /> Remitos
         </button>
         <button 
           onClick={() => { setActiveTab("fichas"); setSearch(""); }}
@@ -177,8 +209,9 @@ export default function MatafuegosUnifiedPage() {
             background: activeTab === "fichas" ? "#fff" : "transparent",
             color: activeTab === "fichas" ? "var(--primary-blue)" : "#64748b",
             boxShadow: activeTab === "fichas" ? "0 4px 10px rgba(0,0,0,0.08)" : "none",
+            display: "flex", alignItems: "center", gap: "8px"
           }}>
-          🛠️ Fichas
+          <Settings size={18} strokeWidth={2.5} color={activeTab === "fichas" ? "var(--primary-blue)" : "#64748b"} /> Fichas
         </button>
       </div>
 
@@ -239,13 +272,38 @@ export default function MatafuegosUnifiedPage() {
                       <td style={{ padding: "14px 16px", fontSize: "0.85rem" }}>{r.fecha ? new Date(r.fecha).toLocaleDateString("es-AR") : "-"}</td>
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{r.clienteNombre}</div>
+                        {(r as any).sedeNombre && <div style={{ fontSize: "0.78rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {(r as any).sedeNombre}</div>}
                         <div style={{ fontSize: "0.75rem", color: "#888" }}>{r.clienteEmpresa}</div>
                       </td>
                       <td style={{ padding: "14px 16px", fontSize: "0.85rem", fontWeight: 600 }}>{r.equipos?.length || 0} u.</td>
                       <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: "5px", justifyContent: "flex-end" }}>
-                          <Link href={`/admin/planillas/matafuegos/${r.id}`} style={{ padding: "6px 10px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", textDecoration: "none", fontSize: "0.75rem", fontWeight: 700 }}>Editar</Link>
-                          {isAdmin && <button onClick={() => setDeleteConfirm({ id: r.id, type: "remito" })} style={{ padding: "6px 10px", borderRadius: "6px", border: "none", background: "#fee2e2", color: "#b91c1c", cursor: "pointer" }}>🗑️</button>}
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                          <Link title="Ver Vista Previa" href={`/admin/planillas/matafuegos/${r.id}?view=true`} 
+                            style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                            <Eye size={18} strokeWidth={2.5} />
+                          </Link>
+                          
+                          {!isReadOnly && (
+                            <Link title="Ver / Editar" href={`/admin/planillas/matafuegos/nuevo?edit=${r.id}`} 
+                             style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                             <Edit size={18} strokeWidth={2.5} />
+                           </Link>
+                          )}
+
+                          <button 
+                            title="Descargar PDF" 
+                            onClick={() => handleDownload(r.id, "remito")}
+                            disabled={downloadingId === r.id}
+                            style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", opacity: downloadingId === r.id ? 0.5 : 1 }}>
+                            <Scroll size={18} strokeWidth={2.5} />
+                          </button>
+
+                          {isAdmin && !isReadOnly && (
+                            <button title="Eliminar" onClick={() => setDeleteConfirm({ id: r.id, type: "remito" })} 
+                              style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <Trash2 size={18} strokeWidth={2.5} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -263,9 +321,33 @@ export default function MatafuegosUnifiedPage() {
                         <span style={{ background: "#f0f4ff", color: "#3b82f6", padding: "3px 8px", borderRadius: "10px", fontWeight: 800 }}>{f.items?.length || 0} Extintores</span>
                       </td>
                       <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: "5px", justifyContent: "flex-end" }}>
-                          <Link href={`/admin/planillas/matafuegos/mantenimiento/${f.id}`} style={{ padding: "6px 10px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", textDecoration: "none", fontSize: "0.75rem", fontWeight: 700 }}>Editar</Link>
-                          {isAdmin && <button onClick={() => setDeleteConfirm({ id: f.id, type: "ficha" })} style={{ padding: "6px 10px", borderRadius: "6px", border: "none", background: "#fee2e2", color: "#b91c1c", cursor: "pointer" }}>🗑️</button>}
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                          <Link title="Ver Vista Previa" href={`/admin/planillas/matafuegos/mantenimiento/${f.id}?view=true`} 
+                            style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                            <Eye size={18} strokeWidth={2.5} />
+                          </Link>
+                          
+                          {!isReadOnly && (
+                            <Link title="Ver / Editar" href={`/admin/planillas/matafuegos/mantenimiento/nuevo?edit=${f.id}`} 
+                             style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                             <Edit size={18} strokeWidth={2.5} />
+                           </Link>
+                          )}
+
+                          <button 
+                            title="Descargar PDF" 
+                            onClick={() => handleDownload(f.id, "ficha")}
+                            disabled={downloadingId === f.id}
+                            style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", opacity: downloadingId === f.id ? 0.5 : 1 }}>
+                            <Scroll size={18} strokeWidth={2.5} />
+                          </button>
+
+                          {isAdmin && !isReadOnly && (
+                            <button title="Eliminar" onClick={() => setDeleteConfirm({ id: f.id, type: "ficha" })} 
+                              style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              <Trash2 size={18} strokeWidth={2.5} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

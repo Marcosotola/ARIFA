@@ -5,6 +5,27 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { 
+  LayoutDashboard, 
+  Mail, 
+  ClipboardList, 
+  Flame, 
+  FileCheck, 
+  TrendingUp, 
+  HardHat, 
+  ShoppingCart, 
+  Users, 
+  Bell, 
+  Settings, 
+  CreditCard, 
+  Globe, 
+  LogOut, 
+  Hammer,
+  AlertTriangle,
+  ChevronRight,
+  Menu,
+  X as CloseIcon
+} from "lucide-react";
 import PWAInstallButton from "@/components/PWAInstallButton";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -104,11 +125,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (shouldBlock && !isAdmin) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', padding: '20px', textAlign: 'center' }}>
-        <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🛠️</div>
-        <h1 style={{ color: 'var(--primary-blue)', marginBottom: '10px' }}>
+        <div style={{ width: '80px', height: '80px', borderRadius: '20px', background: 'rgba(0,34,68,0.05)', color: 'var(--primary-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
+          {isMaintenance ? <Hammer size={40} /> : <AlertTriangle size={40} />}
+        </div>
+        <h1 style={{ color: 'var(--primary-blue)', marginBottom: '10px', fontSize: '2rem', fontWeight: 800 }}>
           {isMaintenance ? "Sitio en Mantenimiento" : "Servicio Suspendido"}
         </h1>
-        <p style={{ color: '#666', maxWidth: '400px', lineHeight: '1.6' }}>
+        <p style={{ color: '#64748b', maxWidth: '400px', lineHeight: '1.6', fontSize: '1.05rem' }}>
           {isMaintenance 
             ? "Estamos realizando mejoras en la plataforma. Por favor, volvé a intentarlo más tarde." 
             : "La suscripción de este sitio ha expirado. Por favor, contacte al administrador."}
@@ -126,12 +149,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   interface LinkItem {
     label: string;
     href: string;
-    icon: string;
+    icon: React.ReactNode;
+    color?: string;
     badge?: number | string | null;
   }
 
   const sidebarLinks: LinkItem[] = [
-    { label: "Mi Panel", href: "/admin", icon: "📊" },
+    { label: "Mi Panel", href: "/admin", icon: <LayoutDashboard size={20} />, color: "#6366f1" },
   ];
 
   // Consultas — solo staff (clientes NO ven esto bajo ninguna circunstancia)
@@ -140,7 +164,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     sidebarLinks.push({
       label: "Consultas",
       href: "/admin/consultas",
-      icon: "📧",
+      icon: <Mail size={20} />,
+      color: "#A31F1D",
       badge: unreadCount > 0 ? unreadCount : null,
     });
   }
@@ -149,12 +174,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   sidebarLinks.push({
     label: "OT",
     href: "/admin/planillas",
-    icon: "📋",
+    icon: <ClipboardList size={20} />,
+    color: "#2b6cb0",
   });
 
   // Matafuegos — solo admin y tecnico (gestionan)
   if (isAdmin || isTecnico) {
-    sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: "🧯" });
+    sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: <Flame size={20} />, color: "#c2410c" });
   }
 
   // Certificados — admin y cliente (cliente: solo lectura)
@@ -162,7 +188,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     sidebarLinks.push({
       label: "Certificados",
       href: "/admin/certificados",
-      icon: "📜",
+      icon: <FileCheck size={20} />,
+      color: "#0369a1",
     });
   }
 
@@ -171,7 +198,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     sidebarLinks.push({
       label: "Plan de Acción",
       href: "/admin/plan-accion",
-      icon: "📈",
+      icon: <TrendingUp size={20} />,
+      color: "#6b46c1",
     });
   }
 
@@ -180,26 +208,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     sidebarLinks.push({
       label: "HyS",
       href: "/admin/hys",
-      icon: "🦺",
+      icon: <HardHat size={20} />,
+      color: "#15803d",
     });
   }
 
   // Productos — solo admin
   if (isAdmin) {
-    sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: "🛒" });
+    sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: <ShoppingCart size={20} />, color: "#b45309" });
   }
 
   // Usuarios — solo admin
   if (isAdmin) {
-    sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: "👥" });
+    sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: <Users size={20} />, color: "#7c3aed" });
   }
 
   // Notificaciones — admin y secretaria
   if (isAdmin || isSecretaria) {
-    sidebarLinks.push({ label: "Notificaciones", href: "/admin/notificaciones", icon: "🔔" });
+    sidebarLinks.push({ label: "Notificaciones", href: "/admin/notificaciones", icon: <Bell size={20} />, color: "#0891b2" });
   }
 
-  const configLink = { label: "Configuración", href: "/admin/config", icon: "⚙️" };
+  const configLink = { label: "Configuración", href: "/admin/config", icon: <Settings size={20} />, color: "#94a3b8" };
 
   return (
     <div className="admin-layout" style={{ display: "flex", minHeight: "100vh", background: "#f0f2f5", position: 'relative' }}>
@@ -219,9 +248,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }} className="mobile-admin-header">
         <button 
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer' }}
+          style={{ background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
         >
-          {sidebarOpen ? '✕' : '☰'}
+          {sidebarOpen ? <CloseIcon size={24} /> : <Menu size={24} />}
         </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img src="/logos/logoFondoTransparente.svg" alt="ARIFA" style={{ height: '60px' }} />
@@ -273,7 +302,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <nav style={{ flex: 1 }}>
           <ul style={{ listStyle: "none", padding: 0 }}>
             {sidebarLinks.map((link) => {
-              const active = pathname === link.href;
+              const isActive = pathname === link.href;
               return (
                 <li key={link.href} style={{ marginBottom: "8px" }}>
                   <Link 
@@ -285,13 +314,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       padding: "12px 15px", 
                       borderRadius: "8px",
                       textDecoration: "none",
-                      color: active ? "#fff" : "rgba(255,255,255,0.7)",
-                      background: active ? "rgba(255,255,255,0.15)" : "transparent",
-                      fontWeight: active ? 700 : 500,
+                      color: isActive ? "#fff" : "rgba(255,255,255,0.7)",
+                      background: isActive ? "rgba(255,255,255,0.15)" : "transparent",
+                      fontWeight: isActive ? 700 : 500,
                       transition: "0.2s"
                     }}
                   >
-                    <span style={{ fontSize: "1.2rem" }}>{link.icon}</span>
+                    <span style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      color: isActive ? "#fff" : (link.color || "rgba(255,255,255,0.7)"),
+                      background: isActive ? "transparent" : (link.color ? `${link.color}15` : "transparent"),
+                      padding: link.color && !isActive ? '6px' : '0',
+                      borderRadius: '8px',
+                      transition: '0.2s'
+                    }}>
+                      {link.icon}
+                    </span>
                     <span style={{ flex: 1 }}>{link.label}</span>
                     {link.badge && (
                       <span style={{ 
@@ -328,7 +367,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     transition: "0.2s"
                   }}
                 >
-                  <span style={{ fontSize: "1.2rem" }}>💳</span>
+                  <span style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    color: pathname === "/admin/config/suscripcion" ? '#fff' : '#f59e0b',
+                    background: pathname === "/admin/config/suscripcion" ? 'transparent' : 'rgba(245,158,11,0.15)',
+                    padding: pathname === "/admin/config/suscripcion" ? '0' : '6px',
+                    borderRadius: '8px'
+                  }}>
+                    <CreditCard size={20} />
+                  </span>
                   <span style={{ flex: 1 }}>Suscripción</span>
                 </Link>
               </li>
@@ -352,7 +400,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     transition: "0.2s"
                   }}
                 >
-                  <span style={{ fontSize: "1.2rem" }}>{configLink.icon}</span>
+                  <span style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    color: pathname === configLink.href ? "#fff" : configLink.color,
+                    background: pathname === configLink.href ? "transparent" : `${configLink.color}15`,
+                    padding: pathname === configLink.href ? '0' : '6px',
+                    borderRadius: '8px'
+                  }}>
+                    {configLink.icon}
+                  </span>
                   <span style={{ flex: 1 }}>{configLink.label}</span>
                 </Link>
               </li>
@@ -399,7 +456,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             border: '1px solid rgba(255,255,255,0.1)',
             transition: 'background 0.2s'
           }} className="return-site-btn">
-            <span>🌐</span> Volver al Sitio
+            <Globe size={18} /> Volver al Sitio
           </Link>
 
           <button 
@@ -419,7 +476,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               gap: '8px'
             }}
           >
-            <span>🚪</span> Cerrar Sesión
+            <LogOut size={18} /> Cerrar Sesión
           </button>
         </div>
       </aside>

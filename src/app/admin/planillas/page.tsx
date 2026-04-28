@@ -9,6 +9,10 @@ import {
 import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { 
+  Eye, Edit, FileText, Trash2, Plus, ClipboardList, 
+  Folder, Search, Shield, Zap, FileSearch, Flame, Scroll
+} from "lucide-react";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface OT {
@@ -46,10 +50,10 @@ interface Plantilla {
 }
 
 const CATEGORIAS = [
-  { value: "deteccion", label: "Detección", icon: "🔍" },
-  { value: "extincion", label: "Extinción", icon: "🧯" },
-  { value: "matafuegos", label: "Matafuegos", icon: "🔥" },
-  { value: "certificaciones", label: "Certificaciones", icon: "📜" },
+  { value: "deteccion", label: "Detección", icon: <Search size={18} strokeWidth={2.5} color="#3b82f6" /> },
+  { value: "extincion", label: "Extinción", icon: <Shield size={18} strokeWidth={2.5} color="#f97316" /> },
+  { value: "matafuegos", label: "Matafuegos", icon: <Flame size={18} strokeWidth={2.5} color="#ef4444" /> },
+  { value: "certificaciones", label: "Certificaciones", icon: <Scroll size={18} strokeWidth={2.5} color="#7c3aed" /> },
 ];
 
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
@@ -66,9 +70,9 @@ export default function OTUnifiedPage() {
   const [role, setRole] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: "ot" | "plantilla" } | null>(null);
   
-  // Modal Gestor
   const [modalGestor, setModalGestor] = useState<"create" | "edit" | null>(null);
   const [editingPlantilla, setEditingPlantilla] = useState<Plantilla | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [newInfoField, setNewInfoField] = useState("");
   const [newCol, setNewCol] = useState("");
@@ -258,11 +262,15 @@ export default function OTUnifiedPage() {
         {isStaff && !isReadOnly && (
           <div style={{ display: "flex", gap: "10px" }}>
             {activeTab === "gestor" ? (
-              isAdmin && <button onClick={() => { setFormPlantilla(emptyPlantilla()); setModalGestor("create"); }} className="btn-red" style={{ padding: "12px 24px" }}>➕ NUEVA PLANTILLA</button>
+              isAdmin && <button onClick={() => { setFormPlantilla(emptyPlantilla()); setModalGestor("create"); }} className="btn-red" style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Plus size={18} /> NUEVA PLANTILLA
+              </button>
             ) : (
-              <Link href="/admin/planillas/deteccion/nueva" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
-                ➕ NUEVA OT
-              </Link>
+              <>
+                <Link href="/admin/planillas/deteccion/nueva" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", textTransform: "uppercase", fontSize: "0.8rem", textDecoration: "none" }}>
+                  <Plus size={18} strokeWidth={3} /> Nueva OT
+                </Link>
+              </>
             )}
           </div>
         )}
@@ -284,8 +292,9 @@ export default function OTUnifiedPage() {
             background: activeTab === "ots" ? "#fff" : "transparent",
             color: activeTab === "ots" ? "var(--primary-blue)" : "#64748b",
             boxShadow: activeTab === "ots" ? "0 4px 10px rgba(0,0,0,0.08)" : "none",
+            display: "flex", alignItems: "center", gap: "8px"
           }}>
-          📋 Listado OT
+          <ClipboardList size={18} strokeWidth={2.5} /> Listado OT
         </button>
         {isAdmin && !isReadOnly && (
           <button 
@@ -295,8 +304,9 @@ export default function OTUnifiedPage() {
               background: activeTab === "gestor" ? "#fff" : "transparent",
               color: activeTab === "gestor" ? "var(--primary-blue)" : "#64748b",
               boxShadow: activeTab === "gestor" ? "0 4px 10px rgba(0,0,0,0.08)" : "none",
+              display: "flex", alignItems: "center", gap: "8px"
             }}>
-            🗂️ Gestor
+            <Folder size={18} strokeWidth={2.5} /> Gestor
           </button>
         )}
       </div>
@@ -353,11 +363,30 @@ export default function OTUnifiedPage() {
                             <span style={{ fontSize: "0.65rem", padding: "4px 8px", borderRadius: "10px", fontWeight: 900, textTransform: "uppercase", background: ec.bg, color: ec.color }}>{ot.estado.replace("_", " ")}</span>
                           </td>
                           <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: "5px", justifyContent: "flex-end" }}>
-                              <Link href={`/admin/planillas/deteccion/${ot.id}`} style={{ padding: "6px 10px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", textDecoration: "none", fontSize: "0.75rem", fontWeight: 700 }}>
-                                {isReadOnly ? "Ver Documento" : "Ver / Editar"}
+                            <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                              <Link title="Ver Vista Previa" href={`/admin/planillas/deteccion/${ot.id}?view=true`} 
+                                style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                                <Eye size={18} strokeWidth={2.5} />
                               </Link>
-                              {isAdmin && !isReadOnly && <button onClick={() => setDeleteConfirm({ id: ot.id, type: "ot" })} style={{ padding: "6px 10px", borderRadius: "6px", border: "none", background: "#fee2e2", color: "#b91c1c", cursor: "pointer" }}>🗑️</button>}
+                              
+                              {!isReadOnly && (
+                                <Link title="Ver / Editar" href={`/admin/planillas/deteccion/${ot.id}`} 
+                                 style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                                 <Edit size={18} strokeWidth={2.5} />
+                               </Link>
+                              )}
+
+                              <Link title="Certificar" href={`/admin/certificados/nuevo?fromOt=${ot.id}`} 
+                                style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                                <Scroll size={18} strokeWidth={2.5} />
+                              </Link>
+
+                              {isAdmin && !isReadOnly && (
+                                <button title="Eliminar" onClick={() => setDeleteConfirm({ id: ot.id, type: "ot" })} 
+                                  style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <Trash2 size={18} strokeWidth={2.5} />
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -392,8 +421,12 @@ export default function OTUnifiedPage() {
                         <span style={{ fontSize: "0.7rem", background: "#f1f5f9", color: "#64748b", padding: "2px 8px", borderRadius: "20px", fontWeight: 700 }}>{p.frecuencia}</span>
                       </div>
                       <div style={{ display: "flex", gap: "8px" }}>
-                        <button onClick={() => openEditPlantilla(p)} style={{ flex: 1, padding: "8px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.8rem" }}>✏️ Editar</button>
-                        <button onClick={() => setDeleteConfirm({ id: p.id, type: "plantilla" })} style={{ padding: "8px 12px", borderRadius: "6px", background: "#fee2e2", color: "#b91c1c", border: "none", cursor: "pointer" }}>🗑️</button>
+                        <button onClick={() => openEditPlantilla(p)} style={{ flex: 1, padding: "8px", borderRadius: "6px", background: "#f1f5f9", color: "#475569", border: "none", cursor: "pointer", fontWeight: 700, fontSize: "0.8rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+                          <Edit size={14} /> Editar
+                        </button>
+                        <button onClick={() => setDeleteConfirm({ id: p.id, type: "plantilla" })} style={{ padding: "8px 12px", borderRadius: "6px", background: "#fee2e2", color: "#b91c1c", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -437,9 +470,7 @@ export default function OTUnifiedPage() {
               </div>
               <div>
                 <label style={labelStyle}>Frecuencia</label>
-                <select style={inputStyle} value={formPlantilla.frecuencia} onChange={e => setFormPlantilla(f => ({ ...f, frecuencia: e.target.value as any }))}>
-                  {["mensual", "trimestral", "semestral", "anual"].map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
-                </select>
+                <input style={inputStyle} value={formPlantilla.frecuencia} onChange={e => setFormPlantilla(f => ({ ...f, frecuencia: e.target.value as any }))} />
               </div>
               <div style={{ gridColumn: "span 2" }}>
                 <label style={labelStyle}>Nombre de la Plantilla *</label>
@@ -482,10 +513,12 @@ export default function OTUnifiedPage() {
                     <button onClick={() => removeCol(idx)} style={removeBtnStyle}>✕</button>
                   </div>
                 ))}
-                <div style={{ display: "flex", gap: "6px" }}>
-                  <input style={{ ...inputStyle, flex: 1, marginBottom: 0 }} value={newCol} onChange={e => setNewCol(e.target.value)} placeholder="Nueva columna..." />
-                  <button onClick={addColumn} style={{ padding: "8px 15px", borderRadius: "8px", background: "var(--primary-blue)", color: "#fff", border: "none" }}>+</button>
-                </div>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input style={{ ...inputStyle, flex: 1, marginBottom: 0 }} value={newCol} onChange={e => setNewCol(e.target.value)} placeholder="Nueva columna..." />
+                    <button onClick={addColumn} style={{ padding: "8px 15px", borderRadius: "8px", background: "var(--primary-blue)", color: "#fff", border: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Plus size={16} />
+                    </button>
+                  </div>
               </div>
             )}
 
@@ -496,6 +529,7 @@ export default function OTUnifiedPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

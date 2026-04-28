@@ -1,11 +1,23 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, addDoc, updateDoc, doc, getDoc, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, doc, getDoc, query, orderBy, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dynamic from "next/dynamic";
+import { 
+  ClipboardList, 
+  FileText, 
+  Camera, 
+  PenTool, 
+  ArrowLeft, 
+  Check, 
+  Download, 
+  Save,
+  Trash2,
+  Plus
+} from "lucide-react";
 
 const SignatureCanvas = dynamic(() => import("react-signature-canvas"), { ssr: false }) as any;
 
@@ -15,7 +27,12 @@ interface Cliente { id: string; nombre?: string; razonSocial?: string; empresa?:
 // ─── Constants ───────────────────────────────────────────────────────────────
 const RUBROS = ["Viviendas residenciales", "Edificio de oficinas", "Comercio", "Industrial", "Hotel / Apart-hotel", "Educación", "Salud", "Otro"];
 const PASOS = ["Datos", "Memoria", "Fotos", "Firmas"];
-const PASOS_ICONS = ["📋", "📝", "📷", "✍️"];
+const PASOS_ICONS = [
+  { icon: ClipboardList, color: "#3b82f6" }, 
+  { icon: FileText, color: "#f59e0b" }, 
+  { icon: Camera, color: "#ec4899" }, 
+  { icon: PenTool, color: "#ef4444" }
+];
 
 const DECLARACION_JURADA = `DECLARACION JURADA: La información consignada precedentemente reviste el carácter de Declaración Jurada; su omisión o falsedad precederá al decaimiento de su validez, sin perjuicio de las sanciones que pudiera corresponder. El profesional interviniente declara que cumple con las competencias exigidas, por ley, para completar el presente trabajo.`;
 
@@ -23,7 +40,7 @@ const labelSt: React.CSSProperties = { display: "block", fontSize: "0.78rem", fo
 const inputSt: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none", boxSizing: "border-box" };
 const cardSt: React.CSSProperties = { background: "#fff", borderRadius: "12px", padding: "24px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", marginBottom: "20px" };
 
-export default function CertificadoEditorPage() {
+function CertificadosEditor() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -51,11 +68,15 @@ export default function CertificadoEditorPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteManual, setClienteManual] = useState(false);
   const [clienteSearch, setClienteSearch] = useState("");
-  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
   const [clienteNombre, setClienteNombre] = useState("");
   const [clienteEmpresa, setClienteEmpresa] = useState("");
   const [clienteCuit, setClienteCuit] = useState("");
   const [clienteDireccion, setClienteDireccion] = useState("");
+  const [sedeId, setSedeId] = useState("");
+  const [sedeNombre, setSedeNombre] = useState("");
+  const [sedeRazonSocial, setSedeRazonSocial] = useState("");
+  const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
 
   // Memoria
   const [memoriaDescriptiva, setMemoriaDescriptiva] = useState("");
@@ -71,21 +92,30 @@ export default function CertificadoEditorPage() {
   const [firmaProfesional, setFirmaProfesional] = useState<string | null>(null);
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
 
+  const isReadOnly = role?.toLowerCase() === "cliente" || searchParams.get("view") === "true";
+  const isAdmin = ["admin", "superadmin"].includes(role?.toLowerCase() || "");
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
       const userDoc = await getDoc(doc(db, "usuarios", u.uid));
       setRole(userDoc.exists() ? userDoc.data().rol : "cliente");
-      await Promise.all([loadClientes(), loadNextNum()]);
+      const [allCli] = await Promise.all([loadClientes(), loadNextNum()]);
       if (isNuevo && fromOt) {
         await importFromOT(fromOt);
       } else if (!isNuevo) {
-        await loadCertificado();
+        await loadCertificado(allCli);
       }
       setLoading(false);
     });
     return () => unsub();
   }, [fromOt]);
+
+  useEffect(() => {
+    if (!loading && searchParams.get("download") === "true") {
+      handlePDF();
+    }
+  }, [loading]);
 
   const importFromOT = async (otId: string) => {
     try {
@@ -93,11 +123,23 @@ export default function CertificadoEditorPage() {
       if (!d.exists()) return;
       const data = d.data() as any;
       
-      setClienteNombre(data.clienteNombre || "");
-      setClienteEmpresa(data.clienteEmpresa || "");
+      setClienteNombre(data.clienteNombre || data.cliente || "");
+      setClienteEmpresa(data.clienteEmpresa || data.cliente || "");
       setClienteCuit(data.clienteCuit || "");
-      setClienteDireccion(data.clienteDireccion || "");
-      if (data.clienteId) setClienteSeleccionado({ id: data.clienteId, nombre: data.clienteNombre, razonSocial: data.clienteEmpresa, empresa: data.clienteEmpresa, cuit: data.clienteCuit, direccion: data.clienteDireccion, email: "" });
+      setClienteDireccion(data.direccion || "");
+      if (data.userId) {
+        const uDoc = await getDoc(doc(db, "usuarios", data.userId));
+        if (uDoc.exists()) {
+          const uData = { id: uDoc.id, ...uDoc.data() } as any;
+          setClienteSeleccionado(uData);
+          setFilteredSedes(uData.sedes || []);
+          if (data.sedeId) {
+            setSedeId(data.sedeId);
+            setSedeNombre(data.sedeNombre || "");
+            setSedeRazonSocial(data.sedeRazonSocial || "");
+          }
+        }
+      }
       setClienteManual(data.clienteManual || false);
       
       if (data.planillasSeleccionadas && data.planillasSeleccionadas.length > 0) {
@@ -111,9 +153,11 @@ export default function CertificadoEditorPage() {
 
   const loadClientes = async () => {
     try {
-      const snap = await getDocs(query(collection(db, "usuarios"), orderBy("nombre")));
-      setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() } as Cliente)));
-    } catch { /* ok */ }
+      const snap = await getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente")));
+      const clis = snap.docs.map(d => ({ id: d.id, ...d.data() } as Cliente));
+      setClientes(clis);
+      return clis;
+    } catch { return []; }
   };
 
   const loadNextNum = async () => {
@@ -125,7 +169,8 @@ export default function CertificadoEditorPage() {
     } catch { setNumero("1"); }
   };
 
-  const loadCertificado = async () => {
+  const loadCertificado = async (allCli?: Cliente[]) => {
+    const list = allCli || clientes;
     try {
       const d = await getDoc(doc(db, "certificados", params.id as string));
       if (!d.exists()) return;
@@ -143,7 +188,16 @@ export default function CertificadoEditorPage() {
       setClienteEmpresa(data.clienteEmpresa || "");
       setClienteCuit(data.clienteCuit || "");
       setClienteDireccion(data.clienteDireccion || "");
-      if (data.clienteId) setClienteSeleccionado({ id: data.clienteId, nombre: data.clienteNombre, razonSocial: data.clienteEmpresa, empresa: data.clienteEmpresa, cuit: data.clienteCuit, direccion: data.clienteDireccion, email: "" });
+      setSedeId(data.sedeId || "");
+      setSedeNombre(data.sedeNombre || "");
+      setSedeRazonSocial(data.sedeRazonSocial || "");
+      if (data.clienteId) {
+        const fullClient = list.find(c => c.id === data.clienteId);
+        if (fullClient) {
+          setClienteSeleccionado(fullClient);
+          setFilteredSedes((fullClient as any).sedes || []);
+        }
+      }
       setMemoriaDescriptiva(data.memoriaDescriptiva || "");
       setFotos(data.fotos || []);
       setFirmaProfesional(data.firmaProfesional || null);
@@ -162,10 +216,13 @@ export default function CertificadoEditorPage() {
         sistemaCertificado, responsableCertificado,
         clienteId: clienteSeleccionado?.id || null,
         clienteNombre: clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre,
-        clienteEmpresa: clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa,
+        clienteEmpresa: sedeRazonSocial || clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa,
         clienteCuit: clienteSeleccionado?.cuit || clienteCuit,
-        clienteDireccion: clienteSeleccionado?.direccion || clienteDireccion,
+        clienteDireccion: clienteDireccion || clienteSeleccionado?.direccion || "",
         clienteManual,
+        sedeId: sedeId || null,
+        sedeNombre: sedeNombre || "",
+        sedeRazonSocial: sedeRazonSocial || "",
         memoriaDescriptiva,
         fotos, firmaProfesional, firmaCliente,
         estado: estadoOverride || estado,
@@ -283,9 +340,9 @@ export default function CertificadoEditorPage() {
         [{ content: "Fecha de Inspección", styles: { fontStyle: "bold", cellWidth: 45 } }, fInsp,
          { content: "Fecha de Vencimiento", styles: { fontStyle: "bold", cellWidth: 45 } }, fVenc],
         [{ content: "Sistema certificado:", styles: { fontStyle: "bold" } }, { content: sistemaCertificado || "-", colSpan: 3, styles: { fontStyle: "bold", textColor: [163, 31, 29] } }],
-        [{ content: "Cliente:", styles: { fontStyle: "bold" } }, { content: cn, colSpan: 3, styles: { halign: "center", fontStyle: "bold" } }],
-        [{ content: "Razón social:", styles: { fontStyle: "bold" } }, { content: cuit || ce || "-", colSpan: 3, styles: { halign: "center" } }],
-        [{ content: "Domicilio:", styles: { fontStyle: "bold" } }, { content: cdir || "-", colSpan: 3 }],
+        [{ content: "Cliente:", styles: { fontStyle: "bold" } }, { content: cn + (sedeNombre ? ` - SEDE: ${sedeNombre}` : ""), colSpan: 3, styles: { halign: "center", fontStyle: "bold" } }],
+        [{ content: "Razón social:", styles: { fontStyle: "bold" } }, { content: cuit || sedeRazonSocial || ce || "-", colSpan: 3, styles: { halign: "center" } }],
+        [{ content: "Domicilio:", styles: { fontStyle: "bold" } }, { content: clienteDireccion || cdir || "-", colSpan: 3 }],
         [{ content: "Responsable certificado:", styles: { fontStyle: "bold" } }, { content: responsableCertificado || "-", colSpan: 3 }],
         [{ content: "Empresa Certificante:", styles: { fontStyle: "bold" } }, { content: "ARIFA — INGENIERIA EN SEGURIDAD CONTRA INCENDIOS  |  CUIT 20-35108395-7  |  www.arifa.com.ar", colSpan: 3, styles: { fontStyle: "bold", textColor: [0, 34, 68] } }],
       ],
@@ -384,39 +441,41 @@ export default function CertificadoEditorPage() {
 
   if (loading) return <div style={{ padding: "60px", textAlign: "center", color: "var(--text-muted)" }}>Cargando...</div>;
 
-  const isClient = role?.toLowerCase() === "cliente";
-  const isAdmin = ["admin", "superadmin"].includes(role?.toLowerCase() || "");
-
   const clientesFiltrados = clientes.filter(c =>
     clienteSearch.length < 2 ? false :
     `${c.nombre || ""} ${c.razonSocial || ""} ${c.empresa || ""} ${c.email || ""}`.toLowerCase().includes(clienteSearch.toLowerCase())
   );
 
   return (
-    <div style={{ maxWidth: "860px" }}>
+    <div style={{ maxWidth: "860px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "25px", flexWrap: "wrap", gap: "12px" }}>
+      <header style={{ marginBottom: "25px", display: "flex", justifyContent: "space-between", alignItems: 'center' }}>
         <div>
-          <button onClick={() => router.push("/admin/certificados")} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "5px" }}>
-            ← Volver al listado
+          <button onClick={() => router.push("/admin/certificados")} 
+            style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "15px" }}>
+            <ArrowLeft size={18} /> Volver
           </button>
           <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>
             {isNuevo ? "Nuevo Certificado" : `Certificado N°${String(numero).padStart(4, "0")}`}
           </h1>
         </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button onClick={handlePDF} style={{ padding: "10px 18px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer", fontSize: "0.88rem" }}>
-            📥 Descargar PDF
-          </button>
-          {!isClient && (
-            <button onClick={() => handleSave("emitido")} disabled={saving} className="btn-red" style={{ padding: "10px 20px" }}>
-              {saving ? "Guardando..." : "💾 Guardar"}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {!isNuevo && (
+            <button onClick={handlePDF} 
+              style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Download size={18} /> Descargar PDF
+            </button>
+          )}
+          {!isReadOnly && (
+            <button onClick={() => handleSave("emitido")} disabled={saving} className="btn-red" 
+              style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {saving ? "Guardando..." : <><Check size={18} /> Finalizar</>}
             </button>
           )}
         </div>
-      </div>
+      </header>
 
-      {isClient ? (
+      {isReadOnly ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <div style={cardSt}>
             <h2 style={{ fontWeight: 800, color: 'var(--primary-blue)', marginBottom: '15px', fontSize: '1.2rem' }}>Resumen del Certificado</h2>
@@ -425,7 +484,7 @@ export default function CertificadoEditorPage() {
               <div><span style={{ fontWeight: 700, color: '#666' }}>Vencimiento:</span> {fechaVencimiento ? new Date(fechaVencimiento).toLocaleDateString('es-AR') : '-'}</div>
               <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Sistema Certificado:</span> {sistemaCertificado || '-'}</div>
               <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Rubro:</span> {rubro === 'Otro' ? rubroCustom : rubro}</div>
-              <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Ubicación:</span> {clienteSeleccionado?.direccion || clienteDireccion || '-'}</div>
+              <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Ubicación:</span> {sedeNombre ? `${sedeNombre} (${clienteDireccion})` : (clienteSeleccionado?.direccion || clienteDireccion || '-')}</div>
             </div>
           </div>
           <div style={cardSt}>
@@ -445,19 +504,26 @@ export default function CertificadoEditorPage() {
         </div>
       ) : (
         <>
-
       {/* Stepper */}
-      <div style={{ background: "#fff", borderRadius: "10px", overflow: "hidden", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", marginBottom: "28px", display: "flex" }}>
-        {PASOS.map((p, i) => (
-          <button key={p} onClick={() => setPaso(i)}
-            style={{ flex: 1, padding: "14px 8px", border: "none", cursor: "pointer", fontWeight: i === paso ? 800 : 500, fontSize: "0.82rem",
-              background: i === paso ? "var(--primary-blue)" : i < paso ? "#e8f0ff" : "#fff",
-              color: i === paso ? "#fff" : i < paso ? "var(--primary-blue)" : "#999",
-              borderRight: i < PASOS.length - 1 ? "1px solid #eee" : "none", transition: "0.2s" }}>
-            <div style={{ fontSize: "1.2rem", marginBottom: "3px" }}>{i < paso ? "✓" : PASOS_ICONS[i]}</div>
-            {p}
-          </button>
-        ))}
+      <div style={{ background: "#fff", borderRadius: "12px", overflow: "hidden", boxShadow: "0 2px 12px rgba(0,0,0,0.05)", marginBottom: "30px", display: "flex" }}>
+        {PASOS.map((p, i) => {
+          const { icon: Icon, color: stepColor } = PASOS_ICONS[i];
+          const isActive = i === paso;
+          const isCompleted = i < paso;
+          return (
+            <button key={p} onClick={() => setPaso(i)}
+              style={{ flex: 1, padding: "14px 10px", border: "none", cursor: "pointer", fontWeight: isActive ? 800 : 500, fontSize: "0.82rem",
+                background: isActive ? stepColor : isCompleted ? `${stepColor}15` : "#fff",
+                color: isActive ? "#fff" : isCompleted ? stepColor : "#64748b",
+                borderRight: i < PASOS.length - 1 ? "1px solid #f0f0f0" : "none", transition: "0.2s",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {isCompleted ? <Check size={20} strokeWidth={3} /> : <Icon size={20} strokeWidth={isActive ? 3 : 2} color={isActive ? "#fff" : stepColor} />}
+              </div>
+              {p}
+            </button>
+          );
+        })}
       </div>
 
       {/* ══ PASO 0: DATOS ══ */}
@@ -525,33 +591,65 @@ export default function CertificadoEditorPage() {
             </div>
 
             {!clienteManual ? (
-              <div style={{ position: "relative" }}>
-                <label style={labelSt}>Buscar cliente registrado</label>
-                <input style={inputSt}
-                  value={clienteSeleccionado ? (clienteSeleccionado.nombre || clienteSeleccionado.razonSocial || clienteSeleccionado.email) : clienteSearch}
-                  onChange={e => { setClienteSearch(e.target.value); setClienteSeleccionado(null); }}
-                  placeholder="Nombre, empresa o email..." />
-                {clientesFiltrados.length > 0 && !clienteSeleccionado && (
-                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", maxHeight: "200px", overflowY: "auto" }}>
-                    {clientesFiltrados.map(c => (
-                      <div key={c.id} onClick={() => { setClienteSeleccionado(c); setClienteSearch(""); }}
-                        style={{ padding: "12px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = "#f8f9ff")}
-                        onMouseLeave={e => (e.currentTarget.style.background = "#fff")}>
-                        <div style={{ fontWeight: 700 }}>{c.nombre || c.razonSocial || c.email}</div>
-                        {c.empresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{c.empresa}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {clienteSeleccionado && (
-                  <div style={{ marginTop: "10px", background: "#f0f4ff", borderRadius: "8px", padding: "12px 15px", display: "flex", justifyContent: "space-between" }}>
-                    <div>
-                      <div style={{ fontWeight: 700 }}>{clienteSeleccionado.nombre || clienteSeleccionado.razonSocial}</div>
-                      <div style={{ fontSize: "0.8rem", color: "#666" }}>{clienteSeleccionado.empresa} — {clienteSeleccionado.direccion}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <div style={{ position: "relative" }}>
+                  <label style={labelSt}>Buscar cliente registrado</label>
+                  <input style={inputSt}
+                    value={clienteSeleccionado ? (clienteSeleccionado.nombre || clienteSeleccionado.razonSocial || clienteSeleccionado.empresa || clienteSeleccionado.email) : clienteSearch}
+                    onChange={e => { setClienteSearch(e.target.value); setClienteSeleccionado(null); setFilteredSedes([]); setSedeId(""); setSedeNombre(""); }}
+                    placeholder="Nombre, empresa o email..." />
+                  {clientesFiltrados.length > 0 && !clienteSeleccionado && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", maxHeight: "200px", overflowY: "auto" }}>
+                      {clientesFiltrados.map(c => (
+                        <div key={c.id} onClick={() => { setClienteSeleccionado(c); setClienteSearch(""); setFilteredSedes(c.sedes || []); setClienteDireccion(c.direccion || ""); }}
+                          style={{ padding: "12px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+                          onMouseEnter={e => (e.currentTarget.style.background = "#f8f9ff")}
+                          onMouseLeave={e => (e.currentTarget.style.background = "#fff")}>
+                          <div style={{ fontWeight: 700 }}>{c.nombre || c.razonSocial || c.email}</div>
+                          {c.empresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{c.empresa}</div>}
+                        </div>
+                      ))}
                     </div>
-                    <button onClick={() => setClienteSeleccionado(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#999" }}>✕</button>
-                  </div>
+                  )}
+                </div>
+
+                {clienteSeleccionado && (
+                  <>
+                    <div style={{ background: "#f0f4ff", borderRadius: "8px", padding: "12px 15px", display: "flex", justifyContent: "space-between" }}>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{clienteSeleccionado.nombre || clienteSeleccionado.razonSocial}</div>
+                        <div style={{ fontSize: "0.8rem", color: "#666" }}>{clienteSeleccionado.empresa} — {clienteSeleccionado.direccion}</div>
+                      </div>
+                      <button onClick={() => { setClienteSeleccionado(null); setFilteredSedes([]); setSedeId(""); setSedeNombre(""); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#999" }}>✕</button>
+                    </div>
+
+                    <div>
+                      <label style={labelSt}>Sede / Obra / Consorcio</label>
+                      <select 
+                        style={inputSt} 
+                        value={sedeId} 
+                        onChange={e => {
+                          const s = filteredSedes.find(x => x.id === e.target.value);
+                          if (s) {
+                            setSedeId(s.id);
+                            setSedeNombre(s.nombre);
+                            setSedeRazonSocial(s.razonSocial || "");
+                            setClienteDireccion(s.direccion || clienteSeleccionado.direccion || "");
+                          } else {
+                            setSedeId("");
+                            setSedeNombre("");
+                            setSedeRazonSocial("");
+                            setClienteDireccion(clienteSeleccionado.direccion || "");
+                          }
+                        }}
+                      >
+                        <option value="">{filteredSedes.length === 0 ? "Sin sedes registradas" : "Seleccionar sede (Opcional)"}</option>
+                        {filteredSedes.map(s => (
+                          <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
                 )}
               </div>
             ) : (
@@ -659,14 +757,16 @@ export default function CertificadoEditorPage() {
                 </div>
                 <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                   <button onClick={() => sigRef.current?.clear()}
-                    style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: "0.85rem" }}>
-                    🗑 Limpiar
+                    style={{ padding: "8px 16px", borderRadius: "6px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Trash2 size={14} /> Limpiar
                   </button>
                   <button onClick={() => { if (!sigRef.current?.isEmpty()) setSig(sigRef.current.getTrimmedCanvas().toDataURL("image/png")); }}
-                    className="btn-blue" style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
-                    ✓ Guardar firma
+                    className="btn-blue" style={{ padding: "8px 16px", fontSize: "0.85rem", display: "flex", alignItems: "center", gap: "6px" }}>
+                    <Check size={14} strokeWidth={3} /> Guardar firma
                   </button>
-                  {sig && <span style={{ fontSize: "0.8rem", color: "#4CAF50", alignSelf: "center" }}>✓ Firma guardada</span>}
+                  {sig && <span style={{ fontSize: "0.8rem", color: "#4CAF50", alignSelf: "center", display: "flex", alignItems: "center", gap: "4px" }}>
+                    <Check size={14} strokeWidth={3} /> Firma guardada
+                  </span>}
                 </div>
               </div>
             ))}
@@ -676,11 +776,12 @@ export default function CertificadoEditorPage() {
             <button onClick={() => setPaso(2)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer" }}>← Anterior</button>
             <div style={{ display: "flex", gap: "10px" }}>
               <button onClick={() => handleSave("borrador")} disabled={saving}
-                style={{ padding: "12px 20px", borderRadius: "8px", border: "1px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer" }}>
-                💾 Guardar borrador
+                style={{ padding: "12px 20px", borderRadius: "8px", border: "1.5px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Save size={18} strokeWidth={2.5} /> {saving ? "Guardando..." : "Guardar borrador"}
               </button>
-              <button onClick={() => handleSave("emitido")} disabled={saving} className="btn-red" style={{ padding: "12px 24px" }}>
-                {saving ? "Guardando..." : "✓ Emitir Certificado"}
+              <button onClick={() => handleSave("emitido")} disabled={saving} className="btn-red" 
+                style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: "8px", textTransform: "uppercase" }}>
+                {saving ? "⏳" : <Check size={20} strokeWidth={3} />} {saving ? "Guardando..." : "Emitir Certificado"}
               </button>
             </div>
           </div>
@@ -690,4 +791,8 @@ export default function CertificadoEditorPage() {
       )}
     </div>
   );
+}
+
+export default function CertificadoPage() {
+  return <Suspense fallback={<div>Cargando editor...</div>}><CertificadosEditor /></Suspense>;
 }

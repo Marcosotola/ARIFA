@@ -8,6 +8,23 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 
+import { 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Eye, 
+  FileText, 
+  Camera, 
+  Calendar, 
+  Building2, 
+  MapPin, 
+  X,
+  Search,
+  CheckCircle2,
+  Clock,
+  Images
+} from "lucide-react";
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TipoDoc = "Visita" | "Capacitación" | "ATS" | "Programa de Seguridad";
 const TIPOS: TipoDoc[] = ["Visita", "Capacitación", "ATS", "Programa de Seguridad"];
@@ -16,8 +33,11 @@ interface HySDoc {
   id: string;
   cliente: string;
   clienteId?: string;
+  sedeId?: string;
+  sedeNombre?: string;
+  sedeRazonSocial?: string;
   fecha: string;
-  tipo: TipoDoc;
+  tipo: TipoDoc[]; // Changed to array
   descripcion?: string;
   imagenes: string[];
   creadoPor?: string;
@@ -52,18 +72,23 @@ export default function HySPage() {
   // Filters
   const [filtroTipo, setFiltroTipo] = useState<TipoDoc | "Todos">("Todos");
   const [filtroCliente, setFiltroCliente] = useState("");
+  const [filtroSede, setFiltroSede] = useState("Todas");
   const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
   const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
 
   // Form
-  const [usuarios, setUsuarios] = useState<{id: string, nombre: string, apellido: string, empresa?: string}[]>([]);
+  const [usuarios, setUsuarios] = useState<{id: string, nombre: string, apellido: string, empresa?: string, sedes?: any[]}[]>([]);
   const [fCliente, setFCliente] = useState("");
   const [fClienteId, setFClienteId] = useState("");
+  const [fSedeId, setFSedeId] = useState("");
+  const [fSedeNombre, setFSedeNombre] = useState("");
+  const [fSedeRazonSocial, setFSedeRazonSocial] = useState("");
   const [fClienteManual, setFClienteManual] = useState(false);
   const [fFecha, setFFecha] = useState(new Date().toISOString().split("T")[0]);
-  const [fTipo, setFTipo] = useState<TipoDoc>("Visita");
+  const [fTipos, setFTipos] = useState<TipoDoc[]>([]); // Array of types
   const [fDescripcion, setFDescripcion] = useState("");
   const [fImagenes, setFImagenes] = useState<string[]>([]);
+  const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -91,7 +116,12 @@ export default function HySPage() {
     setLoading(true);
     try {
       const snap = await getDocs(query(collection(db, "hys_documentos"), orderBy("createdAt", "desc")));
-      let all = snap.docs.map(d => ({ id: d.id, ...d.data() } as HySDoc));
+      let all = snap.docs.map(d => {
+        const data = d.data();
+        // Migración al vuelo: si tipo es string, lo convertimos a array
+        const tipoArr = Array.isArray(data.tipo) ? data.tipo : (data.tipo ? [data.tipo] : []);
+        return { id: d.id, ...data, tipo: tipoArr } as HySDoc;
+      });
       // Filtro para cliente: solo sus documentos
       if (r === "cliente" && userData) {
         const uid = userData.uid;
@@ -114,15 +144,18 @@ export default function HySPage() {
   };
 
   const openCreate = () => {
-    setFCliente(""); setFClienteId(""); setFClienteManual(false); setFFecha(new Date().toISOString().split("T")[0]);
-    setFTipo("Visita"); setFDescripcion(""); setFImagenes([]);
+    setFCliente(""); setFClienteId(""); setFSedeId(""); setFSedeNombre(""); setFSedeRazonSocial(""); setFClienteManual(false); setFFecha(new Date().toISOString().split("T")[0]);
+    setFTipos([]); setFDescripcion(""); setFImagenes([]); setFilteredSedes([]);
     setSelectedDoc(null); setModal("create");
     setShowSuggestions(false);
   };
 
   const openEdit = (d: HySDoc) => {
     setFCliente(d.cliente); setFClienteId(d.clienteId || ""); setFClienteManual(!d.clienteId); setFFecha(d.fecha);
-    setFTipo(d.tipo); setFDescripcion(d.descripcion || ""); setFImagenes([...d.imagenes]);
+    setFTipos(d.tipo || []); setFDescripcion(d.descripcion || ""); setFImagenes([...d.imagenes]);
+    setFSedeId(d.sedeId || ""); setFSedeNombre(d.sedeNombre || ""); setFSedeRazonSocial(d.sedeRazonSocial || "");
+    const u = usuarios.find(x => x.id === d.clienteId);
+    setFilteredSedes(u?.sedes || []);
     setSelectedDoc(d); setModal("edit");
     setShowSuggestions(false);
   };
@@ -157,8 +190,11 @@ export default function HySPage() {
         cliente: fCliente.trim(),
         clienteId: fClienteManual ? null : fClienteId,
         clienteManual: fClienteManual,
+        sedeId: fSedeId || null,
+        sedeNombre: fSedeNombre || "",
+        sedeRazonSocial: fSedeRazonSocial || "",
         fecha: fFecha,
-        tipo: fTipo,
+        tipo: fTipos,
         descripcion: fDescripcion.trim(),
         imagenes: fImagenes,
         updatedAt: serverTimestamp(),
@@ -186,8 +222,9 @@ export default function HySPage() {
 
   // ── Filters ──────────────────────────────────────────────────────────────────
   const filtered = docs.filter(d => {
-    if (filtroTipo !== "Todos" && d.tipo !== filtroTipo) return false;
+    if (filtroTipo !== "Todos" && !d.tipo.includes(filtroTipo)) return false;
     if (filtroCliente && !d.cliente.toLowerCase().includes(filtroCliente.toLowerCase())) return false;
+    if (filtroSede !== "Todas" && d.sedeNombre !== filtroSede) return false;
     if (filtroFechaDesde && d.fecha < filtroFechaDesde) return false;
     if (filtroFechaHasta && d.fecha > filtroFechaHasta) return false;
     return true;
@@ -198,9 +235,11 @@ export default function HySPage() {
   };
 
   const isReadOnly = role === "cliente";
+  const isAdmin = role === "admin" || role === "superadmin";
+  const sedesDisponibles = Array.from(new Set(docs.map(d => d.sedeNombre).filter(Boolean))) as string[];
 
   return (
-    <div style={{ width: "100%" }}>
+    <div style={{ maxWidth: "1350px", margin: "0 auto" }}>
       {/* ── Header ── */}
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "28px", flexWrap: "wrap", gap: "16px" }}>
         <div>
@@ -212,8 +251,8 @@ export default function HySPage() {
           </p>
         </div>
         {!isReadOnly && (
-          <button onClick={openCreate} className="btn-red" style={{ padding: "12px 22px" }}>
-            ➕ Nuevo Documento
+          <button onClick={openCreate} className="btn-red" style={{ padding: "12px 22px", display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Plus size={18} strokeWidth={3} /> Nuevo Documento
           </button>
         )}
       </header>
@@ -235,6 +274,13 @@ export default function HySPage() {
             </div>
           )}
           <div>
+            <label style={labelSt}>Sede / Obra</label>
+            <select style={{ ...inputSt, background: "#fff" }} value={filtroSede} onChange={e => setFiltroSede(e.target.value)}>
+              <option value="Todas">Todas</option>
+              {sedesDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
             <label style={labelSt}>Fecha desde</label>
             <input type="date" style={inputSt} value={filtroFechaDesde} onChange={e => setFiltroFechaDesde(e.target.value)} />
           </div>
@@ -243,31 +289,16 @@ export default function HySPage() {
             <input type="date" style={inputSt} value={filtroFechaHasta} onChange={e => setFiltroFechaHasta(e.target.value)} />
           </div>
           <div style={{ display: "flex", alignItems: "flex-end" }}>
-            <button onClick={() => { setFiltroTipo("Todos"); setFiltroCliente(""); setFiltroFechaDesde(""); setFiltroFechaHasta(""); }}
-              style={{ padding: "11px 16px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600, width: "100%" }}>
-              🔄 Limpiar filtros
+            <button onClick={() => { setFiltroTipo("Todos"); setFiltroCliente(""); setFiltroSede("Todas"); setFiltroFechaDesde(""); setFiltroFechaHasta(""); }} style={{ padding: "10px 18px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", color: "#666" }}>
+              Limpiar filtros
             </button>
           </div>
         </div>
-        {/* Tipo quick-filters */}
-        <div style={{ display: "flex", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
-          {(["Todos", ...TIPOS] as const).map(t => {
-            const active = filtroTipo === t;
-            const colors = t !== "Todos" ? TIPO_COLORS[t as TipoDoc] : { bg: "#f0f0f0", color: "#555", dot: "#999" };
-            return (
-              <button key={t} onClick={() => setFiltroTipo(t as any)}
-                style={{ padding: "6px 14px", borderRadius: "20px", border: `2px solid ${active ? colors.dot : "#eee"}`, background: active ? colors.bg : "#fff", color: active ? colors.color : "#888", fontWeight: active ? 800 : 500, fontSize: "0.78rem", cursor: "pointer", transition: "0.2s" }}>
-                {t}
-              </button>
-            );
-          })}
-        </div>
       </div>
 
-      {/* ── Stats badges ── */}
       <div style={{ display: "flex", gap: "12px", marginBottom: "20px", flexWrap: "wrap" }}>
         {TIPOS.map(t => {
-          const count = docs.filter(d => d.tipo === t).length;
+          const count = docs.filter(d => d.tipo.includes(t)).length;
           const { color, dot } = TIPO_COLORS[t];
           return (
             <div key={t} style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "0.75rem", fontWeight: 700, color: "#666" }}>
@@ -294,25 +325,35 @@ export default function HySPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
                 <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
                   <tr>
-                    {["Fecha", "Cliente", "Tipo", "Descripción", "Fotos", !isReadOnly && "Acciones"].filter(Boolean).map(h => (
+                    {["Fecha", "Cliente / Sede", "Tipo", "Descripción", "Fotos", !isReadOnly && "Acciones"].filter(Boolean).map(h => (
                       <th key={h as string} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map(d => {
-                    const { bg, color, dot } = TIPO_COLORS[d.tipo];
                     return (
                       <tr key={d.id} style={{ borderBottom: "1px solid #f5f5f5" }}
                         onMouseEnter={e => (e.currentTarget.style.background = "#fafcff")}
                         onMouseLeave={e => (e.currentTarget.style.background = "")}>
                         <td style={{ padding: "14px 18px", whiteSpace: "nowrap", fontSize: "0.88rem", fontWeight: 600 }}>{fmtFecha(d.fecha)}</td>
-                        <td style={{ padding: "14px 18px", fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.92rem" }}>{d.cliente}</td>
                         <td style={{ padding: "14px 18px" }}>
-                          <span style={{ background: bg, color, fontSize: "0.72rem", fontWeight: 800, padding: "4px 11px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: dot, flexShrink: 0 }} />
-                            {d.tipo}
-                          </span>
+                          <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.92rem" }}>{d.cliente}</div>
+                          {d.sedeNombre && <div style={{ fontSize: "0.75rem", color: "var(--primary-red)", fontWeight: 700 }}>🏢 {d.sedeNombre}</div>}
+                        </td>
+                        <td style={{ padding: "14px 18px" }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                            {d.tipo.map(t => {
+                              const colors = TIPO_COLORS[t] || { bg: "#f3f4f6", color: "#374151", dot: "#9ca3af" };
+                              const { bg, color, dot } = colors;
+                              return (
+                                <span key={t} style={{ background: bg, color, fontSize: "0.72rem", fontWeight: 800, padding: "4px 11px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "5px" }}>
+                                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: dot, flexShrink: 0 }} />
+                                  {t}
+                                </span>
+                              );
+                            })}
+                          </div>
                         </td>
                         <td style={{ padding: "14px 18px", fontSize: "0.85rem", color: "#555", maxWidth: "250px" }}>
                           {d.descripcion ? (
@@ -337,14 +378,20 @@ export default function HySPage() {
                             </div>
                           ) : <span style={{ color: "#ccc", fontSize: "0.82rem" }}>Sin fotos</span>}
                         </td>
-                        {!isReadOnly && (
-                          <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
-                            <button onClick={() => openEdit(d)} title="Editar"
-                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px" }}>✏️</button>
-                            <button onClick={() => setDeleteConfirm(d.id)} title="Eliminar"
-                              style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", padding: "5px", borderRadius: "6px", marginLeft: "2px" }}>🗑️</button>
-                          </td>
-                        )}
+                        <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => openEdit(d)} 
+                              style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer' }} title="Editar">
+                              <Edit size={18} strokeWidth={2.5} />
+                            </button>
+                            {isAdmin && !isReadOnly && (
+                              <button onClick={() => setDeleteConfirm(d.id)} 
+                                style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#fef2f2", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer' }} title="Eliminar">
+                                <Trash2 size={18} strokeWidth={2.5} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -356,18 +403,26 @@ export default function HySPage() {
           {/* Mobile Cards */}
           <div className="show-on-mobile" style={{ display: "none", flexDirection: "column", gap: "12px" }}>
             {filtered.map(d => {
-              const { bg, color, dot } = TIPO_COLORS[d.tipo];
               return (
                 <div key={d.id} style={{ background: "#fff", borderRadius: "12px", padding: "16px", border: "1px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
                     <div>
                       <div style={{ fontSize: "0.75rem", color: "#999", fontWeight: 600, marginBottom: "2px" }}>{fmtFecha(d.fecha)}</div>
                       <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>{d.cliente}</div>
+                      {d.sedeNombre && <div style={{ fontSize: "0.8rem", color: "var(--primary-red)", fontWeight: 700 }}>🏢 {d.sedeNombre}</div>}
                     </div>
-                    <span style={{ background: bg, color, fontSize: "0.65rem", fontWeight: 900, padding: "4px 10px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px", textTransform: "uppercase" }}>
-                      <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: dot }} />
-                      {d.tipo}
-                    </span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '5px' }}>
+                      {d.tipo.map(t => {
+                        const colors = TIPO_COLORS[t] || { bg: "#f3f4f6", color: "#374151", dot: "#9ca3af" };
+                        const { bg, color, dot } = colors;
+                        return (
+                          <span key={t} style={{ background: bg, color, fontSize: "0.65rem", fontWeight: 900, padding: "4px 10px", borderRadius: "20px", display: "inline-flex", alignItems: "center", gap: "4px", textTransform: "uppercase" }}>
+                            <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: dot }} />
+                            {t}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                   
                   {d.descripcion && (
@@ -384,8 +439,14 @@ export default function HySPage() {
                     </div>
                     {!isReadOnly && (
                       <div style={{ display: "flex", gap: "8px" }}>
-                        <button onClick={() => openEdit(d)} style={{ background: "#f0f7ff", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer" }}>✏️</button>
-                        <button onClick={() => setDeleteConfirm(d.id)} style={{ background: "#fff1f0", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer" }}>🗑️</button>
+                        <button onClick={() => openEdit(d)} style={{ background: "#f0f7ff", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer", color: "#0061ff" }}>
+                          <Edit size={18} />
+                        </button>
+                        {isAdmin && (
+                          <button onClick={() => setDeleteConfirm(d.id)} style={{ background: "#fff1f0", border: "none", padding: "8px", borderRadius: "8px", cursor: "pointer", color: "#ef4444" }}>
+                            <Trash2 size={18} />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -451,11 +512,10 @@ export default function HySPage() {
                         onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
                         placeholder="Buscar cliente registrado..." 
                       />
-                      {showSuggestions && (
+                      {showSuggestions && fCliente.length >= 2 && (
                         <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, maxHeight: "220px", overflowY: "auto", marginTop: "5px" }}>
                           {usuarios
                             .filter(u => {
-                              if (!fCliente) return true;
                               const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase();
                               return searchStr.includes(fCliente.toLowerCase());
                             })
@@ -467,6 +527,9 @@ export default function HySPage() {
                                   onClick={() => { 
                                     setFCliente(display); 
                                     setFClienteId(u.id);
+                                    setFilteredSedes(u.sedes || []);
+                                    setFSedeId("");
+                                    setFSedeNombre("");
                                     setShowSuggestions(false); 
                                   }}
                                   style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
@@ -500,18 +563,51 @@ export default function HySPage() {
                 </div>
               </div>
 
+              {/* SEDE / OBRA */}
+              {!fClienteManual && fClienteId && (
+                <div>
+                  <label style={labelSt}>Sede / Obra / Consorcio</label>
+                  <select 
+                    style={{ ...inputSt, background: "#fff" }} 
+                    value={fSedeId} 
+                    onChange={e => {
+                      const s = filteredSedes.find(x => x.id === e.target.value);
+                      if (s) {
+                        setFSedeId(s.id);
+                        setFSedeNombre(s.nombre);
+                        setFSedeRazonSocial(s.razonSocial || "");
+                      } else {
+                        setFSedeId("");
+                        setFSedeNombre("");
+                        setFSedeRazonSocial("");
+                      }
+                    }}
+                  >
+                    <option value="">{filteredSedes.length === 0 ? "Sin sedes registradas" : "Seleccionar sede (Opcional)"}</option>
+                    {filteredSedes.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Tipo */}
               <div>
-                <label style={labelSt}>Tipo de Documento</label>
+                <label style={labelSt}>Tipo de Documento (Podés seleccionar varios) *</label>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px" }}>
                   {TIPOS.map(t => {
-                    const active = fTipo === t;
+                    const active = fTipos.includes(t);
                     const { bg, color, dot } = TIPO_COLORS[t];
                     return (
-                      <button key={t} type="button" onClick={() => setFTipo(t)}
+                      <button key={t} type="button" 
+                        onClick={() => {
+                          if (active) setFTipos(prev => prev.filter(x => x !== t));
+                          else setFTipos(prev => [...prev, t]);
+                        }}
                         style={{ padding: "10px 14px", borderRadius: "8px", border: `2px solid ${active ? dot : "#eee"}`, background: active ? bg : "#fff", color: active ? color : "#666", fontWeight: active ? 800 : 500, cursor: "pointer", textAlign: "left", fontSize: "0.88rem", transition: "0.2s", display: "flex", alignItems: "center", gap: "8px" }}>
                         <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: active ? dot : "#ddd", flexShrink: 0 }} />
                         {t}
+                        {active && <CheckCircle2 size={14} style={{ marginLeft: 'auto' }} />}
                       </button>
                     );
                   })}
@@ -553,8 +649,8 @@ export default function HySPage() {
                   style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>
                   Cancelar
                 </button>
-                <button onClick={handleSave} disabled={saving} className="btn-red" style={{ flex: 2, padding: "12px" }}>
-                  {saving ? "Guardando..." : "💾 Guardar Documento"}
+                <button onClick={handleSave} disabled={saving || fTipos.length === 0} className="btn-red" style={{ flex: 2, padding: "12px", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  {saving ? "Guardando..." : <><FileText size={18} /> Guardar Documento</>}
                 </button>
               </div>
             </div>

@@ -3,13 +3,23 @@ import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, deleteDoc } from "firebase/firestore";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { 
+  ArrowLeft, 
+  Trash2, 
+  Edit, 
+  Download, 
+  CheckCircle2, 
+  AlertCircle 
+} from "lucide-react";
 import { generateMantenimientoPDF } from "@/lib/pdfGenerator";
 
 export default function DetalleMantenimientoPage() {
   const { id } = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const downloadParam = searchParams.get("download");
   const [ficha, setFicha] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
@@ -25,7 +35,11 @@ export default function DetalleMantenimientoPage() {
       const docRef = doc(db, "mantenimiento_matafuegos", id as string);
       const snap = await getDoc(docRef);
       if (snap.exists()) {
-        setFicha({ id: snap.id, ...snap.data() });
+        const data = { id: snap.id, ...snap.data() };
+        setFicha(data);
+        if (downloadParam === "true") {
+           setTimeout(() => generateMantenimientoPDF(data), 1000);
+        }
       }
       setLoading(false);
     });
@@ -58,24 +72,32 @@ export default function DetalleMantenimientoPage() {
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", paddingBottom: "100px" }}>
-      <header style={{ marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: 'wrap', gap: '15px' }}>
+      <header style={{ marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: 'center' }}>
         <div>
-          <button onClick={() => router.push("/admin/planillas/matafuegos/mantenimiento")} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', marginBottom: '10px', display: 'block', padding: 0 }}>← Volver a la lista</button>
-          <h1 style={{ fontSize: "2rem", fontWeight: 900, color: "var(--primary-blue)" }}>Ficha Técnica FT-{String(ficha.numeroFicha).padStart(5, "0")}</h1>
+          <button onClick={() => router.push("/admin/planillas/matafuegos")} 
+            style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "10px", padding: 0 }}>
+            <ArrowLeft size={18} /> Volver al listado
+          </button>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0 }}>
+            Ficha Técnica FT-{String(ficha.numeroFicha).padStart(5, "0")}
+          </h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           {isAdmin && (
-            <button onClick={() => setDeleteConfirm(true)} style={{ padding: '12px', borderRadius: '10px', border: '1px solid #ffddd9', background: '#fff5f4', color: 'var(--primary-red)', cursor: 'pointer' }}>
-              🗑️
+            <button onClick={() => setDeleteConfirm(true)} 
+              style={{ width: "42px", height: "42px", borderRadius: "10px", border: "1px solid #ffddd9", background: "#fff5f4", color: "var(--primary-red)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Trash2 size={20} />
             </button>
           )}
           {role !== "cliente" && (
-            <button onClick={() => router.push(`/admin/planillas/matafuegos/mantenimiento/nuevo?edit=${ficha.id}`)} style={{ padding: '12px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-              ✏️ Editar
+            <button onClick={() => router.push(`/admin/planillas/matafuegos/mantenimiento/nuevo?edit=${ficha.id}`)} 
+              style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Edit size={18} /> Editar
             </button>
           )}
-          <button onClick={handleDownloadPDF} className="btn-red" style={{ padding: "12px 25px", fontWeight: 700 }}>
-            📥 Descargar PDF
+          <button onClick={handleDownloadPDF} className="btn-red" 
+            style={{ padding: "10px 20px", fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Scroll size={18} /> Descargar PDF
           </button>
         </div>
       </header>

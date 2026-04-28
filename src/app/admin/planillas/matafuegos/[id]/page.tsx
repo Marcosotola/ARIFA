@@ -1,9 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
+import { 
+  ArrowLeft, 
+  Edit, 
+  Download, 
+  MapPin, 
+  Phone, 
+  User, 
+  Flame,
+  CheckCircle2,
+  Clock,
+  Scroll
+} from "lucide-react";
 
 interface Equipo {
   id: string;
@@ -23,6 +35,9 @@ interface Remito {
   clienteEmpresa: string;
   clienteDireccion: string;
   clienteTelefono: string;
+  sedeId?: string;
+  sedeNombre?: string;
+  sedeRazonSocial?: string;
   tecnicoNombre: string;
   equipos: Equipo[];
   firma: string;
@@ -33,6 +48,8 @@ interface Remito {
 export default function DetalleRemitoPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const downloadParam = searchParams.get("download");
   const [remito, setRemito] = useState<Remito | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,7 +59,14 @@ export default function DetalleRemitoPage() {
         const docRef = doc(db, "remitos_matafuegos", params.id as string);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setRemito({ id: docSnap.id, ...docSnap.data() } as Remito);
+          const data = { id: docSnap.id, ...docSnap.data() } as Remito;
+          setRemito(data);
+          // Auto-download si viene el param
+          if (downloadParam === "true") {
+            setTimeout(() => {
+               handlePDF(data);
+            }, 500);
+          }
         } else {
           alert("Remito no encontrado");
           router.push("/admin/planillas/matafuegos");
@@ -56,15 +80,16 @@ export default function DetalleRemitoPage() {
     fetchRemito();
   }, [params.id, router]);
 
-  const handlePDF = async () => {
-    if (!remito) return;
+  const handlePDF = async (data?: Remito) => {
+    const r = data || remito;
+    if (!r) return;
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
 
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
-    const remNum = String(remito.numero).padStart(5, "0");
-    const fecStr = remito.fecha ? new Date(remito.fecha).toLocaleDateString("es-AR") : "-";
+    const remNum = String(r.numero).padStart(5, "0");
+    const fecStr = r.fecha ? new Date(r.fecha).toLocaleDateString("es-AR") : "-";
 
     // ── Logo SVG → PNG ──
     let logoPng: string | null = null;
@@ -108,8 +133,8 @@ export default function DetalleRemitoPage() {
       
       pg.setFont(undefined as any, "normal");
       pg.text(fecStr, rx + 18, top + 8);
-      pg.text(remito.tipo.toUpperCase(), rx + 18, top + 15);
-      pg.text(remito.tecnicoNombre.split(" ")[0], rx + 18, top + 22);
+      pg.text(r.tipo.toUpperCase(), rx + 18, top + 15);
+      pg.text(r.tecnicoNombre.split(" ")[0], rx + 18, top + 22);
 
       return top + HEADER_H + 8;
     };
@@ -121,10 +146,10 @@ export default function DetalleRemitoPage() {
       startY: y,
       margin: { left: ML, right: MR },
       body: [
-        [{ content: "CLIENTE:", styles: { fontStyle: "bold", cellWidth: 40 } }, remito.clienteNombre],
-        [{ content: "EMPRESA:", styles: { fontStyle: "bold" } }, remito.clienteEmpresa || "-"],
-        [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, remito.clienteDireccion || "-"],
-        [{ content: "TELÉFONO:", styles: { fontStyle: "bold" } }, remito.clienteTelefono || "-"],
+        [{ content: "CLIENTE:", styles: { fontStyle: "bold", cellWidth: 40 } }, r.clienteNombre],
+        [{ content: "EMPRESA:", styles: { fontStyle: "bold" } }, (r.sedeRazonSocial || r.clienteEmpresa || "-") + (r.sedeNombre ? ` - SEDE: ${r.sedeNombre}` : "")],
+        [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, r.clienteDireccion || "-"],
+        [{ content: "TELÉFONO:", styles: { fontStyle: "bold" } }, r.clienteTelefono || "-"],
       ],
       styles: { fontSize: 9, cellPadding: 3 },
       tableLineColor: [0, 34, 68], tableLineWidth: 0.2,
@@ -142,7 +167,7 @@ export default function DetalleRemitoPage() {
       startY: y,
       margin: { left: ML, right: MR },
       head: [["Cant.", "ID / Código", "Agente", "Capac.", "Estado", "Tipo"]],
-      body: remito.equipos.map(eq => [
+      body: r.equipos.map(eq => [
         eq.cantidad || "1",
         eq.id || "-",
         eq.tipo,
@@ -172,14 +197,14 @@ export default function DetalleRemitoPage() {
     pdf.setFontSize(8); pdf.setTextColor(100);
     pdf.text("CONFORMIDAD Y RECEPCIÓN DEL CLIENTE", bx + bw/2, y + 5, { align: "center" });
 
-    if (remito.firma) {
-      pdf.addImage(remito.firma, "PNG", bx + 10, y + 7, bw - 20, 25);
+    if (r.firma) {
+      pdf.addImage(r.firma, "PNG", bx + 10, y + 7, bw - 20, 25);
     }
     
     pdf.setFontSize(10); pdf.setTextColor(0); pdf.setFont(undefined as any, "bold");
-    pdf.text((remito.aclaracion || "").toUpperCase(), bx + bw/2, y + 36, { align: "center" });
+    pdf.text((r.aclaracion || "").toUpperCase(), bx + bw/2, y + 36, { align: "center" });
 
-    pdf.save(`Remito-${remito.tipo}-${remNum}.pdf`);
+    pdf.save(`Remito-${r.tipo}-${remNum}.pdf`);
   };
 
   if (loading) return <div style={{ padding: "100px", textAlign: "center" }}>Cargando remito...</div>;
@@ -191,17 +216,22 @@ export default function DetalleRemitoPage() {
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       <header style={{ marginBottom: "30px", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <Link href="/admin/planillas/matafuegos" style={{ textDecoration: 'none', color: '#666', fontSize: '0.9rem' }}>← Volver al listado</Link>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 900, color: "var(--primary-blue)", marginTop: '5px' }}>
+          <button onClick={() => router.push("/admin/planillas/matafuegos")} 
+            style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "10px", padding: 0 }}>
+            <ArrowLeft size={18} /> Volver al listado
+          </button>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0 }}>
             Remito R-{String(remito.numero).padStart(5, "0")}
           </h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => router.push(`/admin/planillas/matafuegos/nuevo?edit=${remito.id}`)} style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, cursor: 'pointer' }}>
-            ✏️ Editar
+          <button onClick={() => router.push(`/admin/planillas/matafuegos/nuevo?edit=${remito.id}`)} 
+            style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Edit size={18} /> Editar
           </button>
-          <button onClick={handlePDF} className="btn-blue" style={{ padding: '10px 20px', borderRadius: '10px' }}>
-            📥 Descargar PDF
+          <button onClick={handlePDF} className="btn-blue" 
+            style={{ padding: '10px 20px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Scroll size={18} /> Descargar PDF
           </button>
         </div>
       </header>
@@ -223,8 +253,12 @@ export default function DetalleRemitoPage() {
             </div>
             <div>
               <h4 style={{ color: '#999', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px' }}>Logística</h4>
-              <div style={{ fontSize: '0.9rem', color: '#444' }}>📍 {remito.clienteDireccion || 'Sin dirección'}</div>
-              <div style={{ fontSize: '0.9rem', color: '#444' }}>📞 {remito.clienteTelefono || 'Sin teléfono'}</div>
+              <div style={{ fontSize: "0.9rem", color: "#444", display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                <MapPin size={14} color="var(--primary-blue)" /> {remito.clienteDireccion || 'Sin dirección'}
+              </div>
+              <div style={{ fontSize: "0.9rem", color: "#444", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Phone size={14} color="var(--primary-blue)" /> {remito.clienteTelefono || 'Sin teléfono'}
+              </div>
             </div>
           </div>
 
@@ -241,11 +275,13 @@ export default function DetalleRemitoPage() {
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   {eq.esPrestamo ? (
-                    <span style={{ background: '#fff1f2', color: '#e11d48', padding: '5px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, border: '1px solid #fda4af' }}>
-                      🔥 EQUIPO DE PRÉSTAMO
+                    <span style={{ background: '#fff1f2', color: '#e11d48', padding: '5px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 900, border: '1px solid #fda4af', display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Flame size={12} fill="#e11d48" /> EQUIPO DE PRÉSTAMO
                     </span>
                   ) : (
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#999' }}>{eq.estado}</span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', color: '#999', display: "flex", alignItems: "center", gap: "4px" }}>
+                      <CheckCircle2 size={12} /> {eq.estado}
+                    </span>
                   )}
                 </div>
               </div>

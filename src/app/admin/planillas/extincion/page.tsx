@@ -17,6 +17,7 @@ interface OT {
   tecnicos: string[];
   estado: string;
   planillasSeleccionadas: { nombre: string; codigo?: string }[];
+  sedeNombre?: string;
   createdAt: any;
 }
 
@@ -31,6 +32,8 @@ export default function ExtincionPage() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filtroSede, setFiltroSede] = useState("Todas");
   const router = useRouter();
 
   useEffect(() => {
@@ -58,6 +61,17 @@ export default function ExtincionPage() {
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
+  
+  const filteredOts = ots.filter(ot => {
+    const matchesSearch = 
+      String(ot.numero).includes(search) || 
+      ot.clienteNombre?.toLowerCase().includes(search.toLowerCase()) ||
+      ot.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
+    const matchesSede = filtroSede === "Todas" || ot.sedeNombre === filtroSede;
+    return matchesSearch && matchesSede;
+  });
+
+  const sedesDisponibles = Array.from(new Set(ots.map(o => o.sedeNombre).filter(Boolean))) as string[];
 
   const handleDelete = async (id: string) => {
     try {
@@ -82,11 +96,26 @@ export default function ExtincionPage() {
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Órdenes de Trabajo — Extinción</h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Sistema de Extinción de Incendios — Rociadores, Hidrantes y más.</p>
         </div>
-        {isStaff && (
-          <Link href="/admin/planillas/extincion/nueva" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
-            ➕ Nueva OT
-          </Link>
-        )}
+        </div>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
+           <input 
+             style={{ ...inputSt, width: "240px" }} 
+             placeholder="🔍 Buscar por OT o Cliente..." 
+             value={search} 
+             onChange={e => setSearch(e.target.value)} 
+           />
+           {sedesDisponibles.length > 0 && (
+             <select style={{ ...inputSt, width: "180px", background: "#fff" }} value={filtroSede} onChange={e => setFiltroSede(e.target.value)}>
+               <option value="Todas">Todas las sedes</option>
+               {sedesDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
+             </select>
+           )}
+           {isStaff && (
+            <Link href="/admin/planillas/extincion/nueva" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              ➕ Nueva OT
+            </Link>
+           )}
+        </div>
       </header>
 
       {/* TABLE */}
@@ -116,7 +145,7 @@ export default function ExtincionPage() {
                 </tr>
               </thead>
               <tbody>
-                {ots.map(ot => {
+                {filteredOts.map(ot => {
                   const ec = ESTADO_COLORS[ot.estado] || ESTADO_COLORS.borrador;
                   return (
                     <tr key={ot.id} style={{ borderBottom: "1px solid #f2f5f9", transition: "background 0.15s" }}
@@ -133,6 +162,7 @@ export default function ExtincionPage() {
                       </td>
                       <td style={{ padding: "14px 16px" }}>
                         <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{ot.clienteNombre || "-"}</div>
+                        {ot.sedeNombre && <div style={{ fontSize: "0.75rem", color: "var(--primary-blue)", fontWeight: 700 }}>📍 {ot.sedeNombre}</div>}
                         {ot.clienteEmpresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{ot.clienteEmpresa}</div>}
                       </td>
                       <td style={{ padding: "14px 16px" }}>

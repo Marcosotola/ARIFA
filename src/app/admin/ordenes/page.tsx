@@ -6,26 +6,55 @@ import { collection, query, addDoc, getDocs, orderBy, updateDoc, doc, serverTime
 
 export default function OrdenesAdmin() {
   const [ordenes, setOrdenes] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
-  const [newOrder, setNewOrder] = useState({ cliente: "", direccion: "", tipo: "Mantenimiento Matafuegos", estado: "Pendiente", tecnico: "" });
+  const [filtroSede, setFiltroSede] = useState("Todas");
+  const [search, setSearch] = useState("");
+  const [newOrder, setNewOrder] = useState<any>({ 
+    cliente: "", 
+    clienteId: "",
+    sedeId: "",
+    sedeNombre: "",
+    direccion: "", 
+    tipo: "Mantenimiento Matafuegos", 
+    estado: "Pendiente", 
+    tecnico: "" 
+  });
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
         const userDoc = await getDoc(doc(db, "usuarios", u.uid));
-        const roleData = userDoc.exists() ? userDoc.data().rol : "cliente";
+        const userData = userDoc.exists() ? userDoc.data() : {};
+        const roleData = userData.rol || "cliente";
         setRole(roleData);
         fetchOrdenes(u.uid, roleData);
+        if (roleData === 'admin' || roleData === 'superadmin') {
+          fetchUsuarios();
+        }
       }
     });
     return () => unsub();
   }, []);
 
+  const fetchUsuarios = async () => {
+    try {
+      const q = query(collection(db, "usuarios"), where("rol", "==", "cliente"));
+      const snap = await getDocs(q);
+      setUsuarios(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.error("Error fetching users:", e);
+    }
+  };
+
   const fetchOrdenes = async (uid: string, role: string) => {
+    setLoading(true);
     try {
       let q;
       if (role === 'admin' || role === 'superadmin') {
@@ -44,160 +73,228 @@ export default function OrdenesAdmin() {
     }
   };
 
+  const handleSelectCliente = (u: any) => {
+    setNewOrder({
+      ...newOrder,
+      cliente: u.empresa || `${u.nombre} ${u.apellido}`,
+      clienteId: u.id,
+      direccion: u.direccion || "",
+      sedeId: "",
+      sedeNombre: ""
+    });
+    setFilteredSedes(u.sedes || []);
+    setShowSuggestions(false);
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (role !== 'admin') return;
+    if (role !== 'admin' && role !== 'superadmin') return;
     try {
+      const num = ordenes.length ? Math.max(...ordenes.map(o => o.numero || 0)) + 1 : 1;
       await addDoc(collection(db, "ordenes_trabajo"), {
         ...newOrder,
+        numero: num,
+        userId: newOrder.clienteId || null,
         fechaCreacion: serverTimestamp(),
       });
       fetchOrdenes(user.uid, role!);
       setShowForm(false);
-      setNewOrder({ cliente: "", direccion: "", tipo: "Mantenimiento Matafuegos", estado: "Pendiente", tecnico: "" });
+      setNewOrder({ cliente: "", clienteId: "", sedeId: "", sedeNombre: "", direccion: "", tipo: "Mantenimiento Matafuegos", estado: "Pendiente", tecnico: "" });
+      setFilteredSedes([]);
     } catch (e) {
       alert("Error al crear la orden: " + e);
     }
   };
 
-  const setStatus = async (id: string, s: string) => {
-    if (role !== 'admin') return;
-    try {
-      await updateDoc(doc(db, "ordenes_trabajo", id), { estado: s });
-      setOrdenes(prev => prev.map(o => o.id === id ? { ...o, estado: s } : o));
-    } catch (e) {
-      alert("Error: " + e);
-    }
+  const updateEstado = async (id: string, nuevo: string) => {
+    if (role !== 'admin' && role !== 'superadmin') return;
+    await updateDoc(doc(db, "ordenes_trabajo", id), { estado: nuevo });
+    fetchOrdenes(user.uid, role!);
   };
 
-  if (loading) return <div style={{padding: '50px', textAlign:'center', color:'var(--text-muted)'}}>Cargando Órdenes...</div>;
+  const filteredOrdenes = ordenes.filter(o => {
+    const matchesSearch = 
+      o.cliente.toLowerCase().includes(search.toLowerCase()) || 
+      String(o.numero || "").includes(search);
+    const matchesSede = filtroSede === "Todas" || o.sedeNombre === filtroSede;
+    return matchesSearch && matchesSede;
+  });
 
-  const isAdmin = role === 'admin' || role === 'superadmin';
+  const sedesDisponibles = Array.from(new Set(ordenes.map(o => o.sedeNombre).filter(Boolean))) as string[];
+
+  if (loading) return <div style={{ padding: "100px", textAlign: "center" }}>Cargando panel...</div>;
+
+  const isClient = role === "cliente";
+  const isAdmin = role === "admin" || role === "superadmin";
 
   return (
-    <div style={{ maxWidth: "1200px" }}>
-      <header style={{ marginBottom: "35px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <div style={{ maxWidth: "1000px" }}>
+      <header style={{ marginBottom: "30px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "15px" }}>
         <div>
-          <h1 style={{ fontSize: "2rem", fontWeight: 800, color: "var(--primary-blue)" }}>
-            {isAdmin ? "Órdenes de Trabajo" : "Mis Órdenes de Trabajo"}
+          <h1 style={{ fontSize: "2rem", fontWeight: 900, color: "var(--primary-blue)" }}>
+            {isClient ? "Mis Órdenes de Trabajo" : "Gestión de Órdenes"}
           </h1>
-          <p style={{ color: "var(--text-muted)", marginTop: "8px" }}>
-            {isAdmin ? "Gestión de visitas técnicas y mantenimientos." : "Seguí el progreso de tus servicios técnicos contratados."}
-          </p>
+          <p style={{ color: "var(--text-muted)" }}>Control y seguimiento de servicios en campo.</p>
         </div>
         {isAdmin && (
-          <button 
-            onClick={() => setShowForm(!showForm)} 
-            className="btn-red"
-            style={{ padding: "12px 25px" }}
-          >
-            {showForm ? "✖ Cancelar" : "➕ Nueva Orden"}
+          <button onClick={() => setShowForm(!showForm)} className="btn-red" style={{ padding: "12px 24px" }}>
+            {showForm ? "✕ Cancelar" : "➕ Nueva Orden"}
           </button>
         )}
       </header>
 
       {showForm && isAdmin && (
-        <section style={{ background: "#fff", padding: "30px", borderRadius: "12px", marginBottom: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)" }}>
-          <h2 style={{ fontSize: "1.2rem", fontWeight: 800, marginBottom: "20px" }}>Crear Nueva Orden de Trabajo</h2>
-          <form onSubmit={handleCreate} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div className="form-group">
-               <label>Cliente / Razón Social</label>
-               <input type="text" required value={newOrder.cliente} onChange={(e) => setNewOrder({...newOrder, cliente: e.target.value})} placeholder="Ej: Industria S.A." style={{width:'100%', padding:'12px', borderRadius:'4px', border:'1px solid #ddd'}} />
+        <div style={{ background: "#fff", padding: "24px", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.08)", marginBottom: "30px", border: "1px solid #eee" }}>
+          <h2 style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: "20px", color: "var(--primary-blue)" }}>Información de la Orden</h2>
+          <form onSubmit={handleCreate} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+            <div style={{ gridColumn: "span 2", position: "relative" }}>
+              <label style={labelSt}>Cliente</label>
+              <input 
+                style={inputSt} 
+                value={newOrder.cliente} 
+                onChange={e => { 
+                  setNewOrder({ ...newOrder, cliente: e.target.value, clienteId: "", sedeId: "", sedeNombre: "" }); 
+                  setShowSuggestions(true); 
+                }} 
+                placeholder="Nombre del cliente o empresa..." 
+              />
+              {showSuggestions && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", maxHeight: "200px", overflowY: "auto" }}>
+                  {usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa}`.toLowerCase().includes(newOrder.cliente.toLowerCase())).map(u => (
+                    <div key={u.id} onClick={() => handleSelectCliente(u)} style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+                         onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
+                         onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
+                      <div style={{ fontWeight: 700 }}>{u.empresa || `${u.nombre} ${u.apellido}`}</div>
+                      <div style={{ fontSize: "0.75rem", color: "#666" }}>{u.email}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="form-group">
-               <label>Dirección del Servicio</label>
-               <input type="text" required value={newOrder.direccion} onChange={(e) => setNewOrder({...newOrder, direccion: e.target.value})} placeholder="Ej: Av. Colon 1200" style={{width:'100%', padding:'12px', borderRadius:'4px', border:'1px solid #ddd'}} />
+
+            <div>
+              <label style={labelSt}>Sede / Obra (Opcional)</label>
+              <select 
+                style={inputSt} 
+                value={newOrder.sedeId} 
+                onChange={e => {
+                  const s = filteredSedes.find(x => x.id === e.target.value);
+                  if (s) {
+                    setNewOrder({ ...newOrder, sedeId: s.id, sedeNombre: s.nombre, direccion: s.direccion });
+                  } else {
+                    const cli = usuarios.find(x => x.id === newOrder.clienteId);
+                    setNewOrder({ ...newOrder, sedeId: "", sedeNombre: "", direccion: cli?.direccion || "" });
+                  }
+                }}
+              >
+                <option value="">-- Sin sede --</option>
+                {filteredSedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </select>
             </div>
-            <div className="form-group">
-               <label>Tipo de Trabajo</label>
-               <select value={newOrder.tipo} onChange={(e) => setNewOrder({...newOrder, tipo: e.target.value})} style={{width:'100%', padding:'12px', borderRadius:'4px', border:'1px solid #ddd'}}>
-                  <option>Mantenimiento Matafuegos</option>
-                  <option>Revisión Instalación Fija</option>
-                  <option>Cálculo Carga de Fuego</option>
-                  <option>Capacitación al Personal</option>
-                  <option>Emergencia / Urgencia</option>
-               </select>
+
+            <div>
+              <label style={labelSt}>Dirección</label>
+              <input style={inputSt} value={newOrder.direccion} onChange={e => setNewOrder({ ...newOrder, direccion: e.target.value })} />
             </div>
-            <div className="form-group">
-               <label>Técnico Asignado</label>
-               <input type="text" value={newOrder.tecnico} onChange={(e) => setNewOrder({...newOrder, tecnico: e.target.value})} placeholder="Nombre del técnico" style={{width:'100%', padding:'12px', borderRadius:'4px', border:'1px solid #ddd'}} />
+
+            <div>
+              <label style={labelSt}>Tipo de Trabajo</label>
+              <select style={inputSt} value={newOrder.tipo} onChange={e => setNewOrder({ ...newOrder, tipo: e.target.value })}>
+                <option>Mantenimiento Matafuegos</option>
+                <option>Certificación de Red de Incendio</option>
+                <option>Capacitación HyS</option>
+                <option>Auditoría Técnica</option>
+              </select>
             </div>
-            <div style={{ gridColumn: "span 2", textAlign: "right", marginTop: "10px" }}>
-              <button type="submit" className="btn-blue" style={{ minWidth: "180px", padding: "14px" }}>Guardar Orden 🛠️</button>
+            <div>
+              <label style={labelSt}>Técnico Asignado</label>
+              <input style={inputSt} value={newOrder.tecnico} onChange={e => setNewOrder({ ...newOrder, tecnico: e.target.value })} placeholder="Nombre del técnico..." />
             </div>
+            <button type="submit" className="btn-red" style={{ gridColumn: "span 2", padding: "14px", marginTop: "10px" }}>Generar Orden de Trabajo</button>
           </form>
-        </section>
+        </div>
       )}
 
-      <div style={{ background: "#fff", padding: isAdmin ? "30px" : "20px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.03)" }}>
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1.5px solid var(--border-light)" }}>
-                <th style={{ textAlign: "left", padding: "12px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>ID / Fecha</th>
-                {isAdmin && <th style={{ textAlign: "left", padding: "12px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Cliente</th>}
-                <th style={{ textAlign: "left", padding: "12px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Servicio</th>
-                {!isAdmin && <th style={{ textAlign: "left", padding: "12px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Dirección</th>}
-                <th style={{ textAlign: "left", padding: "12px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Técnico</th>
-                <th style={{ textAlign: "center", padding: "12px", fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ordenes.length > 0 ? ordenes.map((o) => (
-                <tr key={o.id} style={{ borderBottom: "1px solid #f2f5f9" }}>
-                  <td style={{ padding: "15px 12px", fontSize: "0.85rem" }}>
-                    <div style={{ fontWeight: 800, color: "#999" }}>#{o.id.slice(0, 6)}</div>
-                    <div style={{ fontSize: "0.7rem", color: "#666" }}>{new Date(o.fechaCreacion?.seconds * 1000).toLocaleDateString()}</div>
-                  </td>
-                  {isAdmin && (
-                    <td style={{ padding: "15px 12px", fontSize: "0.88rem" }}>
-                      <div style={{ fontWeight: 700 }}>{o.cliente}</div>
-                      <div style={{ fontSize: "0.75rem", color: "#888" }}>{o.direccion}</div>
-                    </td>
-                  )}
-                  <td style={{ padding: "15px 12px", fontSize: "0.85rem" }}>
-                    <div style={{ padding: "3px 10px", borderRadius: "20px", display: "inline-block", background: "#f0f0f0", fontWeight: 700, fontSize: "0.75rem" }}>{o.tipo}</div>
-                  </td>
-                  {!isAdmin && <td style={{ padding: "15px 12px", fontSize: "0.85rem", color: "#666" }}>{o.direccion}</td>}
-                  <td style={{ padding: "15px 12px", fontSize: "0.85rem", color: "#666" }}>{o.tecnico || "Sin asignar"}</td>
-                  <td style={{ padding: "15px 12px", textAlign: "center" }}>
-                    {isAdmin ? (
-                      <select 
-                        value={o.estado} 
-                        onChange={(e) => setStatus(o.id, e.target.value)}
-                        style={{ 
-                          fontSize: "0.7rem", padding: "5px 10px", borderRadius: "20px", border: "none", fontWeight: 900, textTransform: "uppercase" ,
-                          background: o.estado === "Completada" ? "#e8f5e9" : o.estado === "En Proceso" ? "#fff3e0" : "#f5f5f5",
-                          color: o.estado === "Completada" ? "#2e7d32" : o.estado === "En Proceso" ? "#ef6c00" : "#555",
-                        }}
-                      >
-                        <option>Pendiente</option>
-                        <option>En Proceso</option>
-                        <option>Completada</option>
-                        <option>Cancelada</option>
-                      </select>
-                    ) : (
-                      <span style={{ 
-                        fontSize: "0.6rem", padding: "4px 10px", borderRadius: "20px", fontWeight: 900, textTransform: "uppercase",
-                        background: o.estado === "Completada" ? "#e8f5e9" : o.estado === "En Proceso" ? "#fff3e0" : "#f5f5f5",
-                        color: o.estado === "Completada" ? "#2e7d32" : o.estado === "En Proceso" ? "#ef6c00" : "#555",
-                      }}>
-                        {o.estado}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={isAdmin ? 5 : 4} style={{ textAlign: "center", padding: "40px", color: "#bbb" }}>
-                    No tenés órdenes registradas.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {/* FILTROS */}
+      <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
+        <div style={{ flex: 1, minWidth: "220px" }}>
+          <label style={labelSt}>Buscar</label>
+          <input 
+            type="text" 
+            placeholder="N° orden o cliente..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)}
+            style={{ ...inputSt, background: "#fff" }}
+          />
         </div>
+        {sedesDisponibles.length > 0 && (
+          <div style={{ width: "200px" }}>
+            <label style={labelSt}>Sede / Obra</label>
+            <select 
+              value={filtroSede} 
+              onChange={e => setFiltroSede(e.target.value)}
+              style={{ ...inputSt, background: "#fff" }}
+            >
+              <option value="Todas">Todas las sedes</option>
+              {sedesDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+        )}
+        <button onClick={() => { setSearch(""); setFiltroSede("Todas"); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+      </div>
+
+      <div style={{ background: "#fff", borderRadius: "16px", boxShadow: "0 4px 25px rgba(0,0,0,0.05)", overflow: "hidden", border: "1px solid #eee" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: "#f8fafc", borderBottom: "2px solid #edf2f7" }}>
+              <th style={thSt}>N° / Fecha</th>
+              <th style={thSt}>Cliente / Sede</th>
+              <th style={thSt}>Servicio</th>
+              <th style={thSt}>Estado</th>
+              <th style={thSt}>Técnico</th>
+              {isAdmin && <th style={thSt}>Acciones</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredOrdenes.map((o) => (
+              <tr key={o.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                <td style={{ padding: "16px" }}>
+                  <div style={{ fontWeight: 800, color: "var(--primary-blue)" }}>OT-{String(o.numero || 0).padStart(4, "0")}</div>
+                  <div style={{ fontSize: "0.7rem", color: "#666" }}>{o.fechaCreacion?.seconds ? new Date(o.fechaCreacion.seconds * 1000).toLocaleDateString() : "Recién creada"}</div>
+                </td>
+                <td style={{ padding: "16px" }}>
+                  <div style={{ fontWeight: 700 }}>{o.cliente}</div>
+                  {o.sedeNombre && <div style={{ fontSize: "0.75rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {o.sedeNombre}</div>}
+                  <div style={{ fontSize: "0.75rem", color: "#888" }}>{o.direccion}</div>
+                </td>
+                <td style={{ padding: "16px", fontSize: "0.85rem" }}>{o.tipo}</td>
+                <td style={{ padding: "16px" }}>
+                  <span style={{ fontSize: "0.7rem", fontWeight: 900, padding: "5px 12px", borderRadius: "20px", textTransform: "uppercase",
+                    background: o.estado === "Completada" ? "#dcfce7" : o.estado === "En Proceso" ? "#fef9c3" : "#fee2e2",
+                    color: o.estado === "Completada" ? "#166534" : o.estado === "En Proceso" ? "#854d0e" : "#b91c1c" }}>
+                    {o.estado}
+                  </span>
+                </td>
+                <td style={{ padding: "16px", fontSize: "0.85rem", color: "#666" }}>{o.tecnico || "—"}</td>
+                {isAdmin && (
+                  <td style={{ padding: "16px" }}>
+                    <select value={o.estado} onChange={(e) => updateEstado(o.id, e.target.value)} style={{ padding: "6px", borderRadius: "6px", fontSize: "0.75rem", border: "1px solid #ddd" }}>
+                      <option>Pendiente</option>
+                      <option>En Proceso</option>
+                      <option>Completada</option>
+                    </select>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filteredOrdenes.length === 0 && <div style={{ padding: "60px", textAlign: "center", color: "#999" }}>No hay órdenes registradas.</div>}
       </div>
     </div>
   );
 }
+
+const labelSt = { display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" as any };
+const inputSt = { width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #ddd", fontSize: "0.9rem", outline: "none" };
+const thSt = { textAlign: "left" as any, padding: "16px", fontSize: "0.7rem", color: "#999", textTransform: "uppercase" as any, fontWeight: 800, letterSpacing: "0.5px" };

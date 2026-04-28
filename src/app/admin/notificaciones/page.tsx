@@ -10,6 +10,22 @@ import {
   query,
   limit,
 } from "firebase/firestore";
+import { 
+  Bell, 
+  Megaphone, 
+  User, 
+  Send, 
+  AlertTriangle, 
+  History, 
+  CheckCircle2, 
+  AlertCircle, 
+  Loader2,
+  Clock,
+  ExternalLink,
+  ChevronRight,
+  ShieldCheck,
+  Mail
+} from "lucide-react";
 
 interface Usuario {
   uid: string;
@@ -165,13 +181,18 @@ export default function NotificacionesPage() {
   );
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+    <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
       {/* Header */}
       <header style={{ marginBottom: "35px" }}>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
-          🔔 Notificaciones Push
-        </h1>
-        <p style={{ color: "var(--text-muted)", marginTop: "5px", fontSize: "0.95rem" }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: 'rgba(0,97,255,0.1)', color: 'var(--primary-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Bell size={28} />
+          </div>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)", margin: 0 }}>
+            Notificaciones Push
+          </h1>
+        </div>
+        <p style={{ color: "var(--text-muted)", marginTop: "10px", fontSize: "1rem" }}>
           Enviá notificaciones generales a todos los usuarios o mensajes directos a un usuario específico.
         </p>
       </header>
@@ -183,28 +204,29 @@ export default function NotificacionesPage() {
         </h2>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: "8px", marginBottom: "24px" }}>
+        <div style={{ display: "flex", gap: "10px", marginBottom: "24px", flexWrap: "wrap" }}>
           {([
-            { key: "general", icon: "📢", label: "General (todos los usuarios)" },
-            { key: "usuario", icon: "👤", label: "Usuario específico" },
+            { key: "general", icon: <Megaphone size={18} />, label: "General (todos)" },
+            { key: "usuario", icon: <User size={18} />, label: "Usuario específico" },
           ] as const).map(({ key, icon, label }) => (
             <button
               key={key}
               id={`notif-tab-${key}`}
               onClick={() => setTab(key)}
               style={{
-                padding: "10px 18px",
-                borderRadius: "8px",
-                border: tab === key ? "2px solid var(--primary-blue)" : "2px solid #e5e7eb",
+                padding: "12px 22px",
+                borderRadius: "10px",
+                border: tab === key ? "none" : "1.5px solid #e2e8f0",
                 background: tab === key ? "var(--primary-blue)" : "#fff",
-                color: tab === key ? "#fff" : "#555",
-                fontSize: "0.85rem",
+                color: tab === key ? "#fff" : "#64748b",
+                fontSize: "0.88rem",
                 fontWeight: 700,
                 cursor: "pointer",
                 display: "flex",
                 alignItems: "center",
-                gap: "6px",
+                gap: "8px",
                 transition: "all 0.2s",
+                boxShadow: tab === key ? "0 4px 12px rgba(0,97,255,0.25)" : "none",
               }}
             >
               {icon} {label}
@@ -218,26 +240,29 @@ export default function NotificacionesPage() {
             <label style={{ display: "block", fontSize: "0.82rem", fontWeight: 700, color: "var(--primary-blue)", textTransform: "uppercase", marginBottom: "8px" }}>
               Seleccionar Usuario
             </label>
-            <select
-              id="notif-destinatario"
-              value={destinatario?.uid || ""}
-              onChange={(e) => {
-                const u = usuarios.find((u) => u.uid === e.target.value) || null;
-                setDestinatario(u);
-              }}
-              style={{ width: "100%", padding: "12px 15px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.95rem", color: "#333" }}
-            >
-              <option value="">-- Elegí un usuario --</option>
-              {usuarios.map((u) => (
-                <option key={u.uid} value={u.uid}>
-                  {u.nombre || u.email} ({u.rol || "sin rol"}){u.fcmToken ? " 🔔" : " (sin token)"}
-                </option>
-              ))}
-            </select>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <User size={18} style={{ position: 'absolute', left: '12px', color: '#94a3b8' }} />
+              <select
+                id="notif-destinatario"
+                value={destinatario?.uid || ""}
+                onChange={(e) => {
+                  const u = usuarios.find((u) => u.uid === e.target.value) || null;
+                  setDestinatario(u);
+                }}
+                style={{ width: "100%", padding: "12px 15px 12px 40px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.95rem", color: "#333", background: '#fff' }}
+              >
+                <option value="">-- Elegí un usuario --</option>
+                {usuarios.map((u) => (
+                  <option key={u.uid} value={u.uid}>
+                    {u.nombre || u.email} ({u.rol || "sin rol"}) {u.fcmToken ? "✓ Con Token" : "✗ Sin Token"}
+                  </option>
+                ))}
+              </select>
+            </div>
             {destinatario && !destinatario.fcmToken && (
-              <p style={{ color: "#e67e22", fontSize: "0.8rem", marginTop: "6px", fontWeight: 600 }}>
-                ⚠️ Este usuario no tiene notificaciones activadas (sin token FCM).
-              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: "#e67e22", fontSize: "0.8rem", marginTop: '8px', fontWeight: 600 }}>
+                <AlertTriangle size={14} /> Este usuario no tiene notificaciones activadas (sin token FCM).
+              </div>
             )}
           </div>
         )}
@@ -314,31 +339,29 @@ export default function NotificacionesPage() {
         )}
 
         {/* Send Button */}
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "20px", flexWrap: 'wrap' }}>
           <button
             id="notif-enviar-btn"
             onClick={handleEnviar}
             disabled={enviando}
             className="btn-red"
-            style={{ padding: "14px 40px", fontSize: "0.9rem", fontWeight: 800, display: "flex", alignItems: "center", gap: "8px" }}
+            style={{ padding: "14px 40px", fontSize: "0.95rem", fontWeight: 800, display: "flex", alignItems: "center", gap: "10px", minWidth: '220px', justifyContent: 'center' }}
           >
             {enviando ? (
-              <>⏳ Enviando...</>
+              <><Loader2 size={20} className="animate-spin" /> Enviando...</>
             ) : (
               <>
-                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
-                </svg>
+                <Send size={20} />
                 {tab === "general" ? "Enviar a Todos" : "Enviar al Usuario"}
               </>
             )}
           </button>
 
           {feedback && (
-            <span style={{ fontSize: "0.9rem", fontWeight: 700, color: feedback.tipo === "ok" ? "#2e7d32" : "var(--primary-red)" }}>
-              {feedback.texto}
-            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: "0.92rem", fontWeight: 700, color: feedback.tipo === "ok" ? "#16a34a" : "var(--primary-red)" }}>
+              {feedback.tipo === "ok" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+              {feedback.texto.replace(/^[✓✗!]\s*/, '')}
+            </div>
           )}
         </div>
       </div>
@@ -354,44 +377,59 @@ export default function NotificacionesPage() {
             No hay notificaciones enviadas aún.
           </p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             {historial.map((n) => (
               <div key={n.id} style={{
                 display: "flex",
-                alignItems: "flex-start",
-                gap: "14px",
-                padding: "14px 16px",
-                borderRadius: "10px",
-                background: "#f9fafb",
-                border: "1px solid #eef0f5"
-              }}>
-                <span style={{ fontSize: "1.3rem", marginTop: "2px" }}>
-                  {n.tipo === "general" ? "📢" : "👤"}
-                </span>
+                alignItems: "center",
+                gap: "16px",
+                padding: "16px 20px",
+                borderRadius: "12px",
+                background: "#fff",
+                border: "1px solid #f1f5f9",
+                boxShadow: '0 2px 5px rgba(0,0,0,0.02)',
+                transition: 'transform 0.2s'
+              }} onMouseEnter={e => e.currentTarget.style.transform = 'translateX(5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'none'}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: n.tipo === 'general' ? 'rgba(0,97,255,0.08)' : 'rgba(100,116,139,0.08)', color: n.tipo === 'general' ? 'var(--primary-blue)' : '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {n.tipo === "general" ? <Megaphone size={18} /> : <User size={18} />}
+                </div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap", marginBottom: "4px" }}>
-                    <strong style={{ fontSize: "0.9rem", color: "#1a1a1a" }}>{n.titulo}</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "4px" }}>
+                    <strong style={{ fontSize: "0.95rem", color: "#1e293b" }}>{n.titulo}</strong>
                     <span style={{
-                      fontSize: "0.7rem",
-                      padding: "2px 8px",
-                      borderRadius: "10px",
-                      fontWeight: 700,
-                      background: n.estado === "enviada" ? "#e8f5e9" : n.estado === "error" ? "#ffebee" : "#fff3e0",
-                      color: n.estado === "enviada" ? "#2e7d32" : n.estado === "error" ? "#c62828" : "#e65100",
+                      fontSize: "0.68rem",
+                      padding: "3px 10px",
+                      borderRadius: "20px",
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      background: n.estado === "enviada" ? "#dcfce7" : n.estado === "error" ? "#fee2e2" : "#fef3c7",
+                      color: n.estado === "enviada" ? "#16a34a" : n.estado === "error" ? "#ef4444" : "#d97706",
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
                     }}>
+                      {n.estado === 'enviada' && <CheckCircle2 size={12} />}
+                      {n.estado === 'error' && <AlertCircle size={12} />}
+                      {n.estado === 'pendiente' && <Clock size={12} />}
                       {n.estado}
                     </span>
                     {n.tipo === "usuario" && n.destinatarioEmail && (
-                      <span style={{ fontSize: "0.75rem", color: "#666" }}>→ {n.destinatarioEmail}</span>
+                      <span style={{ fontSize: "0.8rem", color: "#64748b", display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                        <ChevronRight size={14} /> {n.destinatarioEmail}
+                      </span>
                     )}
                   </div>
-                  <p style={{ margin: 0, fontSize: "0.85rem", color: "#555" }}>{n.cuerpo}</p>
+                  <p style={{ margin: 0, fontSize: "0.88rem", color: "#475569" }}>{n.cuerpo}</p>
                 </div>
-                <span style={{ fontSize: "0.75rem", color: "#999", whiteSpace: "nowrap" }}>
-                  {n.creadaEn?.toDate
-                    ? n.creadaEn.toDate().toLocaleDateString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
-                    : "—"}
-                </span>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: "0.75rem", color: "#94a3b8", display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                    <Clock size={12} />
+                    {n.creadaEn?.toDate
+                      ? n.creadaEn.toDate().toLocaleDateString("es-AR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+                      : "—"}
+                  </div>
+                </div>
               </div>
             ))}
           </div>

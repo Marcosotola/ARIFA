@@ -8,6 +8,20 @@ import {
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
+import { 
+  Package, 
+  Settings, 
+  Plus, 
+  Eye, 
+  Edit, 
+  Trash2, 
+  Scroll,
+  MapPin,
+  CheckCircle2,
+  Clock,
+  AlertCircle
+} from "lucide-react";
+
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 type Prioridad = "Leve" | "Moderada" | "Crítica";
 const PRIORIDADES: Prioridad[] = ["Leve", "Moderada", "Crítica"];
@@ -17,6 +31,8 @@ interface PlanItem {
   cliente: string;
   clienteId?: string;
   consorcio: string;
+  sedeId?: string;
+  sedeNombre?: string;
   fecha: string;
   detalle: string;
   prioridad: Prioridad;
@@ -39,7 +55,7 @@ export default function PlanAccionPage() {
   const [uid, setUid] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [usuarios, setUsuarios] = useState<any[]>([]);
-  const [modal, setModal] = useState<"create" | "edit" | null>(null);
+  const [modal, setModal] = useState<"create" | "edit" | "view" | null>(null);
   const [selectedItem, setSelectedItem] = useState<PlanItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -55,6 +71,9 @@ export default function PlanAccionPage() {
   const [fClienteId, setFClienteId] = useState("");
   const [fClienteManual, setFClienteManual] = useState(false);
   const [fConsorcio, setFConsorcio] = useState("");
+  const [fSedeId, setFSedeId] = useState("");
+  const [fSedeNombre, setFSedeNombre] = useState("");
+  const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
   const [fFecha, setFFecha] = useState(new Date().toISOString().split("T")[0]);
   const [fDetalle, setFDetalle] = useState("");
   const [fPrioridad, setFPrioridad] = useState<Prioridad>("Leve");
@@ -125,15 +144,24 @@ export default function PlanAccionPage() {
   const openCreate = () => {
     setFCliente(""); setFClienteId(""); setFClienteManual(false); setFConsorcio(""); setFDetalle(""); 
     setFPrioridad("Leve"); setFCosto(""); setFRealizado(false); setFFechaRealizacion("");
+    setFSedeId(""); setFSedeNombre(""); setFilteredSedes([]);
     setFFecha(new Date().toISOString().split("T")[0]);
     setSelectedItem(null); setModal("create");
     setShowSuggestions(false);
   };
 
   const openEdit = (item: PlanItem) => {
-    setFCliente(item.cliente); setFClienteId(item.clienteId || ""); setFClienteManual(!item.clienteId); setFConsorcio(item.consorcio); setFFecha(item.fecha);
+    setFCliente(item.cliente); setFClienteId(item.clienteId || ""); setFClienteManual(!item.clienteId); 
+    setFConsorcio(item.consorcio); setFFecha(item.fecha);
     setFDetalle(item.detalle); setFPrioridad(item.prioridad); setFCosto(String(item.costo || ""));
     setFRealizado(item.realizado || false); setFFechaRealizacion(item.fechaRealizacion || "");
+    setFSedeId(item.sedeId || ""); setFSedeNombre(item.sedeNombre || "");
+    
+    if (item.clienteId) {
+      const u = usuarios.find(x => x.id === item.clienteId);
+      if (u) setFilteredSedes(u.sedes || []);
+    }
+    
     setSelectedItem(item); setModal("edit");
     setShowSuggestions(false);
   };
@@ -146,7 +174,9 @@ export default function PlanAccionPage() {
         cliente: fCliente,
         clienteId: fClienteManual ? null : fClienteId,
         clienteManual: fClienteManual,
-        consorcio: fConsorcio,
+        consorcio: fSedeId ? fSedeNombre : fConsorcio,
+        sedeId: fSedeId || null,
+        sedeNombre: fSedeNombre || "",
         fecha: fFecha,
         detalle: fDetalle,
         prioridad: fPrioridad,
@@ -177,16 +207,20 @@ export default function PlanAccionPage() {
   };
 
   const filtered = items.filter(i => {
-    const matchesSearch = i.cliente.toLowerCase().includes(search.toLowerCase()) || i.consorcio.toLowerCase().includes(search.toLowerCase()) || i.detalle.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = i.cliente.toLowerCase().includes(search.toLowerCase()) || 
+                          i.consorcio.toLowerCase().includes(search.toLowerCase()) || 
+                          (i.sedeNombre || "").toLowerCase().includes(search.toLowerCase()) ||
+                          i.detalle.toLowerCase().includes(search.toLowerCase());
     const matchesPrioridad = filtroPrioridad === "Todas" || i.prioridad === filtroPrioridad;
     const matchesRealizado = filtroRealizado === "Todos" || (filtroRealizado === "Si" ? i.realizado : !i.realizado);
     return matchesSearch && matchesPrioridad && matchesRealizado;
   });
 
   const isReadOnly = role === "cliente";
+  const isAdmin = role === "admin" || role === "superadmin";
 
   return (
-    <div style={{ width: "100%", maxWidth: "1100px" }}>
+    <div style={{ maxWidth: "1350px", margin: "0 auto" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "30px", flexWrap: "wrap", gap: "20px" }}>
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
@@ -196,7 +230,11 @@ export default function PlanAccionPage() {
             {isReadOnly ? "Propuestas de mejora asignadas a tus instalaciones." : "Propuestas de mejora, mantenimiento y seguimiento de prioridades."}
           </p>
         </div>
-        {!isReadOnly && <button onClick={openCreate} className="btn-red" style={{ padding: "12px 24px" }}>➕ Nueva Propuesta</button>}
+        {!isReadOnly && (
+          <button onClick={openCreate} className="btn-red" style={{ padding: "12px 24px", display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Plus size={18} strokeWidth={3} /> Nueva Propuesta
+          </button>
+        )}
       </header>
 
       {/* FILTROS */}
@@ -235,7 +273,7 @@ export default function PlanAccionPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
                 <thead>
                   <tr style={{ background: "#fafafa", borderBottom: "2px solid #eee" }}>
-                    {["Fecha", "Cliente / Consorcio", "Detalle / Observación", "Prioridad", "Costo", "Estado", !isReadOnly && "Acciones"].filter(Boolean).map(h => (
+                    {["Fecha", "Cliente / Sede", "Detalle / Observación", "Prioridad", "Costo", "Estado", "Acciones"].map(h => (
                       <th key={h as string} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
                     ))}
                   </tr>
@@ -248,7 +286,7 @@ export default function PlanAccionPage() {
                         <td style={{ padding: "14px 18px", fontSize: "0.85rem", whiteSpace: "nowrap" }}>{new Date(item.fecha + "T12:00:00").toLocaleDateString("es-AR")}</td>
                         <td style={{ padding: "14px 18px" }}>
                           <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.9rem" }}>{item.cliente}</div>
-                          <div style={{ fontSize: "0.75rem", color: "#888" }}>{item.consorcio || "Sin consorcio"}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {item.sedeNombre || item.consorcio || "Sin sede/consorcio"}</div>
                         </td>
                         <td style={{ padding: "14px 18px", fontSize: "0.85rem", color: "#555", maxWidth: "300px" }}>{item.detalle}</td>
                         <td style={{ padding: "14px 18px" }}>
@@ -259,17 +297,41 @@ export default function PlanAccionPage() {
                         </td>
                         <td style={{ padding: "14px 18px" }}>
                           {item.realizado ? (
-                            <span style={{ color: "#16a34a", fontSize: "0.75rem", fontWeight: 700 }}>✅ Realizado<br/><small style={{fontWeight:400}}>{item.fechaRealizacion ? new Date(item.fechaRealizacion + "T12:00:00").toLocaleDateString("es-AR") : ""}</small></span>
+                            <div style={{ color: "#16a34a", fontSize: "0.75rem", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <CheckCircle2 size={14} /> 
+                              <div>
+                                Realizado
+                                {item.fechaRealizacion && <div style={{fontWeight:400, fontSize: '0.65rem'}}>{new Date(item.fechaRealizacion + "T12:00:00").toLocaleDateString("es-AR")}</div>}
+                              </div>
+                            </div>
                           ) : (
-                            <span style={{ color: "#f59e0b", fontSize: "0.75rem", fontWeight: 700 }}>⏳ Pendiente</span>
+                            <div style={{ color: "#f59e0b", fontSize: "0.75rem", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <Clock size={14} /> Pendiente
+                            </div>
                           )}
                         </td>
-                        {!isReadOnly && (
-                          <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
-                            <button onClick={() => openEdit(item)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }} title="Editar">✏️</button>
-                            <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", marginLeft: "5px" }} title="Eliminar">🗑️</button>
-                          </td>
-                        )}
+                        <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => { setSelectedItem(item); setModal("view"); }} 
+                              style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer' }} title="Ver Detalle">
+                              <Eye size={18} strokeWidth={2.5} />
+                            </button>
+                            
+                            {!isReadOnly && (
+                              <button onClick={() => openEdit(item)} 
+                                style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer' }} title="Editar">
+                                <Edit size={18} strokeWidth={2.5} />
+                              </button>
+                            )}
+
+                            {isAdmin && !isReadOnly && (
+                              <button onClick={() => setDeleteConfirm(item.id)} 
+                                style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#fef2f2", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer' }} title="Eliminar">
+                                <Trash2 size={18} strokeWidth={2.5} />
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
@@ -287,7 +349,7 @@ export default function PlanAccionPage() {
                       <div>
                         <div style={{ fontSize: "0.7rem", color: "#999", fontWeight: 600 }}>{new Date(item.fecha + "T12:00:00").toLocaleDateString("es-AR")}</div>
                         <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "0.95rem" }}>{item.cliente}</div>
-                        <div style={{ fontSize: "0.75rem", color: "#888" }}>{item.consorcio}</div>
+                        <div style={{ fontSize: "0.75rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {item.sedeNombre || item.consorcio}</div>
                       </div>
                       <span style={{ fontSize: "0.65rem", fontWeight: 900, padding: "4px 10px", borderRadius: "20px", background: pc.bg, color: pc.color, border: `1px solid ${pc.border}`, textTransform: "uppercase" }}>{item.prioridad}</span>
                     </div>
@@ -296,24 +358,40 @@ export default function PlanAccionPage() {
                     
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "12px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
                       <div>
-                        <div style={{ fontSize: "0.7rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Costo</div>
+                        <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Costo</div>
                         <div style={{ fontWeight: 800, color: "#2e7d32" }}>{item.costo ? `$${Number(item.costo).toLocaleString("es-AR")}` : "—"}</div>
                       </div>
                       <div style={{ textAlign: "right" }}>
                         {item.realizado ? (
-                          <span style={{ color: "#16a34a", fontSize: "0.75rem", fontWeight: 700 }}>✅ Realizado</span>
+                          <span style={{ color: "#16a34a", fontSize: "0.75rem", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <CheckCircle2 size={12} /> Realizado
+                          </span>
                         ) : (
-                          <span style={{ color: "#f59e0b", fontSize: "0.75rem", fontWeight: 700 }}>⏳ Pendiente</span>
+                          <span style={{ color: "#f59e0b", fontSize: "0.75rem", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={12} /> Pendiente
+                          </span>
                         )}
                       </div>
                     </div>
 
-                    {!isReadOnly && (
-                      <div style={{ display: "flex", gap: "8px", marginTop: "12px", justifyContent: "flex-end" }}>
-                        <button onClick={() => openEdit(item)} style={{ background: "#f0f7ff", border: "none", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "0.9rem" }}>✏️ Editar</button>
-                        <button onClick={() => setDeleteConfirm(item.id)} style={{ background: "#fff1f0", border: "none", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", fontSize: "0.9rem" }}>🗑️</button>
-                      </div>
-                    )}
+                    <div style={{ display: "flex", gap: "8px", marginTop: "12px", justifyContent: "flex-end" }}>
+                      <button onClick={() => { setSelectedItem(item); setModal("view"); }} 
+                        style={{ background: "#f0fdf4", border: "none", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", color: "#16a34a", display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Eye size={16} /> Ver
+                      </button>
+                      {!isReadOnly && (
+                        <button onClick={() => openEdit(item)} 
+                          style={{ background: "#f0f7ff", border: "none", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", color: "#0061ff", display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <Edit size={16} /> Editar
+                        </button>
+                      )}
+                      {isAdmin && !isReadOnly && (
+                        <button onClick={() => setDeleteConfirm(item.id)} 
+                          style={{ background: "#fff1f0", border: "none", padding: "8px 12px", borderRadius: "8px", cursor: "pointer", color: "#ef4444" }}>
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -322,18 +400,83 @@ export default function PlanAccionPage() {
         )}
       </div>
 
-      {/* MODAL CREATE/EDIT */}
+      {/* MODAL VIEW/CREATE/EDIT */}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
           <div style={{ background: "#fff", borderRadius: "14px", width: "100%", maxWidth: "600px", padding: "30px", boxShadow: "0 20px 60px rgba(0,0,0,0.2)" }}>
-            <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "20px" }}>{modal === "create" ? "Nueva Propuesta de Acción" : "Editar Propuesta"}</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--primary-blue)", margin: 0 }}>
+                {modal === "view" ? "Detalle de Propuesta" : modal === "create" ? "Nueva Propuesta de Acción" : "Editar Propuesta"}
+              </h2>
+              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#ccc' }}>✕</button>
+            </div>
             
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
+            {modal === "view" && selectedItem ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div>
+                    <label style={labelSt}>Cliente</label>
+                    <div style={{ fontWeight: 700, color: 'var(--primary-blue)' }}>{selectedItem.cliente}</div>
+                  </div>
+                  <div>
+                    <label style={labelSt}>Sede / Consorcio</label>
+                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <MapPin size={14} /> {selectedItem.sedeNombre || selectedItem.consorcio}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelSt}>Fecha Propuesta</label>
+                    <div>{new Date(selectedItem.fecha + "T12:00:00").toLocaleDateString("es-AR")}</div>
+                  </div>
+                  <div>
+                    <label style={labelSt}>Prioridad</label>
+                    <span style={{ fontSize: "0.7rem", fontWeight: 800, padding: "4px 10px", borderRadius: "20px", background: PRIORIDAD_COLORS[selectedItem.prioridad].bg, color: PRIORIDAD_COLORS[selectedItem.prioridad].color, border: `1px solid ${PRIORIDAD_COLORS[selectedItem.prioridad].border}` }}>
+                      {selectedItem.prioridad}
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label style={labelSt}>Detalle de la Mejora</label>
+                  <div style={{ padding: '15px', background: '#f8fafc', borderRadius: '10px', fontSize: '0.95rem', color: '#334155', lineHeight: '1.6', border: '1px solid #e2e8f0' }}>
+                    {selectedItem.detalle}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
+                  <div>
+                    <label style={labelSt}>Costo Estimado</label>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#2e7d32' }}>
+                      {selectedItem.costo ? `$${Number(selectedItem.costo).toLocaleString("es-AR")}` : "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <label style={labelSt}>Estado</label>
+                    {selectedItem.realizado ? (
+                      <div style={{ color: "#16a34a", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <CheckCircle2 size={18} /> Realizado
+                        {selectedItem.fechaRealizacion && <span style={{fontWeight:400, fontSize: '0.8rem', color: '#666'}}>({new Date(selectedItem.fechaRealizacion + "T12:00:00").toLocaleDateString("es-AR")})</span>}
+                      </div>
+                    ) : (
+                      <div style={{ color: "#f59e0b", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Clock size={18} /> Pendiente de ejecución
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '10px' }}>
+                  <button onClick={() => setModal(null)} className="btn-blue" style={{ width: '100%', padding: '12px' }}>Cerrar Vista</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
               <div style={{ gridColumn: "span 2", position: "relative" }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                   <label style={labelSt}>Cliente *</label>
                   <label style={{ fontSize: '0.75rem', color: 'var(--primary-blue)', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <input type="checkbox" checked={fClienteManual} onChange={e => { setFClienteManual(e.target.checked); if(e.target.checked) setFClienteId(""); }} />
+                    <input type="checkbox" checked={fClienteManual} onChange={e => { setFClienteManual(e.target.checked); if(e.target.checked) { setFClienteId(""); setFSedeId(""); setFSedeNombre(""); setFilteredSedes([]); } }} />
                     Carga Manual
                   </label>
                 </div>
@@ -343,15 +486,14 @@ export default function PlanAccionPage() {
                     <input 
                       style={inputSt} 
                       value={fCliente} 
-                      onChange={e => { setFCliente(e.target.value); setShowSuggestions(true); }} 
+                      onChange={e => { setFCliente(e.target.value); setShowSuggestions(true); setFClienteId(""); setFSedeId(""); setFSedeNombre(""); setFilteredSedes([]); }} 
                       onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
                       placeholder="Buscar cliente registrado..." 
                     />
-                    {showSuggestions && (
+                    {showSuggestions && fCliente.length >= 2 && (
                       <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, maxHeight: "220px", overflowY: "auto", marginTop: "5px" }}>
                         {usuarios
                           .filter(u => {
-                            if (!fCliente) return true;
                             const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""} ${u.email || ""}`.toLowerCase();
                             return searchStr.includes(fCliente.toLowerCase());
                           })
@@ -363,6 +505,7 @@ export default function PlanAccionPage() {
                                 onClick={() => { 
                                   setFCliente(display); 
                                   setFClienteId(u.id);
+                                  setFilteredSedes(u.sedes || []);
                                   setShowSuggestions(false); 
                                 }}
                                 style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
@@ -391,10 +534,39 @@ export default function PlanAccionPage() {
                   />
                 )}
               </div>
-              <div>
-                <label style={labelSt}>Consorcio / Edificio</label>
-                <input style={inputSt} value={fConsorcio} onChange={e => setFConsorcio(e.target.value)} placeholder="Ej: Torre Alem" />
-              </div>
+              
+              {!fClienteManual && fClienteId ? (
+                <div style={{ gridColumn: "span 2" }}>
+                  <label style={labelSt}>Sede / Obra / Consorcio</label>
+                  <select 
+                    style={inputSt} 
+                    value={fSedeId} 
+                    onChange={e => {
+                      const s = filteredSedes.find(x => x.id === e.target.value);
+                      if (s) {
+                        setFSedeId(s.id);
+                        setFSedeNombre(s.nombre);
+                        setFConsorcio(s.nombre);
+                      } else {
+                        setFSedeId("");
+                        setFSedeNombre("");
+                        setFConsorcio("");
+                      }
+                    }}
+                  >
+                    <option value="">{filteredSedes.length === 0 ? "Sin sedes registradas" : "Seleccionar sede (Opcional)"}</option>
+                    {filteredSedes.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div style={{ gridColumn: "span 2" }}>
+                  <label style={labelSt}>Consorcio / Edificio (Manual)</label>
+                  <input style={inputSt} value={fConsorcio} onChange={e => setFConsorcio(e.target.value)} placeholder="Ej: Torre Alem" />
+                </div>
+              )}
+
               <div>
                 <label style={labelSt}>Fecha Propuesta</label>
                 <input type="date" style={inputSt} value={fFecha} onChange={e => setFFecha(e.target.value)} />
@@ -428,10 +600,12 @@ export default function PlanAccionPage() {
               )}
             </div>
 
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button onClick={() => setModal(null)} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", background: "none", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
-              <button onClick={handleSave} disabled={saving} className="btn-red" style={{ flex: 1.5, padding: "12px" }}>{saving ? "Guardando..." : "Guardar Propuesta"}</button>
-            </div>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <button onClick={() => setModal(null)} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", background: "none", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
+                  <button onClick={handleSave} disabled={saving} className="btn-red" style={{ flex: 1.5, padding: "12px" }}>{saving ? "Guardando..." : "Guardar Propuesta"}</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
