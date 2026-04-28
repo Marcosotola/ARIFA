@@ -936,6 +936,7 @@ export default function ExtincionOTPage() {
           <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", flexWrap: "wrap" }}>
             <button onClick={() => setPaso(3)} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>⬅️ Anterior</button>
             <div style={{ display: "flex", gap: "10px" }}>
+              <button onClick={() => handleSave("borrador")} disabled={saving} style={{ padding: "12px 24px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px" }}>
                 💾 Guardar borrador
               </button>
               <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: "8px" }}>

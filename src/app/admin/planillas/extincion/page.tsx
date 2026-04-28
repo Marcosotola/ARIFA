@@ -96,7 +96,6 @@ export default function ExtincionPage() {
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>Órdenes de Trabajo — Extinción</h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Sistema de Extinción de Incendios — Rociadores, Hidrantes y más.</p>
         </div>
-        </div>
         <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
            <input 
              style={{ ...inputSt, width: "240px" }} 
