@@ -188,8 +188,8 @@ export default function CertificadosPage() {
 
       // Firmas
       if (y > 220) { pdf.addPage(); y = drawHeader(pdf) + 5; }
-      pdf.setFont(undefined, "bold"); pdf.text("DECLARACION JURADA:", ML, y);
-      y += 6; pdf.setFont(undefined, "normal"); pdf.setFontSize(8);
+      pdf.setFont(undefined as any, "bold"); pdf.text("DECLARACION JURADA:", ML, y);
+      y += 6; pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8);
       const dj = "La información consignada precedentemente reviste el carácter de Declaración Jurada; su omisión o falsedad precederá al decaimiento de su validez...";
       pdf.text(pdf.splitTextToSize(dj, TW), ML, y);
       y += 15;
