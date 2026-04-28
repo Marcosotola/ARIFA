@@ -22,7 +22,7 @@ import {
 const SignatureCanvas = dynamic(() => import("react-signature-canvas"), { ssr: false }) as any;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-interface Cliente { id: string; nombre?: string; razonSocial?: string; empresa?: string; cuit?: string; direccion?: string; telefono?: string; email?: string; }
+interface Cliente { id: string; nombre?: string; razonSocial?: string; empresa?: string; cuit?: string; direccion?: string; telefono?: string; email?: string; sedes?: any[]; }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const RUBROS = ["Viviendas residenciales", "Edificio de oficinas", "Comercio", "Industrial", "Hotel / Apart-hotel", "Educación", "Salud", "Otro"];

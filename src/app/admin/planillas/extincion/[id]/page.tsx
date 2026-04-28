@@ -54,7 +54,7 @@ const labelSt: React.CSSProperties = { display: "block", fontSize: "0.78rem", fo
 const inputSt: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none" };
 const cardSt: React.CSSProperties = { background: "#fff", borderRadius: "12px", padding: "24px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", marginBottom: "20px" };
 
-export default function ExtincionOTPage() {
+export function ExtincionOTPage() {
   const params = useParams();
   const router = useRouter();
   const isNueva = params.id === "nueva";
@@ -485,7 +485,7 @@ export default function ExtincionOTPage() {
         </div>
       ) : (
         <div className="ot-editor-container">
-          <div style={{ overflowX: "auto", marginBottom: "28px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
+          <div style={({ overflowX: "auto", marginBottom: "28px", borderRadius: "10px", boxShadow: "0 2px 10px rgba(0,0,0,0.06)", WebkitOverflowScrolling: "touch" } as React.CSSProperties)}>
         <div style={{ display: "flex", minWidth: "420px", background: "#fff", borderRadius: "10px", overflow: "hidden" }}>
           {PASOS.map((p, i) => {
             const { icon: Icon, color: stepColor } = PASOS_ICONS[i];
@@ -947,7 +947,9 @@ export default function ExtincionOTPage() {
         </div>
       )}
     </div>
-  );
+    )}
+  </div>
+);
 }
 
 export default function ExtincionPage() {
