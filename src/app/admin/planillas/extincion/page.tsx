@@ -27,6 +27,8 @@ const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
   completada: { bg: "#e8f5e9", color: "#2e7d32" },
 };
 
+const inputSt: React.CSSProperties = { padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none" };
+
 export default function ExtincionPage() {
   const [ots, setOts] = useState<OT[]>([]);
   const [loading, setLoading] = useState(true);
