@@ -10,6 +10,7 @@ import {
   Trash2, 
   Edit, 
   Download, 
+  Scroll,
   CheckCircle2, 
   AlertCircle 
 } from "lucide-react";

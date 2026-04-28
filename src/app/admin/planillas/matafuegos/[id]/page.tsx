@@ -229,7 +229,7 @@ export default function DetalleRemitoPage() {
             style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Edit size={18} /> Editar
           </button>
-          <button onClick={handlePDF} className="btn-blue" 
+          <button onClick={() => handlePDF()} className="btn-blue" 
             style={{ padding: '10px 20px', borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Scroll size={18} /> Descargar PDF
           </button>
