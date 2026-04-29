@@ -1572,6 +1572,25 @@ ul { list-style: none; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
 }
 
+/* Specific grid for equipment in remitos */
+.equipment-grid {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 768px) {
+  .equipment-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .equipment-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ======= CATALOG LAYOUT ======= */
 .catalog-container {
   display: grid;

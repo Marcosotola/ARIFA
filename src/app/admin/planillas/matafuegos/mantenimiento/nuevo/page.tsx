@@ -302,7 +302,7 @@ function FichaFormContent() {
   const componentesDisponibles = ["Tubo sifón", "Válvula", "Anilla", "Precinto", "Manómetro", "Manguera", "Difusor"];
 
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", paddingBottom: "100px" }}>
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 15px 100px", overflowX: "hidden" }}>
       <header style={{ marginBottom: "30px" }}>
         <button onClick={() => router.push("/admin/planillas/matafuegos")} 
           style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "10px", padding: 0 }}>
@@ -325,7 +325,7 @@ function FichaFormContent() {
             </label>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+        <div className="grid-2">
             {!clienteManual && (
               <div style={{ position: "relative" }}>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>CLIENTE REGISTRADO</label>
@@ -460,7 +460,7 @@ function FichaFormContent() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
+            <div className="grid-2" style={{ marginTop: '20px' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '8px' }}>CLASES DE FUEGO</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
@@ -487,7 +487,7 @@ function FichaFormContent() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px', marginTop: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px' }}>
+            <div className="grid-3" style={{ marginTop: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.6rem', color: '#64748b', marginBottom: '5px' }}>VENC. CARGA</label>
                 <input type="month" value={item.vencimientoCarga} onChange={e => updateItem(idx, 'vencimientoCarga', e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />

@@ -282,7 +282,7 @@ export default function NuevoRemitoPage() {
   if (loading) return <div style={{ padding: "100px", textAlign: "center" }}>Cargando...</div>;
 
   return (
-    <div style={{ maxWidth: "800px", margin: "0 auto", paddingBottom: "100px" }}>
+    <div style={{ maxWidth: "800px", margin: "0 auto", padding: "0 15px 100px", overflowX: "hidden" }}>
       <header style={{ marginBottom: "30px" }}>
         <button onClick={() => router.push("/admin/planillas/matafuegos")} 
           style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "10px", padding: 0 }}>
@@ -375,7 +375,7 @@ export default function NuevoRemitoPage() {
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+        <div className="grid-2">
             <div>
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>NOMBRE / CONTACTO</label>
               <input value={nombre} onChange={e => setNombre(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
@@ -394,7 +394,7 @@ export default function NuevoRemitoPage() {
             </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '20px' }}>
+        <div className="grid-2" style={{ marginTop: '20px' }}>
             <div>
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>OPERACIÓN</label>
               <select value={tipoMovimiento} onChange={(e:any) => setTipoMovimiento(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', background: '#f8fafc', fontWeight: 700 }}>
@@ -424,7 +424,7 @@ export default function NuevoRemitoPage() {
         ) : (
           equipos.map((eq, idx) => (
               <div key={idx} style={{ padding: '20px', border: '1px solid #eee', borderRadius: '12px', marginBottom: '10px', background: '#fafafa' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr 1fr', gap: '10px' }}>
+                  <div className="equipment-grid">
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>CANT.</label>
                         <input type="number" placeholder="Cant" value={eq.cantidad || ""} onChange={(e) => updateEquipo(idx, 'cantidad', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
@@ -494,11 +494,11 @@ export default function NuevoRemitoPage() {
           </div>
         )}
 
-        <div style={{ border: '2px dashed #ddd', borderRadius: '12px', background: '#fcfcfc', marginBottom: '15px' }}>
+        <div style={{ border: '2px dashed #ddd', borderRadius: '12px', background: '#fcfcfc', marginBottom: '15px', overflow: 'hidden' }}>
             <SignatureCanvas 
               ref={sigCanvas} 
               penColor="#002244" 
-              canvasProps={{ width: 740, height: 200, className: 'sigCanvas', style: { width: '100%' } }} 
+              canvasProps={{ height: 200, className: 'sigCanvas', style: { width: '100%', height: '200px' } }} 
             />
         </div>
         
