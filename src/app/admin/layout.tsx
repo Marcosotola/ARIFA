@@ -178,8 +178,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     color: "#2b6cb0",
   });
 
-  // Matafuegos — solo admin y tecnico (gestionan)
-  if (isAdmin || isTecnico) {
+  // Matafuegos — admin, tecnico, secretaria (gestionan) y cliente (consulta)
+  if (isAdmin || isTecnico || isSecretaria || isClient) {
     sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: <Flame size={20} />, color: "#c2410c" });
   }
 
@@ -193,8 +193,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // Plan de Acción — admin y cliente (cliente: solo lectura)
-  if (isAdmin || isClient) {
+  // Plan de Acción — admin, cliente y secretaria
+  if (isAdmin || isClient || isSecretaria) {
     sidebarLinks.push({
       label: "Plan de Acción",
       href: "/admin/plan-accion",
@@ -213,13 +213,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // Productos — solo admin
-  if (isAdmin) {
+  // Productos — admin, tecnico y secretaria
+  if (isAdmin || isTecnico || isSecretaria) {
     sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: <ShoppingCart size={20} />, color: "#b45309" });
   }
 
-  // Usuarios — solo admin
-  if (isAdmin) {
+  // Usuarios — admin y secretaria
+  if (isAdmin || isSecretaria) {
     sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: <Users size={20} />, color: "#7c3aed" });
   }
 

@@ -51,6 +51,7 @@ export default function NuevoRemitoPage() {
   const [empresa, setEmpresa] = useState("");
   const [direccion, setDireccion] = useState("");
   const [telefono, setTelefono] = useState("");
+  const [dniCuit, setDniCuit] = useState("");
   const [sedeId, setSedeId] = useState("");
   const [sedeNombre, setSedeNombre] = useState("");
   const [sedeRazonSocial, setSedeRazonSocial] = useState("");
@@ -62,6 +63,18 @@ export default function NuevoRemitoPage() {
   const [aclaracion, setAclaracion] = useState("");
   const [numeroExistente, setNumeroExistente] = useState<number | null>(null);
   const [proximaOblea, setProximaOblea] = useState<number>(1);
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientData, setNewClientData] = useState({ 
+    nombre: "", 
+    apellido: "", 
+    email: "", 
+    empresa: "", 
+    dniCuit: "", 
+    telefono: "", 
+    direccion: "",
+    cargo: "",
+    sedes: [] as any[]
+  });
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -126,6 +139,7 @@ export default function NuevoRemitoPage() {
       setEmpresa(c.empresa || c.razonSocial || "");
       setDireccion(c.direccion || "");
       setTelefono(c.telefono || "");
+      setDniCuit(c.dniCuit || "");
       setFilteredSedes(c.sedes || []);
       setSedeId("");
       setSedeNombre("");
@@ -214,6 +228,7 @@ export default function NuevoRemitoPage() {
         clienteEmpresa: empresa,
         clienteDireccion: direccion,
         clienteTelefono: telefono,
+        clienteDniCuit: dniCuit,
         sedeId: sedeId || null,
         sedeNombre: sedeNombre || "",
         sedeRazonSocial: sedeRazonSocial || "",
@@ -300,14 +315,15 @@ export default function NuevoRemitoPage() {
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-blue)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
               <User size={20} /> Datos del Cliente
             </h3>
-            <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#666' }}>
-                <input type="checkbox" checked={clienteManual} onChange={e => { setClienteManual(e.target.checked); if(e.target.checked) { setClienteSeleccionado(null); setFilteredSedes([]); setSedeId(""); setSedeNombre(""); } }} />
-                Carga 100% Manual
-            </label>
+            <button 
+              type="button"
+              onClick={() => setShowNewClientModal(true)}
+              style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--primary-blue)', background: 'none', border: 'none', fontWeight: 800 }}>
+                <Plus size={16} /> NUEVO CLIENTE
+            </button>
         </div>
 
-        {!clienteManual && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginBottom: '20px' }}>
             <div style={{ position: "relative" }}>
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>BUSCAR CLIENTE REGISTRADO</label>
               <input 
@@ -373,7 +389,6 @@ export default function NuevoRemitoPage() {
               </div>
             )}
           </div>
-        )}
 
         <div className="grid-2">
             <div>
@@ -391,6 +406,10 @@ export default function NuevoRemitoPage() {
             <div>
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>TELÉFONO</label>
               <input value={telefono} onChange={e => setTelefono(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>DNI / CUIT</label>
+              <input value={dniCuit} onChange={e => setDniCuit(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
             </div>
         </div>
 
@@ -530,6 +549,114 @@ export default function NuevoRemitoPage() {
           {saving ? "GENERANDO..." : <><Save size={22} /> Confirmar y Guardar</>}
         </button>
       </div>
+
+      {/* MODAL NUEVO CLIENTE */}
+      {showNewClientModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "30px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "1.4rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0 }}>Nuevo Cliente Registrado</h2>
+              <button onClick={() => setShowNewClientModal(false)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#999" }}>&times;</button>
+            </div>
+            
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+               <div>
+                  <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px" }}>NOMBRE</label>
+                  <input type="text" value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+               </div>
+               <div>
+                  <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px" }}>APELLIDO</label>
+                  <input type="text" value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+               </div>
+               <div style={{ gridColumn: "span 2" }}>
+                  <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px" }}>EMPRESA / RAZÓN SOCIAL</label>
+                  <input type="text" value={newClientData.empresa} onChange={e => setNewClientData({...newClientData, empresa: e.target.value})} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+               </div>
+               <div>
+                  <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px" }}>DNI / CUIT</label>
+                  <input type="text" value={newClientData.dniCuit} onChange={e => setNewClientData({...newClientData, dniCuit: e.target.value})} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+               </div>
+               <div>
+                  <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px" }}>TELÉFONO</label>
+                  <input type="text" value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+               </div>
+               <div style={{ gridColumn: "span 2" }}>
+                  <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px" }}>EMAIL</label>
+                  <input type="email" value={newClientData.email} onChange={e => setNewClientData({...newClientData, email: e.target.value})} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+               </div>
+               <div style={{ gridColumn: "span 2" }}>
+                  <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px" }}>DIRECCIÓN PRINCIPAL</label>
+                  <input type="text" value={newClientData.direccion} onChange={e => setNewClientData({...newClientData, direccion: e.target.value})} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }} />
+               </div>
+
+               {/* SECCIÓN SEDES */}
+               <div style={{ gridColumn: "span 2", borderTop: "1px solid #eee", paddingTop: "20px", marginTop: "10px" }}>
+                <h3 style={{ fontSize: "0.85rem", fontWeight: 900, color: "var(--primary-blue)", marginBottom: "15px", textTransform: "uppercase" }}>Sedes / Consorcios</h3>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "15px" }}>
+                  {newClientData.sedes.map((s: any) => (
+                    <div key={s.id} style={{ background: "#f8fafc", padding: "10px 15px", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1e293b" }}>{s.nombre}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{s.direccion}</div>
+                      </div>
+                      <button type="button" onClick={() => setNewClientData({...newClientData, sedes: newClientData.sedes.filter(x => x.id !== s.id)})} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ background: "#f1f5f9", padding: "15px", borderRadius: "12px" }}>
+                  <div style={{ display: "grid", gap: "10px" }}>
+                    <input id="new-sede-nombre" style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1" }} placeholder="Nombre de la Sede" />
+                    <input id="new-sede-direccion" style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1" }} placeholder="Dirección" />
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const n = (document.getElementById("new-sede-nombre") as HTMLInputElement).value;
+                        const d = (document.getElementById("new-sede-direccion") as HTMLInputElement).value;
+                        if (!n) return alert("Nombre de sede obligatorio");
+                        const newSede = { id: Math.random().toString(36).substr(2, 9), nombre: n, direccion: d };
+                        setNewClientData({...newClientData, sedes: [...newClientData.sedes, newSede]});
+                        (document.getElementById("new-sede-nombre") as HTMLInputElement).value = "";
+                        (document.getElementById("new-sede-direccion") as HTMLInputElement).value = "";
+                      }}
+                      style={{ background: "var(--primary-blue)", color: "#fff", border: "none", padding: "10px", borderRadius: "8px", fontWeight: 700, cursor: "pointer" }}>
+                      + Agregar Sede
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "25px" }}>
+                <button onClick={() => setShowNewClientModal(false)} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 700 }}>Cancelar</button>
+                <button 
+                onClick={async () => {
+                  if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios.");
+                  try {
+                    const docRef = await addDoc(collection(db, "usuarios"), {
+                      ...newClientData,
+                      rol: "cliente",
+                      createdAt: serverTimestamp()
+                    });
+                    const created = { id: docRef.id, ...newClientData };
+                    setClientes(prev => [...prev, created]);
+                    onSelectCliente(docRef.id);
+                    setShowNewClientModal(false);
+                    setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", cargo: "", sedes: [] });
+                  } catch (e) {
+                    alert("Error al crear cliente.");
+                  }
+                }}
+                className="btn-red" style={{ flex: 2, padding: "14px", borderRadius: "12px", fontWeight: 800, textTransform: "uppercase" }}>
+                  Crear y Seleccionar
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

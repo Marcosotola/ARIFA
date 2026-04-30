@@ -49,7 +49,7 @@ const MODULES = [
     description: "Gestión de remitos de logística y fichas técnicas de taller.",
     href: "/admin/planillas/matafuegos",
     color: "#c2410c",
-    roles: ["admin", "tecnico", "superadmin", "cliente"],
+    roles: ["admin", "tecnico", "superadmin", "cliente", "secretaria"],
     clientLabel: "Mis Matafuegos",
     clientDescription: "Estado de mantenimiento y remitos de tus extintores.",
   },
@@ -87,7 +87,7 @@ const MODULES = [
     description: "Catálogo de precios y gestión de stock.",
     href: "/admin/productos",
     color: "#b45309",
-    roles: ["admin", "superadmin"],
+    roles: ["admin", "superadmin", "tecnico", "secretaria"],
   },
   {
     icon: <Users size={24} />,
@@ -95,7 +95,7 @@ const MODULES = [
     description: "Alta, edición y roles de acceso de usuarios.",
     href: "/admin/usuarios",
     color: "#7c3aed",
-    roles: ["admin", "superadmin"],
+    roles: ["admin", "superadmin", "secretaria"],
   },
   {
     icon: <Bell size={24} />,
@@ -103,7 +103,7 @@ const MODULES = [
     description: "Alertas y comunicados enviados a clientes.",
     href: "/admin/notificaciones",
     color: "#0891b2",
-    roles: ["admin", "superadmin"],
+    roles: ["admin", "superadmin", "secretaria"],
   },
 ];
 

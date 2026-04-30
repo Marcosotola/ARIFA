@@ -118,6 +118,11 @@ export const generateMantenimientoPDF = async (ficha: any) => {
     if (y > 275) { pdf.addPage(); y = 40; } // Control de desborde
 
     pdf.line(W - MR - 65, y, W - MR - 5, y);
+    
+    if (ficha.firmaTecnico) {
+      pdf.addImage(ficha.firmaTecnico, "PNG", W - MR - 60, y - 25, 50, 20);
+    }
+    
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
     pdf.text("Firma Responsable Técnico", W - MR - 35, y + 5, { align: "center" });

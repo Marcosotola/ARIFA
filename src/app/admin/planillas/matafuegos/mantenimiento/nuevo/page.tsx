@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
@@ -17,6 +18,8 @@ import {
   ShieldCheck,
   AlertTriangle
 } from "lucide-react";
+
+import SignatureCanvas from "react-signature-canvas";
 
 interface MantenimientoItem {
   id: string; 
@@ -52,7 +55,21 @@ function FichaFormContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tecnico, setTecnico] = useState<any>(null);
+  const sigCanvas = useRef<any>(null);
   const [proximaOblea, setProximaOblea] = useState<number>(1);
+  const [isMounted, setIsMounted] = useState(false);
+  const [canvasWidth, setCanvasWidth] = useState(0);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const updateWidth = () => {
+      const container = document.getElementById("sig-container");
+      if (container) setCanvasWidth(container.offsetWidth);
+    };
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+    return () => window.removeEventListener("resize", updateWidth);
+  }, []);
 
   // Datos de cabecera
   const [numeroFichaExistente, setNumeroFichaExistente] = useState<number | null>(null);
@@ -382,6 +399,7 @@ function FichaFormContent() {
             dniCuit,
             telefono,
             direccion: domicilio,
+            firmaTecnico: sigCanvas.current && !sigCanvas.current.isEmpty() ? sigCanvas.current.getTrimmedCanvas().toDataURL("image/png") : (editId ? null : ""),
             updatedAt: serverTimestamp()
         }).catch(err => console.error("Error updating client profile:", err));
       }
@@ -711,6 +729,35 @@ function FichaFormContent() {
             </div>
           </div>
         ))}
+      </div>
+      
+      {/* SECCIÓN FIRMA TÉCNICO */}
+      <div className="form-card">
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '15px', color: 'var(--primary-blue)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <PenTool size={20} /> Firma del Técnico Responsable
+        </h3>
+        <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '15px' }}>Firma en el recuadro para validar el certificado técnico.</p>
+        
+        <div id="sig-container" style={{ border: '2px dashed #ddd', borderRadius: '12px', background: '#fcfcfc', marginBottom: '15px', overflow: 'hidden' }}>
+            {isMounted && (
+              <SignatureCanvas 
+                ref={sigCanvas} 
+                penColor="#002244" 
+                canvasProps={{ 
+                  width: canvasWidth, 
+                  height: 180, 
+                  className: 'sigCanvas',
+                  style: { display: 'block' } 
+                }} 
+              />
+            )}
+        </div>
+        
+        <div style={{ textAlign: 'right' }}>
+          <button type="button" onClick={() => sigCanvas.current.clear()} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <RotateCcw size={14} /> Borrar firma
+          </button>
+        </div>
       </div>
 
       {/* FOOTER */}

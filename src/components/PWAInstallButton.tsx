@@ -35,7 +35,8 @@ export default function PWAInstallButton({ variant = "header" }: Props) {
 
     if (iosDevice) {
       setShowButton(true);
-      setTimeout(() => { if (!wasDismissed) setShowBanner(true); }, 3000);
+      // Banner automático desactivado por pedido del usuario
+      // setTimeout(() => { if (!wasDismissed) setShowBanner(true); }, 3000);
       return;
     }
 
@@ -43,7 +44,8 @@ export default function PWAInstallButton({ variant = "header" }: Props) {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowButton(true);
-      if (!wasDismissed) setShowBanner(true);
+      // Banner automático desactivado por pedido del usuario
+      // if (!wasDismissed) setShowBanner(true);
     };
 
     window.addEventListener("beforeinstallprompt", handler);
