@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, updateDoc, serverTimestamp, addDoc } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";
@@ -16,7 +16,9 @@ import {
   Download,
   Scroll,
   ClipboardList,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle,
+  Bell
 } from "lucide-react";
 
 interface Remito {
@@ -64,6 +66,34 @@ function MatafuegosUnifiedContent() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [filtroSede, setFiltroSede] = useState("Todas");
+  const [filtroMes, setFiltroMes] = useState("");
+  const [filtroAnio, setFiltroAnio] = useState("");
+
+  const today = new Date();
+  const nextMonth = new Date();
+  nextMonth.setMonth(today.getMonth() + 1);
+
+  const stats = {
+    total: matafuegos.length,
+    vencidosCarga: 0,
+    vencidosPH: 0,
+    porVencerCarga: 0
+  };
+
+  matafuegos.forEach(m => {
+    const vc = m.historial?.vencimientoCarga;
+    const vph = m.historial?.proximaPH;
+
+    if (vc) {
+        const d = new Date(vc + "-01");
+        if (d < today) stats.vencidosCarga++;
+        else if (d <= nextMonth) stats.porVencerCarga++;
+    }
+    if (vph) {
+        const d = new Date(vph);
+        if (d < today) stats.vencidosPH++;
+    }
+  });
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -308,6 +338,47 @@ function MatafuegosUnifiedContent() {
         </button>
       </div>
 
+      {/* ESPACIO PARA ESTADÍSTICAS SI ES INVENTARIO */}
+      {activeTab === "inventario" && (
+        <div style={{ marginBottom: "25px" }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
+              gap: '15px', 
+              marginBottom: '20px' 
+            }}>
+              <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                <div style={{ background: '#eff6ff', color: '#3b82f6', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><Package size={18} /></div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Total Equipos</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1e293b' }}>{stats.total}</div>
+                </div>
+              </div>
+              <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                <div style={{ background: '#fef2f2', color: '#ef4444', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><Bell size={18} /></div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Carga Vencida</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ef4444' }}>{stats.vencidosCarga}</div>
+                </div>
+              </div>
+              <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                <div style={{ background: '#fff7ed', color: '#f97316', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><ShieldCheck size={18} /></div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>PH Vencida</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#f97316' }}>{stats.vencidosPH}</div>
+                </div>
+              </div>
+              <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                <div style={{ background: '#f0fdf4', color: '#22c55e', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><AlertTriangle size={18} /></div>
+                <div>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Vence este mes</div>
+                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#22c55e' }}>{stats.porVencerCarga}</div>
+                </div>
+              </div>
+            </div>
+        </div>
+      )}
+
       {/* FILTROS */}
       <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
         <div style={{ flex: 1, minWidth: "220px" }}>
@@ -353,7 +424,44 @@ function MatafuegosUnifiedContent() {
           </select>
         </div>
 
-        <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+        {activeTab === "inventario" && (
+          <>
+            <div style={{ width: "140px" }}>
+              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Mes Venc.</label>
+              <select 
+                value={filtroMes} 
+                onChange={e => setFiltroMes(e.target.value)}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.85rem", background: "#fff" }}
+              >
+                <option value="">Cualquier mes</option>
+                <option value="01">Enero</option>
+                <option value="02">Febrero</option>
+                <option value="03">Marzo</option>
+                <option value="04">Abril</option>
+                <option value="05">Mayo</option>
+                <option value="06">Junio</option>
+                <option value="07">Julio</option>
+                <option value="08">Agosto</option>
+                <option value="09">Septiembre</option>
+                <option value="10">Octubre</option>
+                <option value="11">Noviembre</option>
+                <option value="12">Diciembre</option>
+              </select>
+            </div>
+            <div style={{ width: "100px" }}>
+              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Año Venc.</label>
+              <input 
+                type="number" 
+                placeholder="2024"
+                value={filtroAnio} 
+                onChange={e => setFiltroAnio(e.target.value)}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.85rem" }}
+              />
+            </div>
+          </>
+        )}
+
+        <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); setFiltroMes(""); setFiltroAnio(""); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
       </div>
 
       {/* CONTENIDO */}
@@ -399,10 +507,17 @@ function MatafuegosUnifiedContent() {
                               <Eye size={18} strokeWidth={2.5} />
                             </Link>
                             {!isReadOnly && (
-                              <Link title="Ver / Editar" href={`/admin/planillas/matafuegos/nuevo?edit=${r.id}`} 
-                               style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-                               <Edit size={18} strokeWidth={2.5} />
-                             </Link>
+                              <>
+                                <button onClick={() => window.location.href = `/admin/planillas/matafuegos/mantenimiento/nuevo?fromRemito=${r.id}`} 
+                                  title="Generar Ficha Técnica desde este Remito"
+                                  style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#f0f4ff", color: "#2563eb", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                  <Settings size={18} strokeWidth={2.5} />
+                                </button>
+                                <Link title="Ver / Editar" href={`/admin/planillas/matafuegos/nuevo?edit=${r.id}`} 
+                                 style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                                 <Edit size={18} strokeWidth={2.5} />
+                               </Link>
+                              </>
                             )}
                             <button title="Descargar PDF" onClick={() => handleDownload(r.id, "remito")} disabled={downloadingId === r.id} style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", opacity: downloadingId === r.id ? 0.5 : 1 }}>
                               <Scroll size={18} strokeWidth={2.5} />
@@ -463,15 +578,18 @@ function MatafuegosUnifiedContent() {
         </div>
       )}
 
-      {activeTab === "inventario" && (
-        <div style={{ background: '#fff', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid #eee', overflowX: 'auto' }}>
+        {activeTab === "inventario" && (
+          <div style={{ marginBottom: "30px" }}>
+
+            <div style={{ background: '#fff', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid #eee', overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem', minWidth: '800px' }}>
             <thead>
               <tr style={{ textAlign: 'left', borderBottom: '2px solid #f1f5f9', background: '#f8fafc' }}>
                 <th style={{ padding: '15px', color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase' }}>Tarjeta N°</th>
                 <th style={{ padding: '15px', color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase' }}>Cliente / Ubicación</th>
                 <th style={{ padding: '15px', color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase' }}>Equipo / Agente</th>
-                <th style={{ padding: '15px', color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase' }}>Historial PH</th>
+                <th style={{ padding: '15px', color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase' }}>Año Fab.</th>
+                <th style={{ padding: '15px', color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase' }}>Venc. PH</th>
                 <th style={{ padding: '15px', color: '#64748b', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase' }}>Venc. Carga</th>
                 <th style={{ padding: '15px', textAlign: 'right' }}></th>
               </tr>
@@ -483,7 +601,15 @@ function MatafuegosUnifiedContent() {
                   m.clienteNombre?.toLowerCase().includes(search.toLowerCase()) ||
                   m.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
                 const matchesSede = filtroSede === "Todas" || m.sedeNombre === filtroSede;
-                return matchesSearch && matchesSede;
+                
+                let matchesVenc = true;
+                if (filtroMes || filtroAnio) {
+                  const [anio, mes] = (m.historial?.vencimientoCarga || "").split("-");
+                  if (filtroMes && mes !== filtroMes) matchesVenc = false;
+                  if (filtroAnio && anio !== filtroAnio) matchesVenc = false;
+                }
+                
+                return matchesSearch && matchesSede && matchesVenc;
               }).map((m, idx) => {
                 const proxPH = m.historial?.proximaPH;
                 const isUrgent = proxPH && new Date(proxPH) < new Date();
@@ -523,33 +649,86 @@ function MatafuegosUnifiedContent() {
                         {m.datosTecnicos?.agente}
                       </span>
                     </td>
-                    <td style={{ padding: '15px' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Últ: {m.historial?.ultimaPH || "-"}</div>
-                      <div style={{ 
-                        fontWeight: 800, 
-                        color: isUrgent ? '#ef4444' : '#059669',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}>
-                        Próx: {m.historial?.proximaPH || "-"}
-                        {isUrgent && <span style={{ fontSize: '10px', background: '#ef4444', color: '#fff', padding: '1px 4px', borderRadius: '4px' }}>VENCIDO</span>}
-                      </div>
+                    <td style={{ padding: '15px', fontWeight: 700, color: '#64748b' }}>
+                      {m.datosTecnicos?.anioFab || m.anioFab || "-"}
                     </td>
-                    <td style={{ padding: '15px' }}>
-                      <div style={{ 
-                        padding: '6px 10px', 
-                        borderRadius: '8px', 
-                        background: '#f1f5f9', 
-                        display: 'inline-block',
-                        fontWeight: 700,
-                        fontSize: '0.85rem'
-                      }}>
-                        {m.historial?.vencimientoCarga || "-"}
-                      </div>
+                    <td style={{ padding: "15px" }}>
+                      {(() => {
+                        const vph = m.historial?.proximaPH;
+                        if (!vph) return <span style={{ color: '#cbd5e1' }}>-</span>;
+                        const d = new Date(vph);
+                        const isExp = d < today;
+                        return (
+                          <div style={{ 
+                              padding: '4px 10px', 
+                              borderRadius: '6px', 
+                              fontSize: '0.8rem', 
+                              fontWeight: 800,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              background: isExp ? '#fef2f2' : '#f8fafc',
+                              color: isExp ? '#ef4444' : '#64748b',
+                              border: isExp ? 'none' : '1px solid #e2e8f0'
+                          }}>
+                              <ShieldCheck size={12} /> {vph}
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td style={{ padding: "15px" }}>
+                      {(() => {
+                        const vc = m.historial?.vencimientoCarga;
+                        if (!vc) return <span style={{ color: '#cbd5e1' }}>-</span>;
+                        const d = new Date(vc + "-01");
+                        const isExp = d < today;
+                        const isSoon = !isExp && d <= nextMonth;
+                        return (
+                          <div style={{ 
+                              padding: '4px 10px', 
+                              borderRadius: '6px', 
+                              fontSize: '0.8rem', 
+                              fontWeight: 800,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px',
+                              background: isExp ? '#fef2f2' : (isSoon ? '#fff7ed' : '#f0fdf4'),
+                              color: isExp ? '#ef4444' : (isSoon ? '#f97316' : '#22c55e')
+                          }}>
+                              <Bell size={12} /> {vc}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td style={{ padding: '15px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                        {(isUrgent || (m.historial?.vencimientoCarga && new Date(m.historial.vencimientoCarga + "-28") < new Date())) && isStaff && (
+                          <button 
+                            title="Enviar Alerta al Cliente" 
+                            onClick={async () => {
+                              if (!m.clienteId) return alert("Este equipo no tiene un cliente asociado para enviar alertas.");
+                              const confirmSend = confirm(`¿Enviar notificación de vencimiento a ${m.clienteNombre}?`);
+                              if (confirmSend) {
+                                try {
+                                  await addDoc(collection(db, "notificaciones_enviadas"), {
+                                    titulo: "Vencimiento de Extintor",
+                                    cuerpo: `Tu extintor Tarjeta N° ${m.nroTarjeta} (${m.datosTecnicos?.agente} ${m.datosTecnicos?.capacidad}) se encuentra vencido o próximo a vencer. Por favor, contactanos para coordinar el mantenimiento.`,
+                                    tipo: "usuario",
+                                    destinatarioUid: m.clienteId,
+                                    destinatarioEmail: m.clienteEmail || "",
+                                    estado: "pendiente",
+                                    creadaEn: serverTimestamp()
+                                  });
+                                  alert("Alerta programada para envío.");
+                                } catch (e) {
+                                  alert("Error al programar alerta.");
+                                }
+                              }
+                            }} 
+                            style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#fff7ed", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #ffedd5", cursor: "pointer" }}>
+                            <Bell size={18} strokeWidth={2.5} />
+                          </button>
+                        )}
                         {isStaff && (
                           <button 
                             title="Editar" 
@@ -577,7 +756,8 @@ function MatafuegosUnifiedContent() {
             </tbody>
           </table>
         </div>
-      )}
+      </div>
+    )}
 
       {/* DELETE CONFIRM */}
       {deleteConfirm && (
@@ -662,6 +842,15 @@ function MatafuegosUnifiedContent() {
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
                   />
                 </div>
+                 <div>
+                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Año Fab.</label>
+                   <input 
+                     type="text" 
+                     value={editInventory.datosTecnicos?.anioFab || ""} 
+                     onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, anioFab: e.target.value } })}
+                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
+                   />
+                 </div>
               </div>
 
               <h4 style={{ borderTop: "1px solid #eee", paddingTop: "15px", marginBottom: "15px", fontSize: "0.85rem", fontWeight: 900, color: "#666" }}>HISTORIAL Y VENCIMIENTOS</h4>

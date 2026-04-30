@@ -25,12 +25,15 @@ interface MantenimientoItem {
   capacidad: string;
   claseFuego: string[];
   marca: string;
+  marcaOtro?: string;
   anioFab: string;
   estadoCilindro: "aprobado" | "rechazado";
   inspeccionVisual: "ok" | "nok" | "observaciones";
   componentesReemplazados: string[];
   agenteAdicional: string;
+  presionInicial: string;
   presionFinal: string;
+  pesoInicial: string;
   pesoFinal: string;
   marbeteColor: string;
   marbeteAnio: string;
@@ -54,7 +57,18 @@ function FichaFormContent() {
   // Datos de cabecera
   const [numeroFichaExistente, setNumeroFichaExistente] = useState<number | null>(null);
   const [fechaServicio, setFechaServicio] = useState(new Date().toISOString().split("T")[0]);
-  const [clienteManual, setClienteManual] = useState(false);
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientData, setNewClientData] = useState({ 
+    nombre: "", 
+    apellido: "",
+    email: "", 
+    empresa: "", 
+    dniCuit: "", 
+    telefono: "", 
+    direccion: "",
+    cargo: "",
+    sedes: [] as any[]
+  });
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any>(null);
   const [clientes, setClientes] = useState<any[]>([]);
   const [nombre, setNombre] = useState("");
@@ -63,8 +77,15 @@ function FichaFormContent() {
   const [sedeId, setSedeId] = useState("");
   const [sedeNombre, setSedeNombre] = useState("");
   const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
+  const [allTecnicos, setAllTecnicos] = useState<any[]>([]);
+  const [tallerNombre, setTallerNombre] = useState("Taller Central");
+  const [isFromRemito, setIsFromRemito] = useState(false);
 
   const [items, setItems] = useState<MantenimientoItem[]>([]);
+  const [dniCuit, setDniCuit] = useState("");
+  const [telefono, setTelefono] = useState("");
+  const [domicilio, setDomicilio] = useState("");
+  const [quienRecibe, setQuienRecibe] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -72,11 +93,15 @@ function FichaFormContent() {
       
       try {
         // Cargar técnicos y clientes primero
-        const [userDoc, clientsSnap] = await Promise.all([
+        const [userDoc, clientsSnap, tecnicosSnap] = await Promise.all([
           getDoc(doc(db, "usuarios", u.uid)),
-          getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente")))
+          getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente"))),
+          getDocs(query(collection(db, "usuarios"), where("rol", "==", "tecnico")))
         ]);
         
+        const tecs = tecnicosSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setAllTecnicos(tecs);
+
         const tecData = { uid: u.uid, nombre: (userDoc.exists() ? userDoc.data().nombre : "") || u.email };
         setTecnico(tecData);
         
@@ -89,6 +114,58 @@ function FichaFormContent() {
           setProximaOblea(configDoc.data().proximaTarjeta || 1);
         }
 
+        // CARGA DESDE REMITO SI EXISTE
+        const fromRemitoId = searchParams.get("fromRemito");
+        if (fromRemitoId && !editId) {
+          setIsFromRemito(true);
+          const remitoSnap = await getDoc(doc(db, "remitos_matafuegos", fromRemitoId));
+          if (remitoSnap.exists()) {
+            const rem = remitoSnap.data();
+            setNombre(rem.clienteNombre || "");
+            setEmpresa(rem.clienteEmpresa || "");
+            setDniCuit(rem.clienteDniCuit || "");
+            setTelefono(rem.clienteTelefono || "");
+            setDomicilio(rem.clienteDireccion || "");
+            setSedeId(rem.sedeId || "");
+            setSedeNombre(rem.sedeNombre || "");
+            
+            if (rem.clienteId) {
+              const matched = cls.find(c => c.id === rem.clienteId);
+              if (matched) {
+                setClienteSeleccionado(matched);
+                setFilteredSedes(matched.sedes || []);
+              }
+            }
+
+            // Mapear equipos a items de mantenimiento
+            const newItems: MantenimientoItem[] = rem.equipos.map((eq: any) => ({
+              id: Math.random().toString(36).substr(2, 9),
+              nroTarjeta: eq.id || "", // Usamos el ID/Código del remito como tarjeta inicial
+              agente: eq.tipo || "ABC",
+              capacidad: eq.capacidad || "",
+              claseFuego: ["A", "B", "C"],
+              marca: "",
+              anioFab: "",
+              estadoCilindro: "aprobado",
+              inspeccionVisual: "ok",
+              componentesReemplazados: [],
+              agenteAdicional: "",
+              presionInicial: "",
+              presionFinal: "",
+              pesoInicial: "",
+              pesoFinal: "",
+              marbeteColor: "",
+              marbeteAnio: "",
+              precintoColor: "",
+              vencimientoCarga: "",
+              ultimaPH: "",
+              proximaPH: "",
+              observaciones: ""
+            }));
+            setItems(newItems);
+          }
+        }
+
         // SI HAY EDICION, CARGAR FICHA AHORA QUE TENEMOS CLIENTES
         if (editId) {
           const fichaDoc = await getDoc(doc(db, "mantenimiento_matafuegos", editId));
@@ -98,7 +175,12 @@ function FichaFormContent() {
             setFechaServicio(data.fechaServicio || "");
             setNombre(data.clienteNombre || "");
             setEmpresa(data.clienteEmpresa || "");
+            setDniCuit(data.dniCuit || "");
+            setTelefono(data.telefono || "");
+            setDomicilio(data.domicilio || "");
+            setQuienRecibe(data.quienRecibe || "");
             setItems(data.items || []);
+            setTallerNombre(data.tallerNombre || "Taller Central");
             
             if (data.clienteId) {
               const matched = allClients.find(c => c.id === data.clienteId);
@@ -108,8 +190,6 @@ function FichaFormContent() {
                 setSedeId(data.sedeId || "");
                 setSedeNombre(data.sedeNombre || "");
               }
-            } else {
-              setClienteManual(true);
             }
           }
         }
@@ -134,6 +214,9 @@ function FichaFormContent() {
       setClienteSeleccionado(c);
       setNombre(c.nombre || c.razonSocial || "");
       setEmpresa(c.empresa || c.razonSocial || "");
+      setDniCuit(c.dniCuit || c.cuit || "");
+      setTelefono(c.telefono || c.celular || "");
+      setDomicilio(c.direccion || c.domicilio || "");
       setFilteredSedes(c.sedes || []);
       setSedeId("");
       setSedeNombre("");
@@ -150,8 +233,9 @@ function FichaFormContent() {
     const nuevo: MantenimientoItem = {
       id: Math.random().toString(36).substr(2, 9),
       nroTarjeta: "", agente: "ABC", capacidad: "5kg", claseFuego: ["A", "B", "C"],
-      marca: "", anioFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
-      componentesReemplazados: [], agenteAdicional: "", presionFinal: "", pesoFinal: "",
+      marca: "", marcaOtro: "", anioFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
+      componentesReemplazados: [], agenteAdicional: "", 
+      presionInicial: "", presionFinal: "", pesoInicial: "", pesoFinal: "",
       marbeteColor: "", marbeteAnio: new Date().getFullYear().toString(),
       precintoColor: "", vencimientoCarga: "", ultimaPH: "", proximaPH: "", observaciones: ""
     };
@@ -230,10 +314,14 @@ function FichaFormContent() {
         clienteId: clienteSeleccionado?.id || null,
         clienteNombre: nombre,
         clienteEmpresa: empresa,
-        sedeId: sedeId || null,
+        dniCuit,
+        telefono,
+        domicilio,
+        quienRecibe,
         sedeNombre: sedeNombre || "",
-        tecnicoId: tecnico.uid,
+        tecnicoId: tecnico.uid || tecnico.id,
         tecnicoNombre: tecnico.nombre,
+        tallerNombre,
         items,
         updatedAt: serverTimestamp()
       };
@@ -257,7 +345,7 @@ function FichaFormContent() {
           datosTecnicos: {
             agente: it.agente,
             capacidad: it.capacidad,
-            marca: it.marca,
+            marca: it.marca === "Otro" ? it.marcaOtro : it.marca,
             anioFab: it.anioFab,
             claseFuego: it.claseFuego
           },
@@ -285,6 +373,18 @@ function FichaFormContent() {
       }
 
       await Promise.all(updates);
+      
+      // 5. Actualizar datos del cliente en la colección 'usuarios' si cambió algo
+      if (clienteSeleccionado?.id) {
+        await updateDoc(doc(db, "usuarios", clienteSeleccionado.id), {
+            nombre,
+            empresa,
+            dniCuit,
+            telefono,
+            direccion: domicilio,
+            updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error updating client profile:", err));
+      }
 
       alert("Ficha técnica guardada con éxito.");
       router.push("/admin/planillas/matafuegos?tab=fichas");
@@ -303,6 +403,45 @@ function FichaFormContent() {
 
   return (
     <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 15px 100px", overflowX: "hidden" }}>
+      <style jsx>{`
+        .responsive-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+        }
+        .grid-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 20px;
+          gap: 15px;
+        }
+        .form-card {
+          background: #fff;
+          padding: 30px;
+          borderRadius: 16px;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+          margin-bottom: 25px;
+          border: 1px solid #eee;
+        }
+        @media (max-width: 768px) {
+          .responsive-grid, .grid-4, .grid-3, .grid-2 {
+            grid-template-columns: 1fr !important;
+            gap: 15px;
+          }
+          .grid-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 10px;
+          }
+          .form-card {
+            padding: 15px !important;
+          }
+          .grid-column-span-2 {
+            grid-column: span 1 !important;
+          }
+        }
+      `}</style>
       <header style={{ marginBottom: "30px" }}>
         <button onClick={() => router.push("/admin/planillas/matafuegos")} 
           style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "10px", padding: 0 }}>
@@ -314,21 +453,25 @@ function FichaFormContent() {
       </header>
 
       {/* CLIENTE */}
-      <div style={{ background: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', marginBottom: '25px', border: '1px solid #eee' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' }}>
+      <div className="form-card">
+        <div className="grid-header">
             <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-blue)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
               <User size={20} /> Datos del Cliente
             </h3>
-            <label style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#666' }}>
-                <input type="checkbox" checked={clienteManual} onChange={e => { setClienteManual(e.target.checked); if(e.target.checked) setClienteSeleccionado(null); }} />
-                Carga Manual
-            </label>
+            {!isFromRemito && (
+              <button 
+                type="button"
+                onClick={() => setShowNewClientModal(true)}
+                style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--primary-blue)', background: 'none', border: 'none', fontWeight: 800 }}>
+                  <Plus size={16} /> NUEVO CLIENTE
+              </button>
+            )}
         </div>
 
-        <div className="grid-2">
-            {!clienteManual && (
+        <div className="responsive-grid">
+            {!isFromRemito && (
               <div style={{ position: "relative" }}>
-                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>CLIENTE REGISTRADO</label>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>BUSCAR CLIENTE REGISTRADO</label>
                 <input 
                   style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', outline: 'none', background: '#f8fafc' }}
                   placeholder="Escribe el nombre, empresa o email..."
@@ -381,18 +524,52 @@ function FichaFormContent() {
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>FECHA DE SERVICIO</label>
               <input type="date" value={fechaServicio} onChange={(e) => setFechaServicio(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
             </div>
-            {(clienteManual || editId) && (
-              <>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>NOMBRE / CLIENTE</label>
-                  <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre o Razón Social" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>EMPRESA (OPCIONAL)</label>
-                  <input value={empresa} onChange={e => setEmpresa(e.target.value)} placeholder="Nombre Fantasía o Empresa" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
-                </div>
-              </>
-            )}
+            <div>
+              <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>TÉCNICO RESPONSABLE</label>
+              <select 
+                value={tecnico?.uid || tecnico?.id || ""} 
+                onChange={e => {
+                  const t = allTecnicos.find(x => x.id === e.target.value);
+                  if (t) setTecnico({ uid: t.id, nombre: t.nombre || t.email });
+                }}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', background: '#f8fafc' }}
+              >
+                <option value="">-- Seleccionar Técnico --</option>
+                {allTecnicos.map(t => <option key={t.id} value={t.id}>{t.nombre || t.email}</option>)}
+                {/* Fallback para el usuario actual si no está en la lista de técnicos */}
+                {!allTecnicos.find(t => t.id === tecnico?.uid) && tecnico && (
+                  <option value={tecnico.uid}>{tecnico.nombre} (Actual)</option>
+                )}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>TALLER</label>
+              <input value={tallerNombre} onChange={e => setTallerNombre(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', background: '#f8fafc' }} />
+            </div>
+            <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>NOMBRE / CLIENTE</label>
+                <input value={nombre} onChange={e => setNombre(e.target.value)} placeholder="Nombre o Razón Social" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            </div>
+            <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>EMPRESA (OPCIONAL)</label>
+                <input value={empresa} onChange={e => setEmpresa(e.target.value)} placeholder="Nombre Fantasía o Empresa" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            </div>
+            <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>DNI / CUIT</label>
+                <input value={dniCuit} onChange={e => setDniCuit(e.target.value)} placeholder="DNI o CUIT" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            </div>
+            <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>TELÉFONO</label>
+                <input value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="Teléfono de contacto" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            </div>
+            <div className="grid-column-span-2">
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>DOMICILIO</label>
+                <input value={domicilio} onChange={e => setDomicilio(e.target.value)} placeholder="Dirección completa" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            </div>
+            <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>RECIBIDO POR</label>
+                <input value={quienRecibe} onChange={e => setQuienRecibe(e.target.value)} placeholder="Nombre de quien recibe" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
+            </div>
         </div>
       </div>
 
@@ -408,7 +585,7 @@ function FichaFormContent() {
         </div>
 
         {items.map((item, idx) => (
-          <div key={item.id} style={{ background: '#fff', padding: '25px', borderRadius: '16px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)', border: '1px solid #eee', marginBottom: '20px' }}>
+          <div key={item.id} className="form-card">
             <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #eee', paddingBottom: '15px', marginBottom: '20px', alignItems: 'center' }}>
               <span style={{ fontWeight: 900, color: 'var(--primary-red)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <ShieldCheck size={18} /> EXTINTOR #{idx + 1}
@@ -419,7 +596,7 @@ function FichaFormContent() {
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+            <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>TARJETA N°</label>
                 <div style={{ display: 'flex', gap: '5px' }}>
@@ -457,23 +634,35 @@ function FichaFormContent() {
                   <option value="">-- Seleccionar --</option>
                   {marcasDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
+                {item.marca === "Otro" && (
+                  <input 
+                    value={item.marcaOtro} 
+                    onChange={e => updateItem(idx, 'marcaOtro', e.target.value)} 
+                    placeholder="Especifique marca"
+                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }} 
+                  />
+                )}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>AÑO FABRICACIÓN</label>
+                <input value={item.anioFab} onChange={e => updateItem(idx, 'anioFab', e.target.value)} placeholder="Ej: 2020" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
               </div>
             </div>
 
-            <div className="grid-2" style={{ marginTop: '20px' }}>
+            <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '8px' }}>CLASES DE FUEGO</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {["A", "B", "C", "D", "K"].map(clase => (
-                    <button key={clase} onClick={() => toggleArrayItem(idx, 'claseFuego', clase)} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ddd', background: item.claseFuego.includes(clase) ? 'var(--primary-blue)' : '#fff', color: item.claseFuego.includes(clase) ? '#fff' : '#666', fontWeight: 800, flex: 1 }}>{clase}</button>
+                    <button key={clase} type="button" onClick={() => toggleArrayItem(idx, 'claseFuego', clase)} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ddd', background: item.claseFuego.includes(clase) ? 'var(--primary-blue)' : '#fff', color: item.claseFuego.includes(clase) ? '#fff' : '#666', fontWeight: 800, flex: 1 }}>{clase}</button>
                   ))}
                 </div>
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '8px' }}>ESTADO CILINDRO</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button onClick={() => updateItem(idx, 'estadoCilindro', 'aprobado')} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ddd', background: item.estadoCilindro === 'aprobado' ? '#dcfce7' : '#fff', flex: 1, fontWeight: 700 }}>Aprobado</button>
-                  <button onClick={() => updateItem(idx, 'estadoCilindro', 'rechazado')} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ddd', background: item.estadoCilindro === 'rechazado' ? '#fee2e2' : '#fff', flex: 1, fontWeight: 700 }}>Rechazado</button>
+                  <button type="button" onClick={() => updateItem(idx, 'estadoCilindro', 'aprobado')} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ddd', background: item.estadoCilindro === 'aprobado' ? '#dcfce7' : '#fff', flex: 1, fontWeight: 700 }}>Aprobado</button>
+                  <button type="button" onClick={() => updateItem(idx, 'estadoCilindro', 'rechazado')} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #ddd', background: item.estadoCilindro === 'rechazado' ? '#fee2e2' : '#fff', flex: 1, fontWeight: 700 }}>Rechazado</button>
                 </div>
               </div>
             </div>
@@ -482,12 +671,31 @@ function FichaFormContent() {
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '8px' }}>COMP. REEMPLAZADOS</label>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {componentesDisponibles.map(comp => (
-                  <button key={comp} onClick={() => toggleArrayItem(idx, 'componentesReemplazados', comp)} style={{ padding: '6px 12px', borderRadius: '20px', border: '1px solid #ddd', fontSize: '0.75rem', background: item.componentesReemplazados.includes(comp) ? '#f1f5f9' : '#fff', fontWeight: 600 }}>{comp}</button>
+                  <button key={comp} type="button" onClick={() => toggleArrayItem(idx, 'componentesReemplazados', comp)} style={{ padding: '6px 12px', borderRadius: '20px', border: '1px solid #ddd', fontSize: '0.75rem', background: item.componentesReemplazados.includes(comp) ? '#f1f5f9' : '#fff', fontWeight: 600 }}>{comp}</button>
                 ))}
               </div>
             </div>
 
-            <div className="grid-3" style={{ marginTop: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px' }}>
+            <div className="grid-4" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', marginTop: '20px', padding: '15px', background: '#f8fafc', borderRadius: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.6rem', color: '#64748b', marginBottom: '5px' }}>PRESION INICIAL</label>
+                <input value={item.presionInicial} onChange={e => updateItem(idx, 'presionInicial', e.target.value)} placeholder="psi/kg" style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.6rem', color: '#64748b', marginBottom: '5px' }}>PRESION FINAL</label>
+                <input value={item.presionFinal} onChange={e => updateItem(idx, 'presionFinal', e.target.value)} placeholder="psi/kg" style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.6rem', color: '#64748b', marginBottom: '5px' }}>PESO INICIAL</label>
+                <input value={item.pesoInicial} onChange={e => updateItem(idx, 'pesoInicial', e.target.value)} placeholder="kg" style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.6rem', color: '#64748b', marginBottom: '5px' }}>PESO FINAL</label>
+                <input value={item.pesoFinal} onChange={e => updateItem(idx, 'pesoFinal', e.target.value)} placeholder="kg" style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
+              </div>
+            </div>
+
+            <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', marginTop: '20px', padding: '15px', background: '#f1f5f9', borderRadius: '12px' }}>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.6rem', color: '#64748b', marginBottom: '5px' }}>VENC. CARGA</label>
                 <input type="month" value={item.vencimientoCarga} onChange={e => updateItem(idx, 'vencimientoCarga', e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #cbd5e1', borderRadius: '6px' }} />
@@ -513,6 +721,127 @@ function FichaFormContent() {
             {saving ? "Guardando..." : <><Save size={22} /> Guardar Ficha Técnica</>}
         </button>
       </div>
+
+      {showNewClientModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "35px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+            <h2 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-blue)", marginBottom: "25px", display: "flex", alignItems: "center", gap: "10px" }}>
+              <Plus size={24} strokeWidth={3} /> Registrar Nuevo Cliente
+            </h2>
+            
+            <div style={{ display: "grid", gap: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#64748b", marginBottom: "6px", textTransform: "uppercase" }}>Nombre *</label>
+                  <input type="text" value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }} placeholder="Nombre" />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#64748b", marginBottom: "6px", textTransform: "uppercase" }}>Apellido</label>
+                  <input type="text" value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }} placeholder="Apellido" />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#64748b", marginBottom: "6px", textTransform: "uppercase" }}>Email *</label>
+                <input type="email" value={newClientData.email} onChange={e => setNewClientData({...newClientData, email: e.target.value})} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }} placeholder="correo@ejemplo.com" />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#64748b", marginBottom: "6px", textTransform: "uppercase" }}>Empresa / R. Social</label>
+                  <input type="text" value={newClientData.empresa} onChange={e => setNewClientData({...newClientData, empresa: e.target.value})} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }} placeholder="Empresa" />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#64748b", marginBottom: "6px", textTransform: "uppercase" }}>DNI / CUIT</label>
+                  <input type="text" value={newClientData.dniCuit} onChange={e => setNewClientData({...newClientData, dniCuit: e.target.value})} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }} placeholder="Número de CUIT" />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#64748b", marginBottom: "6px", textTransform: "uppercase" }}>Teléfono</label>
+                  <input type="text" value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }} placeholder="+54..." />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#64748b", marginBottom: "6px", textTransform: "uppercase" }}>Cargo</label>
+                  <input type="text" value={newClientData.cargo} onChange={e => setNewClientData({...newClientData, cargo: e.target.value})} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }} placeholder="Responsable / Encargado" />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#64748b", marginBottom: "6px", textTransform: "uppercase" }}>Dirección Principal</label>
+                <input type="text" value={newClientData.direccion} onChange={e => setNewClientData({...newClientData, direccion: e.target.value})} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid #e2e8f0" }} placeholder="Calle 123, Ciudad" />
+              </div>
+
+              {/* SECCIÓN SEDES */}
+              <div style={{ borderTop: "1px solid #eee", paddingTop: "20px", marginTop: "10px" }}>
+                <h3 style={{ fontSize: "0.85rem", fontWeight: 900, color: "var(--primary-blue)", marginBottom: "15px", textTransform: "uppercase" }}>Sedes / Consorcios</h3>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "15px" }}>
+                  {newClientData.sedes.map((s: any) => (
+                    <div key={s.id} style={{ background: "#f8fafc", padding: "10px 15px", borderRadius: "10px", border: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "#1e293b" }}>{s.nombre}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{s.direccion}</div>
+                      </div>
+                      <button type="button" onClick={() => setNewClientData({...newClientData, sedes: newClientData.sedes.filter(x => x.id !== s.id)})} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer" }}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ background: "#f1f5f9", padding: "15px", borderRadius: "12px" }}>
+                  <div style={{ display: "grid", gap: "10px" }}>
+                    <input id="new-sede-nombre" style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1" }} placeholder="Nombre de la Sede" />
+                    <input id="new-sede-direccion" style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #cbd5e1" }} placeholder="Dirección" />
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        const n = (document.getElementById("new-sede-nombre") as HTMLInputElement).value;
+                        const d = (document.getElementById("new-sede-direccion") as HTMLInputElement).value;
+                        if (!n) return alert("Nombre de sede obligatorio");
+                        const newSede = { id: Math.random().toString(36).substr(2, 9), nombre: n, direccion: d };
+                        setNewClientData({...newClientData, sedes: [...newClientData.sedes, newSede]});
+                        (document.getElementById("new-sede-nombre") as HTMLInputElement).value = "";
+                        (document.getElementById("new-sede-direccion") as HTMLInputElement).value = "";
+                      }}
+                      style={{ background: "var(--primary-blue)", color: "#fff", border: "none", padding: "10px", borderRadius: "8px", fontWeight: 700, cursor: "pointer" }}>
+                      + Agregar Sede
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", marginTop: "35px" }}>
+              <button onClick={() => setShowNewClientModal(false)} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "1px solid #e2e8f0", background: "#f8fafc", fontWeight: 700, color: "#64748b", cursor: "pointer" }}>Cancelar</button>
+              <button 
+                onClick={async () => {
+                  if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios.");
+                  try {
+                    const docRef = await addDoc(collection(db, "usuarios"), {
+                      ...newClientData,
+                      rol: "cliente",
+                      fechaCreacion: new Date().toISOString(),
+                      updatedAt: serverTimestamp()
+                    });
+                    const created = { id: docRef.id, ...newClientData };
+                    setClientes(prev => [...prev, created]);
+                    onSelectCliente(docRef.id);
+                    setShowNewClientModal(false);
+                    setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", cargo: "" });
+                  } catch (e) {
+                    alert("Error al crear cliente.");
+                  }
+                }}
+                className="btn-red" style={{ flex: 2, padding: "14px", borderRadius: "12px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                  Crear y Seleccionar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -55,8 +55,8 @@ export const generateMantenimientoPDF = async (ficha: any) => {
     
     pdf.setFont("helvetica", "normal");
     pdf.text(fecStr, rx + 18, top + 8);
-    pdf.text("CABA / Taller Central", rx + 18, top + 15);
-    pdf.text(ficha.tecnicoNombre.split(" ")[0], rx + 18, top + 22);
+    pdf.text(ficha.tallerNombre || "ARIFA - Taller Central", rx + 18, top + 15);
+    pdf.text(ficha.tecnicoNombre || "-", rx + 18, top + 22);
 
     let y = top + HEADER_H + 8;
 
@@ -66,8 +66,12 @@ export const generateMantenimientoPDF = async (ficha: any) => {
       body: [
         [{ content: "CLIENTE:", styles: { fontStyle: "bold", cellWidth: 40 } }, ficha.clienteNombre],
         [{ content: "EMPRESA:", styles: { fontStyle: "bold" } }, ficha.clienteEmpresa || "-"],
+        [{ content: "DNI/CUIT:", styles: { fontStyle: "bold" } }, ficha.dniCuit || "-"],
+        [{ content: "TELÉFONO:", styles: { fontStyle: "bold" } }, ficha.telefono || "-"],
+        [{ content: "DOMICILIO:", styles: { fontStyle: "bold" } }, ficha.domicilio || "-"],
+        [{ content: "RECIBIDO POR:", styles: { fontStyle: "bold" } }, ficha.quienRecibe || "-"],
       ],
-      styles: { fontSize: 9, cellPadding: 3 },
+      styles: { fontSize: 9, cellPadding: 2 },
       tableLineColor: [0, 34, 68],
       tableLineWidth: 0.2,
     });
@@ -83,22 +87,21 @@ export const generateMantenimientoPDF = async (ficha: any) => {
     const tableData = ficha.items.map((item: any) => [
       item.nroTarjeta,
       `${item.agente} ${item.capacidad}`,
-      item.claseFuego.join("-"),
-      item.marca,
+      item.marca === "Otro" ? item.marcaOtro : item.marca,
       item.anioFab,
-      item.componentesReemplazados.length > 0 ? "SI" : "NO",
-      item.marbeteColor,
+      `${item.presionInicial || "-"} / ${item.presionFinal || "-"}`,
+      `${item.pesoInicial || "-"} / ${item.pesoFinal || "-"}`,
       item.vencimientoCarga
     ]);
 
     autoTable(pdf, {
       startY: y,
       margin: { left: ML, right: MR },
-      head: [["Tarj. N°", "Agente/Cap.", "Clase", "Marca", "Año", "Rep.", "Marbete", "Venc. Carga"]],
+      head: [["Tarj. N°", "Agente/Cap.", "Marca", "Año", "Presión (I/F)", "Peso (I/F)", "Venc. Carga"]],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [0, 34, 68], fontSize: 8 },
-      bodyStyles: { fontSize: 8 },
+      bodyStyles: { fontSize: 7 },
     });
 
     y = (pdf as any).lastAutoTable.finalY + 15;
@@ -107,10 +110,17 @@ export const generateMantenimientoPDF = async (ficha: any) => {
     pdf.setTextColor(100);
     pdf.text("Se certifica que los extintores detallados han sido procesados bajo normativas de seguridad vigentes.", ML, y);
     pdf.text("La vigencia de las cargas es de 1 año a partir de la fecha de servicio. Se recomienda control mensual.", ML, y + 5);
-
-    pdf.line(W - MR - 60, y + 25, W - MR, y + 25);
     pdf.setFont("helvetica", "bold");
-    pdf.text("Firma Responsable Técnico", W - MR - 30, y + 29, { align: "center" });
+    pdf.text("EMPRESA QUE REALIZO EL MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2: ARIFA", ML, y + 12);
+
+    // Ajuste de Firma - Más abajo
+    y += 45; 
+    if (y > 275) { pdf.addPage(); y = 40; } // Control de desborde
+
+    pdf.line(W - MR - 65, y, W - MR - 5, y);
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(9);
+    pdf.text("Firma Responsable Técnico", W - MR - 35, y + 5, { align: "center" });
 
     pdf.save(`Certificado_Tecnico_FT${ftNum}.pdf`);
 };
@@ -166,7 +176,7 @@ export const generateRemitoPDF = async (remito: any) => {
     pdf.setFont("helvetica", "normal");
     pdf.text(fecStr, rx + 18, top + 8);
     pdf.text(remito.tipo.toUpperCase(), rx + 18, top + 15);
-    pdf.text(remito.tecnicoNombre.split(" ")[0], rx + 18, top + 22);
+    pdf.text(remito.tecnicoNombre || "-", rx + 18, top + 22);
 
     let y = top + HEADER_H + 8;
 
@@ -223,7 +233,7 @@ export const generateRemitoPDF = async (remito: any) => {
     pdf.text("CONFORMIDAD Y RECEPCIÓN DEL CLIENTE", bx + bw/2, y + 5, { align: "center" });
 
     if (remito.firma) {
-      pdf.addImage(remito.firma, "PNG", bx + 10, y + 7, bw - 20, 25);
+      pdf.addImage(remito.firma, "PNG", bx + 5, y + 7, bw - 10, 25);
     }
     
     pdf.setFontSize(10); pdf.setTextColor(0); pdf.setFont("helvetica", "bold");

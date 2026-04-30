@@ -73,7 +73,7 @@ export default function UsuariosPage() {
     // search filter
     const q = search.toLowerCase();
     if (!q) return true;
-    return [u.nombre, u.apellido, u.empresa, u.email, u.cargo, u.telefono].some(v => v?.toLowerCase().includes(q));
+    return [u.nombre, u.apellido, u.empresa, u.email, u.cargo, u.telefono, u.dniCuit].some(v => v?.toLowerCase().includes(q));
   });
 
   const handleEdit = (user: any) => {
@@ -93,6 +93,7 @@ export default function UsuariosPage() {
         direccion: editingUser.direccion || "",
         telefono: editingUser.telefono || "",
         cargo: editingUser.cargo || "",
+        dniCuit: editingUser.dniCuit || "",
         rol: editingUser.rol,
         email: editingUser.email || "",
         sedes: editingUser.sedes || [],
@@ -148,6 +149,7 @@ export default function UsuariosPage() {
       email: "",
       direccion: "",
       telefono: "",
+      dniCuit: "",
       cargo: "",
       rol: "cliente",
       sedes: [],
@@ -382,6 +384,11 @@ export default function UsuariosPage() {
               <div>
                 <label style={labelSt}>Empresa / Razón Social Principal</label>
                 <input style={inputSt} value={editingUser.empresa || ""} onChange={e => setEditingUser({ ...editingUser, empresa: e.target.value })} />
+              </div>
+
+              <div>
+                <label style={labelSt}>DNI / CUIT</label>
+                <input style={inputSt} value={editingUser.dniCuit || ""} onChange={e => setEditingUser({ ...editingUser, dniCuit: e.target.value })} placeholder="DNI o CUIT" />
               </div>
 
               <div>
