@@ -130,7 +130,7 @@ function FichaFormContent() {
             setSedeNombre(rem.sedeNombre || "");
             
             if (rem.clienteId) {
-              const matched = cls.find(c => c.id === rem.clienteId);
+              const matched = allClients.find(c => c.id === rem.clienteId);
               if (matched) {
                 setClienteSeleccionado(matched);
                 setFilteredSedes(matched.sedes || []);
@@ -830,7 +830,7 @@ function FichaFormContent() {
                     setClientes(prev => [...prev, created]);
                     onSelectCliente(docRef.id);
                     setShowNewClientModal(false);
-                    setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", cargo: "" });
+                    setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", cargo: "", sedes: [] });
                   } catch (e) {
                     alert("Error al crear cliente.");
                   }
