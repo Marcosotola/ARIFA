@@ -9,13 +9,14 @@ export default function OrdenesAdmin() {
   const [activeTab, setActiveTab] = useState("listado");
   const [ordenes, setOrdenes] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [tecnicosDB, setTecnicosDB] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [showForm, setShowForm] = useState(false);
   const [filtroSede, setFiltroSede] = useState("Todas");
   const [search, setSearch] = useState("");
-  const [newOrder, setNewOrder] = useState<any>({ 
+  const [newOrder, setNewOrder] = useState({
     cliente: "", 
     clienteId: "",
     sedeId: "",
@@ -23,7 +24,21 @@ export default function OrdenesAdmin() {
     direccion: "", 
     tipo: "Mantenimiento Matafuegos", 
     estado: "Pendiente", 
-    tecnico: "" 
+    tecnico: "",
+    clienteDniCuit: "",
+    clienteTelefono: "",
+    clienteEmail: ""
+  });
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientData, setNewClientData] = useState({ 
+    nombre: "", 
+    apellido: "",
+    email: "", 
+    empresa: "", 
+    dniCuit: "", 
+    telefono: "", 
+    direccion: "",
+    sedes: [] as { id: string, nombre: string, direccion: string }[]
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
@@ -39,6 +54,7 @@ export default function OrdenesAdmin() {
         fetchOrdenes(u.uid, roleData);
         if (roleData === 'admin' || roleData === 'superadmin') {
           fetchUsuarios();
+          fetchTecnicos();
         }
       }
     });
@@ -52,6 +68,16 @@ export default function OrdenesAdmin() {
       setUsuarios(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
       console.error("Error fetching users:", e);
+    }
+  };
+
+  const fetchTecnicos = async () => {
+    try {
+      const q = query(collection(db, "usuarios"), where("rol", "==", "tecnico"));
+      const snap = await getDocs(q);
+      setTecnicosDB(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      console.error("Error fetching technicians:", e);
     }
   };
 
@@ -81,11 +107,32 @@ export default function OrdenesAdmin() {
       cliente: u.empresa || `${u.nombre} ${u.apellido}`,
       clienteId: u.id,
       direccion: u.direccion || "",
+      clienteDniCuit: u.dniCuit || "",
+      clienteTelefono: u.telefono || "",
+      clienteEmail: u.email || "",
       sedeId: "",
       sedeNombre: ""
     });
     setFilteredSedes(u.sedes || []);
     setShowSuggestions(false);
+  };
+
+  const handleCreateNewClient = async () => {
+    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios");
+    try {
+      const docRef = await addDoc(collection(db, "usuarios"), {
+        ...newClientData,
+        rol: "cliente",
+        createdAt: serverTimestamp()
+      });
+      const newC = { id: docRef.id, ...newClientData, rol: "cliente" };
+      setUsuarios([...usuarios, newC]);
+      handleSelectCliente(newC);
+      setShowNewClientModal(false);
+      setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
+    } catch (e) {
+      alert("Error al crear cliente: " + e);
+    }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -99,9 +146,19 @@ export default function OrdenesAdmin() {
         userId: newOrder.clienteId || null,
         fechaCreacion: serverTimestamp(),
       });
+      if (newOrder.clienteId) {
+        await updateDoc(doc(db, "usuarios", newOrder.clienteId), {
+          nombre: newOrder.cliente,
+          dniCuit: newOrder.clienteDniCuit,
+          telefono: newOrder.clienteTelefono,
+          direccion: newOrder.direccion,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error updating client profile:", err));
+      }
+
       fetchOrdenes(user.uid, role!);
       setShowForm(false);
-      setNewOrder({ cliente: "", clienteId: "", sedeId: "", sedeNombre: "", direccion: "", tipo: "Mantenimiento Matafuegos", estado: "Pendiente", tecnico: "" });
+      setNewOrder({ cliente: "", clienteId: "", sedeId: "", sedeNombre: "", direccion: "", tipo: "Mantenimiento Matafuegos", estado: "Pendiente", tecnico: "", clienteDniCuit: "", clienteTelefono: "", clienteEmail: "" });
       setFilteredSedes([]);
     } catch (e) {
       alert("Error al crear la orden: " + e);
@@ -184,7 +241,12 @@ export default function OrdenesAdmin() {
           <h2 style={{ fontSize: "1.1rem", fontWeight: 800, marginBottom: "20px", color: "var(--primary-blue)" }}>Información de la Orden</h2>
           <form onSubmit={handleCreate} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
             <div style={{ gridColumn: "span 2", position: "relative" }}>
-              <label style={labelSt}>Cliente</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                <label style={labelSt}>Cliente</label>
+                <button type="button" onClick={() => setShowNewClientModal(true)} style={{ background: 'var(--primary-blue)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                  <Plus size={14} /> NUEVO CLIENTE
+                </button>
+              </div>
               <input 
                 style={inputSt} 
                 value={newOrder.cliente} 
@@ -192,11 +254,11 @@ export default function OrdenesAdmin() {
                   setNewOrder({ ...newOrder, cliente: e.target.value, clienteId: "", sedeId: "", sedeNombre: "" }); 
                   setShowSuggestions(true); 
                 }} 
-                placeholder="Nombre del cliente o empresa..." 
+                placeholder="Buscar cliente registrado..." 
               />
-              {showSuggestions && (
-                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", maxHeight: "200px", overflowY: "auto" }}>
-                  {usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa}`.toLowerCase().includes(newOrder.cliente.toLowerCase())).map(u => (
+              {showSuggestions && newOrder.cliente.length > 1 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 10px 30px rgba(0,0,0,0.15)", maxHeight: "200px", overflowY: "auto", marginTop: "5px" }}>
+                  {usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa} ${u.email}`.toLowerCase().includes(newOrder.cliente.toLowerCase())).map(u => (
                     <div key={u.id} onClick={() => handleSelectCliente(u)} style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
                          onMouseEnter={e => e.currentTarget.style.background = "#f8fafc"}
                          onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
@@ -206,6 +268,15 @@ export default function OrdenesAdmin() {
                   ))}
                 </div>
               )}
+            </div>
+
+            <div>
+              <label style={labelSt}>DNI / CUIT</label>
+              <input style={inputSt} value={newOrder.clienteDniCuit} onChange={e => setNewOrder({ ...newOrder, clienteDniCuit: e.target.value })} placeholder="DNI o CUIT" />
+            </div>
+            <div>
+              <label style={labelSt}>Teléfono</label>
+              <input style={inputSt} value={newOrder.clienteTelefono} onChange={e => setNewOrder({ ...newOrder, clienteTelefono: e.target.value })} placeholder="Teléfono" />
             </div>
 
             <div>
@@ -244,7 +315,16 @@ export default function OrdenesAdmin() {
             </div>
             <div>
               <label style={labelSt}>Técnico Asignado</label>
-              <input style={inputSt} value={newOrder.tecnico} onChange={e => setNewOrder({ ...newOrder, tecnico: e.target.value })} placeholder="Nombre del técnico..." />
+              <select 
+                style={inputSt} 
+                value={newOrder.tecnico} 
+                onChange={e => setNewOrder({ ...newOrder, tecnico: e.target.value })}
+              >
+                <option value="">Seleccionar Técnico...</option>
+                {tecnicosDB.map(t => (
+                  <option key={t.id} value={t.nombre || t.email}>{t.nombre || t.email}</option>
+                ))}
+              </select>
             </div>
             <button type="submit" className="btn-red" style={{ gridColumn: "span 2", padding: "14px", marginTop: "10px" }}>Generar Orden de Trabajo</button>
           </form>
@@ -337,6 +417,96 @@ export default function OrdenesAdmin() {
           <Folder size={48} style={{ color: "#f59e0b", marginBottom: "20px", opacity: 0.5 }} />
           <h2 style={{ fontSize: "1.2rem", fontWeight: 800 }}>Gestor de Archivos OT</h2>
           <p>Próximamente: Historial completo y descarga de reportes consolidados.</p>
+        </div>
+      )}
+      {/* Nuevo Cliente Modal */}
+      {showNewClientModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "35px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
+                <Plus size={24} strokeWidth={3} /> Registrar Nuevo Cliente
+              </h2>
+              <button onClick={() => setShowNewClientModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#ccc' }}>✕</button>
+            </div>
+            
+            <div style={{ display: "grid", gap: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Nombre *</label>
+                  <input type="text" value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} style={inputSt} placeholder="Nombre" />
+                </div>
+                <div>
+                  <label style={labelSt}>Apellido</label>
+                  <input type="text" value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} style={inputSt} placeholder="Apellido" />
+                </div>
+              </div>
+
+              <div>
+                <label style={labelSt}>Email *</label>
+                <input type="email" value={newClientData.email} onChange={e => setNewClientData({...newClientData, email: e.target.value})} style={inputSt} placeholder="correo@ejemplo.com" />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Empresa / R. Social</label>
+                  <input type="text" value={newClientData.empresa} onChange={e => setNewClientData({...newClientData, empresa: e.target.value})} style={inputSt} placeholder="Empresa" />
+                </div>
+                <div>
+                  <label style={labelSt}>DNI / CUIT</label>
+                  <input type="text" value={newClientData.dniCuit} onChange={e => setNewClientData({...newClientData, dniCuit: e.target.value})} style={inputSt} placeholder="DNI o CUIT" />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Teléfono</label>
+                  <input type="text" value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} style={inputSt} placeholder="Teléfono" />
+                </div>
+                <div>
+                  <label style={labelSt}>Dirección</label>
+                  <input type="text" value={newClientData.direccion} onChange={e => setNewClientData({...newClientData, direccion: e.target.value})} style={inputSt} placeholder="Calle, Altura, Localidad" />
+                </div>
+              </div>
+
+              {/* SEDES */}
+              <div style={{ borderTop: "1px solid #eee", paddingTop: "20px" }}>
+                <label style={{ ...labelSt, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  Sedes / Ubicaciones
+                  <button type="button" onClick={() => {
+                    const id = Math.random().toString(36).substr(2, 9);
+                    setNewClientData({ ...newClientData, sedes: [...newClientData.sedes, { id, nombre: "", direccion: "" }] });
+                  }} style={{ background: "var(--primary-blue)", color: "#fff", border: "none", borderRadius: "4px", padding: "4px 8px", fontSize: "0.7rem", cursor: "pointer" }}>
+                    + AGREGAR SEDE
+                  </button>
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+                  {newClientData.sedes.map((s, idx) => (
+                    <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "10px", alignItems: "center", background: "#f8f9fa", padding: "10px", borderRadius: "8px" }}>
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Nombre sede..." value={s.nombre} onChange={e => {
+                        const newS = [...newClientData.sedes];
+                        newS[idx].nombre = e.target.value;
+                        setNewClientData({ ...newClientData, sedes: newS });
+                      }} />
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Dirección..." value={s.direccion} onChange={e => {
+                        const newS = [...newClientData.sedes];
+                        newS[idx].direccion = e.target.value;
+                        setNewClientData({ ...newClientData, sedes: newS });
+                      }} />
+                      <button onClick={() => {
+                        setNewClientData({ ...newClientData, sedes: newClientData.sedes.filter((_, i) => i !== idx) });
+                      }} style={{ background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", padding: "8px", cursor: "pointer" }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
+                <button onClick={() => setShowNewClientModal(false)} style={{ flex: 1, padding: "15px", borderRadius: "12px", border: "1px solid #ddd", background: "#f8f9fa", fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={handleCreateNewClient} className="btn-red" style={{ flex: 2, padding: "15px", borderRadius: "12px", fontWeight: 800 }}>REGISTRAR CLIENTE</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

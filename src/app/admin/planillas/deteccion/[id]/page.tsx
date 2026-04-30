@@ -38,7 +38,7 @@ interface PlanillaEnOT {
   filasChecklist: FilaChecklist[];
   filasTabla: FilaTabla[];
 }
-interface Cliente { id: string; nombre?: string; empresa?: string; razonSocial?: string; direccion?: string; telefono?: string; email?: string; }
+interface Cliente { id: string; nombre?: string; empresa?: string; razonSocial?: string; direccion?: string; telefono?: string; email?: string; sedes?: any[]; }
 interface Tecnico { id: string; nombre?: string; email: string; }
 interface TecnicoAsignado { id?: string; nombre: string; manual: boolean; }
 
@@ -99,7 +99,6 @@ function OTFormContent() {
 
   const [numero, setNumero] = useState("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
-  const [clienteManual, setClienteManual] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [clienteNombre, setClienteNombre] = useState("");
   const [clienteEmpresa, setClienteEmpresa] = useState("");
@@ -125,6 +124,17 @@ function OTFormContent() {
   const [sedeNombre, setSedeNombre] = useState("");
   const [sedeRazonSocial, setSedeRazonSocial] = useState("");
   const [clienteSearch, setClienteSearch] = useState("");
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientData, setNewClientData] = useState({ 
+    nombre: "", 
+    apellido: "",
+    email: "", 
+    empresa: "", 
+    dniCuit: "", 
+    telefono: "", 
+    direccion: "",
+    sedes: [] as any[]
+  });
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -192,7 +202,6 @@ function OTFormContent() {
         });
       }
     }
-    setClienteManual(data.clienteManual || false);
     setClienteNombre(data.clienteNombre || "");
     setClienteEmpresa(data.clienteEmpresa || "");
     setClienteDireccion(data.clienteDireccion || "");
@@ -249,8 +258,35 @@ function OTFormContent() {
     }
   };
 
-  const updateCelda = (pIdx: number, fIdx: number, col: string, val: string) =>
-    setPlanillasEnOT(prev => prev.map((x, i) => i === pIdx ? { ...x, filasTabla: x.filasTabla.map((f, j) => j === fIdx ? { ...f, celdas: { ...f.celdas, [col]: val } } : f) } : x));
+  const updateCelda = (pIdx: number, fIdx: number, col: string, val: string) => {
+    const n = [...planillasEnOT];
+    n[pIdx].filasTabla[fIdx].celdas[col] = val;
+    setPlanillasEnOT(n);
+  };
+
+  const handleCreateNewClient = async () => {
+    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios.");
+    try {
+      const docRef = await addDoc(collection(db, "usuarios"), {
+        ...newClientData,
+        rol: "cliente",
+        createdAt: serverTimestamp()
+      });
+      const created = { id: docRef.id, ...newClientData };
+      setClientes(prev => [...prev, created]);
+      setClienteSeleccionado(created);
+      setFilteredSedes(newClientData.sedes || []);
+      setClienteDireccion(newClientData.direccion || "");
+      setClienteTelefono(newClientData.telefono || "");
+      setClienteEmpresa(newClientData.empresa || "");
+      setShowNewClientModal(false);
+      setClienteSearch("");
+      setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
+    } catch (e) {
+      console.error(e);
+      alert("Error al crear cliente.");
+    }
+  };
 
   const updateChecklist = (pIdx: number, iIdx: number, field: string, val: string) =>
     setPlanillasEnOT(prev => prev.map((x, i) => i === pIdx ? { ...x, filasChecklist: x.filasChecklist.map((f, j) => j === iIdx ? { ...f, [field]: val } : f) } : x));
@@ -275,7 +311,6 @@ function OTFormContent() {
         clienteEmpresa: (clienteSeleccionado?.empresa || clienteEmpresa) || "",
         clienteDireccion: clienteDireccion || "",
         clienteTelefono: clienteTelefono || "",
-        clienteManual,
         tecnicosOT: tecnicosOT, // Nueva estructura
         estado: estadoOverride || estado || "borrador",
         diagnostico: nuevaObs,
@@ -576,12 +611,19 @@ function OTFormContent() {
             <div><label style={labelSt}>Fecha</label><input style={inputSt} type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
             
             <div style={{ gridColumn: 'span 2' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
                     <label style={labelSt}>Cliente</label>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--primary-blue)', fontWeight: 700, cursor: 'pointer' }}><input type="checkbox" checked={clienteManual} onChange={e => setClienteManual(e.target.checked)} /> Carga Manual</label>
+                    <button 
+                      type="button"
+                      onClick={() => setShowNewClientModal(true)}
+                      style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: '#fff', background: 'var(--primary-blue)', border: 'none', fontWeight: 800, padding: '8px 14px', borderRadius: '8px', transition: '0.2s', boxShadow: '0 4px 12px rgba(0, 97, 255, 0.2)' }}
+                      onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                      onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                    >
+                        <Plus size={14} strokeWidth={3} /> NUEVO CLIENTE
+                    </button>
                 </div>
-                {!clienteManual ? (
-                  <div style={{ position: "relative" }}>
+                <div style={{ position: "relative" }}>
                     <input 
                       style={inputSt}
                       placeholder="Nombre, empresa o email..."
@@ -622,17 +664,9 @@ function OTFormContent() {
                       </button>
                     )}
                   </div>
-                ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                        <input style={inputSt} placeholder="Nombre Cliente" value={clienteNombre} onChange={e => setClienteNombre(e.target.value)} />
-                        <input style={inputSt} placeholder="Empresa / Razón" value={clienteEmpresa} onChange={e => setClienteEmpresa(e.target.value)} />
-                        <input style={inputSt} placeholder="Dirección" value={clienteDireccion} onChange={e => setClienteDireccion(e.target.value)} />
-                        <input style={inputSt} placeholder="Teléfono" value={clienteTelefono} onChange={e => setClienteTelefono(e.target.value)} />
-                    </div>
-                )}
             </div>
 
-            {clienteSeleccionado && !clienteManual && (
+            {clienteSeleccionado && (
               <div style={{ gridColumn: 'span 2' }}>
                 <label style={labelSt}>Sede / Obra / Consorcio</label>
                 <select 
@@ -671,19 +705,13 @@ function OTFormContent() {
                             </div>
                         ))}
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                        <select style={{ ...inputSt, flex: 2 }} onChange={e => {
+                        <select style={{ ...inputSt, width: '100%' }} onChange={e => {
                             const t = tecnicosDB.find(x => x.id === e.target.value);
                             if (t) { addTecnico(false, t.nombre || t.email, t.id); e.target.value = ""; }
                         }}>
                              <option value="">+ Seleccionar Técnico Registrado...</option>
                              {tecnicosDB.map(t => <option key={t.id} value={t.id}>{t.nombre || t.email}</option>)}
                         </select>
-                        <button onClick={() => {
-                            const m = prompt("Nombre completo del técnico:");
-                            if (m) addTecnico(true, m);
-                        }} style={{ flex: 1, background: '#fff', border: '1px solid #ddd', borderRadius: '8px', fontSize: '0.75rem', fontWeight: 800 }}>+ Carga Manual</button>
-                    </div>
                 </div>
             </div>
           </div>
@@ -881,6 +909,100 @@ function OTFormContent() {
            <button onClick={() => handleSave("firmada")} disabled={saving} className="btn-red" style={{ width: "100%", padding: "20px", fontSize: "1.2rem", borderRadius: '15px', fontWeight: 900 }}>GUARDAR Y FINALIZAR</button>
         </div>
       )}
+    </div>
+  )}
+
+  {showNewClientModal && (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+      <div style={{ background: "#fff", borderRadius: "20px", padding: "35px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+          <h2 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
+            <Plus size={24} strokeWidth={3} /> Registrar Nuevo Cliente
+          </h2>
+          <button 
+            onClick={() => setShowNewClientModal(false)} 
+            style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: '0.2s' }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+          >✕</button>
+        </div>
+        
+        <div style={{ display: "grid", gap: "20px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+            <div>
+              <label style={labelSt}>Nombre *</label>
+              <input type="text" value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} style={inputSt} placeholder="Nombre" />
+            </div>
+            <div>
+              <label style={labelSt}>Apellido</label>
+              <input type="text" value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} style={inputSt} placeholder="Apellido" />
+            </div>
+          </div>
+
+          <div>
+            <label style={labelSt}>Email *</label>
+            <input type="email" value={newClientData.email} onChange={e => setNewClientData({...newClientData, email: e.target.value})} style={inputSt} placeholder="correo@ejemplo.com" />
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+            <div>
+              <label style={labelSt}>Empresa / R. Social</label>
+              <input type="text" value={newClientData.empresa} onChange={e => setNewClientData({...newClientData, empresa: e.target.value})} style={inputSt} placeholder="Empresa" />
+            </div>
+            <div>
+              <label style={labelSt}>DNI / CUIT</label>
+              <input type="text" value={newClientData.dniCuit} onChange={e => setNewClientData({...newClientData, dniCuit: e.target.value})} style={inputSt} placeholder="DNI o CUIT" />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+            <div>
+              <label style={labelSt}>Teléfono</label>
+              <input type="text" value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} style={inputSt} placeholder="Teléfono" />
+            </div>
+            <div>
+              <label style={labelSt}>Dirección</label>
+              <input type="text" value={newClientData.direccion} onChange={e => setNewClientData({...newClientData, direccion: e.target.value})} style={inputSt} placeholder="Calle, Altura, Localidad" />
+            </div>
+          </div>
+
+          <div style={{ borderTop: "1px solid #eee", paddingTop: "20px" }}>
+            <label style={{ ...labelSt, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              Sedes / Ubicaciones
+              <button type="button" onClick={() => {
+                const id = Math.random().toString(36).substr(2, 9);
+                setNewClientData({ ...newClientData, sedes: [...newClientData.sedes, { id, nombre: "", direccion: "" }] });
+              }} style={{ background: "var(--primary-blue)", color: "#fff", border: "none", borderRadius: "4px", padding: "4px 8px", fontSize: "0.7rem", cursor: "pointer" }}>
+                + AGREGAR SEDE
+              </button>
+            </label>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+              {newClientData.sedes.map((s, idx) => (
+                <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "10px", alignItems: "center", background: "#f8f9fa", padding: "10px", borderRadius: "8px" }}>
+                  <input style={{ ...inputSt, padding: "8px" }} placeholder="Nombre sede..." value={s.nombre} onChange={e => {
+                    const newS = [...newClientData.sedes];
+                    newS[idx].nombre = e.target.value;
+                    setNewClientData({ ...newClientData, sedes: newS });
+                  }} />
+                  <input style={{ ...inputSt, padding: "8px" }} placeholder="Dirección..." value={s.direccion} onChange={e => {
+                    const newS = [...newClientData.sedes];
+                    newS[idx].direccion = e.target.value;
+                    setNewClientData({ ...newClientData, sedes: newS });
+                  }} />
+                  <button onClick={() => {
+                    setNewClientData({ ...newClientData, sedes: newClientData.sedes.filter((_, i) => i !== idx) });
+                  }} style={{ background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "#4px", padding: "8px", cursor: "pointer" }}>✕</button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
+            <button onClick={() => setShowNewClientModal(false)} style={{ flex: 1, padding: "15px", borderRadius: "12px", border: "1px solid #ddd", background: "#f8f9fa", fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={handleCreateNewClient} className="btn-red" style={{ flex: 2, padding: "15px", borderRadius: "12px", fontWeight: 800 }}>REGISTRAR CLIENTE</button>
+          </div>
+        </div>
+      </div>
     </div>
   )}
 </div>

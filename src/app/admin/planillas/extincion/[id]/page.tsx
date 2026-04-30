@@ -92,6 +92,18 @@ export function ExtincionOTPage() {
   const sigCliRef = useRef<any>(null);
   const [firmaTecnico, setFirmaTecnico] = useState<string | null>(null);
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
+
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientData, setNewClientData] = useState({ 
+    nombre: "", 
+    apellido: "",
+    email: "", 
+    empresa: "", 
+    dniCuit: "", 
+    telefono: "", 
+    direccion: "",
+    sedes: [] as { id: string, nombre: string, direccion: string }[]
+  });
   const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
   const [sedeId, setSedeId] = useState("");
   const [sedeNombre, setSedeNombre] = useState("");
@@ -138,6 +150,27 @@ export function ExtincionOTPage() {
       const n = nums.length ? Math.max(...nums) + 1 : 1;
       setNextNum(n); setNumero(String(n));
     } catch { setNumero("1"); }
+  };
+
+  const handleCreateNewClient = async () => {
+    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios");
+    try {
+      const docRef = await addDoc(collection(db, "usuarios"), {
+        ...newClientData,
+        rol: "cliente",
+        createdAt: serverTimestamp()
+      });
+      const newC = { id: docRef.id, ...newClientData, rol: "cliente" };
+      setClientes([...clientes, newC]);
+      setClienteSeleccionado(newC);
+      setClienteSearch("");
+      setFilteredSedes(newC.sedes || []);
+      setClienteDireccion(newC.direccion || "");
+      setShowNewClientModal(false);
+      setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
+    } catch (e) {
+      alert("Error al crear cliente: " + e);
+    }
   };
 
   const loadOT = async (allCli?: Cliente[]) => {
@@ -230,8 +263,8 @@ export function ExtincionOTPage() {
       .map(f => `[${p.nombre}] ${f.descripcion}: ${f.observacion}`)
   );
 
-  const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  const handleFotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
     if (!files.length) return;
     setUploadingFoto(true);
     try {
@@ -275,6 +308,17 @@ export function ExtincionOTPage() {
       } else {
         await updateDoc(doc(db, COLECCION, params.id as string), payload);
       }
+
+      if (clienteSeleccionado?.id) {
+        await updateDoc(doc(db, "usuarios", clienteSeleccionado.id), {
+          nombre: clienteSeleccionado.nombre,
+          empresa: clienteSeleccionado.empresa,
+          direccion: clienteDireccion,
+          telefono: clienteTelefono,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error updating client profile:", err));
+      }
+
       router.push(RUTA_LISTADO);
     } catch (e) { alert("Error al guardar: " + e); }
     finally { setSaving(false); }
@@ -298,19 +342,19 @@ export function ExtincionOTPage() {
       });
     } catch { /* skip */ }
 
-    const drawHeader = (pdf: any, yPos: number) => {
-      if (logoDataUrl) pdf.addImage(logoDataUrl, "SVG", ML, yPos, 35, 18);
-      pdf.setFontSize(9); pdf.setTextColor(100);
-      pdf.text("ARIFA — Prevención y Protección contra Incendios", ML + 38, yPos + 5);
-      pdf.text("www.arifa.com.ar", ML + 38, yPos + 9);
-      pdf.setFillColor(0, 34, 68);
-      pdf.rect(W - MR - 55, yPos, 55, 10, "F");
-      pdf.setTextColor(255); pdf.setFontSize(7); pdf.setFont(undefined as any, "bold");
-      pdf.text("ORDEN DE TRABAJO — EXTINCIÓN", W - MR - 27.5, yPos + 4, { align: "center" });
-      pdf.setFontSize(12);
-      pdf.text(`OT-EXT-${String(numero).padStart(4, "0")}`, W - MR - 27.5, yPos + 9, { align: "center" });
-      pdf.setTextColor(50); pdf.setFont(undefined as any, "normal"); pdf.setFontSize(9);
-      pdf.text(`Fecha: ${fecha ? new Date(fecha).toLocaleDateString("es-AR") : "-"}`, W - MR - 55, yPos + 14);
+    const drawHeader = (pdfDoc: any, yPos: number) => {
+      if (logoDataUrl) pdfDoc.addImage(logoDataUrl, "SVG", ML, yPos, 35, 18);
+      pdfDoc.setFontSize(9); pdfDoc.setTextColor(100);
+      pdfDoc.text("ARIFA — Prevención y Protección contra Incendios", ML + 38, yPos + 5);
+      pdfDoc.text("www.arifa.com.ar", ML + 38, yPos + 9);
+      pdfDoc.setFillColor(0, 34, 68);
+      pdfDoc.rect(W - MR - 55, yPos, 55, 10, "F");
+      pdfDoc.setTextColor(255); pdfDoc.setFontSize(7); pdfDoc.setFont(undefined as any, "bold");
+      pdfDoc.text("ORDEN DE TRABAJO — EXTINCIÓN", W - MR - 27.5, yPos + 4, { align: "center" });
+      pdfDoc.setFontSize(12);
+      pdfDoc.text(`OT-EXT-${String(numero).padStart(4, "0")}`, W - MR - 27.5, yPos + 9, { align: "center" });
+      pdfDoc.setTextColor(50); pdfDoc.setFont(undefined as any, "normal"); pdfDoc.setFontSize(9);
+      pdfDoc.text(`Fecha: ${fecha ? new Date(fecha).toLocaleDateString("es-AR") : "-"}`, W - MR - 55, yPos + 14);
       return yPos + 22;
     };
 
@@ -385,8 +429,8 @@ export function ExtincionOTPage() {
       let col = 0;
       for (const url of fotos) {
         try {
-          const img = await fetch(url).then(r => r.blob());
-          const du = await new Promise<string>(res => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.readAsDataURL(img); });
+          const img = await fetch(url).then(resp => resp.blob());
+          const du = await new Promise<string>(resolve => { const fr = new FileReader(); fr.onload = () => resolve(fr.result as string); fr.readAsDataURL(img); });
           const x = ML + col * (TW / 2 + 5);
           pdf.addImage(du, "JPEG", x, y, TW / 2, 60);
           col++;
@@ -537,15 +581,15 @@ export function ExtincionOTPage() {
           <div style={cardSt}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
               <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>Datos del Cliente</h2>
-              <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "0.85rem" }}>
-                <input type="checkbox" checked={clienteManual} onChange={e => { setClienteManual(e.target.checked); setClienteSeleccionado(null); setClienteSearch(""); }} />
-                Carga manual
-              </label>
             </div>
 
-            {!clienteManual ? (
               <div style={{ position: "relative" }}>
-                <label style={labelSt}>Buscar cliente registrado</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                  <label style={labelSt}>Buscar cliente registrado</label>
+                  <button type="button" onClick={() => setShowNewClientModal(true)} style={{ background: 'var(--primary-blue)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                    <Plus size={14} /> NUEVO CLIENTE
+                  </button>
+                </div>
                 <input style={inputSt} value={clienteSeleccionado ? (clienteSeleccionado.nombre || clienteSeleccionado.razonSocial || clienteSeleccionado.email) : clienteSearch}
                   onChange={e => { setClienteSearch(e.target.value); setClienteSeleccionado(null); }}
                   placeholder="Nombre, empresa o email..." />
@@ -599,20 +643,6 @@ export function ExtincionOTPage() {
                   </div>
                 )}
               </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
-                {[["clienteNombre", "Nombre / Contacto", clienteNombre, setClienteNombre],
-                  ["clienteEmpresa", "Empresa / Establecimiento", clienteEmpresa, setClienteEmpresa],
-                  ["clienteDireccion", "Dirección", clienteDireccion, setClienteDireccion],
-                  ["clienteTelefono", "Teléfono", clienteTelefono, setClienteTelefono],
-                ].map(([, lbl, val, fn]: any) => (
-                  <div key={lbl as string}>
-                    <label style={labelSt}>{lbl as string}</label>
-                    <input style={inputSt} value={val as string} onChange={e => fn(e.target.value)} />
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
 
           <div style={cardSt}>
@@ -942,6 +972,102 @@ export function ExtincionOTPage() {
               <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: "8px" }}>
                 ✅ {saving ? "Guardando..." : "Guardar y Completar"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Nuevo Cliente Modal */}
+      {showNewClientModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "35px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
+                <Plus size={24} strokeWidth={3} /> Registrar Nuevo Cliente
+              </h2>
+              <button 
+                onClick={() => setShowNewClientModal(false)} 
+                style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: '0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+              >✕</button>
+            </div>
+            
+            <div style={{ display: "grid", gap: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Nombre *</label>
+                  <input type="text" value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} style={inputSt} placeholder="Nombre" />
+                </div>
+                <div>
+                  <label style={labelSt}>Apellido</label>
+                  <input type="text" value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} style={inputSt} placeholder="Apellido" />
+                </div>
+              </div>
+
+              <div>
+                <label style={labelSt}>Email *</label>
+                <input type="email" value={newClientData.email} onChange={e => setNewClientData({...newClientData, email: e.target.value})} style={inputSt} placeholder="correo@ejemplo.com" />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Empresa / R. Social</label>
+                  <input type="text" value={newClientData.empresa} onChange={e => setNewClientData({...newClientData, empresa: e.target.value})} style={inputSt} placeholder="Empresa" />
+                </div>
+                <div>
+                  <label style={labelSt}>DNI / CUIT</label>
+                  <input type="text" value={newClientData.dniCuit} onChange={e => setNewClientData({...newClientData, dniCuit: e.target.value})} style={inputSt} placeholder="DNI o CUIT" />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Teléfono</label>
+                  <input type="text" value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} style={inputSt} placeholder="Teléfono" />
+                </div>
+                <div>
+                  <label style={labelSt}>Dirección</label>
+                  <input type="text" value={newClientData.direccion} onChange={e => setNewClientData({...newClientData, direccion: e.target.value})} style={inputSt} placeholder="Calle, Altura, Localidad" />
+                </div>
+              </div>
+
+              {/* SEDES */}
+              <div style={{ borderTop: "1px solid #eee", paddingTop: "20px" }}>
+                <label style={{ ...labelSt, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  Sedes / Ubicaciones
+                  <button type="button" onClick={() => {
+                    const id = Math.random().toString(36).substr(2, 9);
+                    setNewClientData({ ...newClientData, sedes: [...newClientData.sedes, { id, nombre: "", direccion: "" }] });
+                  }} style={{ background: "var(--primary-blue)", color: "#fff", border: "none", borderRadius: "4px", padding: "4px 8px", fontSize: "0.7rem", cursor: "pointer" }}>
+                    + AGREGAR SEDE
+                  </button>
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+                  {newClientData.sedes.map((s, idx) => (
+                    <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "10px", alignItems: "center", background: "#f8f9fa", padding: "10px", borderRadius: "8px" }}>
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Nombre sede..." value={s.nombre} onChange={e => {
+                        const newS = [...newClientData.sedes];
+                        newS[idx].nombre = e.target.value;
+                        setNewClientData({ ...newClientData, sedes: newS });
+                      }} />
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Dirección..." value={s.direccion} onChange={e => {
+                        const newS = [...newClientData.sedes];
+                        newS[idx].direccion = e.target.value;
+                        setNewClientData({ ...newClientData, sedes: newS });
+                      }} />
+                      <button onClick={() => {
+                        setNewClientData({ ...newClientData, sedes: newClientData.sedes.filter((_, i) => i !== idx) });
+                      }} style={{ background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", padding: "8px", cursor: "pointer" }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
+                <button onClick={() => setShowNewClientModal(false)} style={{ flex: 1, padding: "15px", borderRadius: "12px", border: "1px solid #ddd", background: "#f8f9fa", fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={handleCreateNewClient} className="btn-red" style={{ flex: 2, padding: "15px", borderRadius: "12px", fontWeight: 800 }}>REGISTRAR CLIENTE</button>
+              </div>
             </div>
           </div>
         </div>

@@ -318,8 +318,11 @@ export default function NuevoRemitoPage() {
             <button 
               type="button"
               onClick={() => setShowNewClientModal(true)}
-              style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--primary-blue)', background: 'none', border: 'none', fontWeight: 800 }}>
-                <Plus size={16} /> NUEVO CLIENTE
+              style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: '#fff', background: 'var(--primary-blue)', border: 'none', fontWeight: 800, padding: '8px 14px', borderRadius: '8px', transition: '0.2s', boxShadow: '0 4px 12px rgba(0, 97, 255, 0.2)' }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+                <Plus size={14} strokeWidth={3} /> NUEVO CLIENTE
             </button>
         </div>
 
@@ -556,7 +559,12 @@ export default function NuevoRemitoPage() {
           <div style={{ background: "#fff", borderRadius: "20px", padding: "30px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <h2 style={{ fontSize: "1.4rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0 }}>Nuevo Cliente Registrado</h2>
-              <button onClick={() => setShowNewClientModal(false)} style={{ background: "none", border: "none", fontSize: "1.5rem", cursor: "pointer", color: "#999" }}>&times;</button>
+              <button 
+                onClick={() => setShowNewClientModal(false)} 
+                style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: '0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+              >✕</button>
             </div>
             
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>

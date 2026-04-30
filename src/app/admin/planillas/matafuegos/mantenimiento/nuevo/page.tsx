@@ -480,8 +480,11 @@ function FichaFormContent() {
               <button 
                 type="button"
                 onClick={() => setShowNewClientModal(true)}
-                style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--primary-blue)', background: 'none', border: 'none', fontWeight: 800 }}>
-                  <Plus size={16} /> NUEVO CLIENTE
+                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: '#fff', background: 'var(--primary-blue)', border: 'none', fontWeight: 800, padding: '8px 14px', borderRadius: '8px', transition: '0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+              >
+                  <Plus size={14} strokeWidth={3} /> NUEVO CLIENTE
               </button>
             )}
         </div>
@@ -772,9 +775,17 @@ function FichaFormContent() {
       {showNewClientModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
           <div style={{ background: "#fff", borderRadius: "20px", padding: "35px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
-            <h2 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-blue)", marginBottom: "25px", display: "flex", alignItems: "center", gap: "10px" }}>
-              <Plus size={24} strokeWidth={3} /> Registrar Nuevo Cliente
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
+                <Plus size={24} strokeWidth={3} /> Registrar Nuevo Cliente
+              </h2>
+              <button 
+                onClick={() => setShowNewClientModal(false)} 
+                style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: '0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+              >✕</button>
+            </div>
             
             <div style={{ display: "grid", gap: "20px" }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>

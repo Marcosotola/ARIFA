@@ -70,7 +70,6 @@ export default function PlanAccionPage() {
   // Form State
   const [fCliente, setFCliente] = useState("");
   const [fClienteId, setFClienteId] = useState("");
-  const [fClienteManual, setFClienteManual] = useState(false);
   const [fConsorcio, setFConsorcio] = useState("");
   const [fSedeId, setFSedeId] = useState("");
   const [fSedeNombre, setFSedeNombre] = useState("");
@@ -83,6 +82,17 @@ export default function PlanAccionPage() {
   const [fFechaRealizacion, setFFechaRealizacion] = useState("");
 
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientData, setNewClientData] = useState({ 
+    nombre: "", 
+    apellido: "",
+    email: "", 
+    empresa: "", 
+    dniCuit: "", 
+    telefono: "", 
+    direccion: "",
+    sedes: [] as { id: string, nombre: string, direccion: string }[]
+  });
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -111,33 +121,23 @@ export default function PlanAccionPage() {
       try {
         snap = await getDocs(q);
       } catch (e) {
-        // Fallback sin ordenamiento
         const qFallback = isStaff
           ? query(collection(db, "plan_accion"))
           : query(collection(db, "plan_accion"), where("clienteId", "==", uid));
         snap = await getDocs(qFallback);
       }
       let all = snap.docs.map(d => ({ id: d.id, ...d.data() } as PlanItem));
-      // Filtro para cliente: solo sus items
       if (r === "cliente" && userData) {
         const uid = userData.uid;
         const emp = userData.empresa?.toLowerCase() || "";
         const nom = userData.nombre?.toLowerCase() || "";
-        
-        // Si no tiene UID ni empresa ni nombre, por seguridad no mostramos nada
         if (!uid && !emp && !nom) {
           all = [];
         } else {
           all = all.filter(i => {
-            // 1. Coincidencia por ID (más seguro)
             if (i.clienteId === uid) return true;
-            
-            // 2. Coincidencia por nombre de empresa (si existe)
             if (emp && i.cliente?.toLowerCase().includes(emp)) return true;
-            
-            // 3. Coincidencia por nombre de persona (si existe)
             if (nom && i.cliente?.toLowerCase().includes(nom)) return true;
-            
             return false;
           });
         }
@@ -149,15 +149,42 @@ export default function PlanAccionPage() {
 
   const fetchUsuarios = async () => {
     try {
-      const snap = await getDocs(collection(db, "usuarios"));
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
-      const filtered = all.filter(u => u.rol?.toLowerCase() === "cliente");
-      setUsuarios(filtered); 
+      const snap = await getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente")));
+      setUsuarios(snap.docs.map(d => ({ id: d.id, ...d.data() }))); 
     } catch (e) { console.error("Error fetching users:", e); }
   };
 
+  const handleSelectCliente = (u: any) => {
+    const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
+    setFCliente(display); 
+    setFClienteId(u.id);
+    setFilteredSedes(u.sedes || []);
+    setShowSuggestions(false); 
+  };
+
+  const handleCreateNewClient = async () => {
+    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios");
+    try {
+      setSaving(true);
+      const docRef = await addDoc(collection(db, "usuarios"), {
+        ...newClientData,
+        rol: "cliente",
+        createdAt: serverTimestamp()
+      });
+      const newC = { id: docRef.id, ...newClientData, rol: "cliente" };
+      setUsuarios([...usuarios, newC]);
+      handleSelectCliente(newC);
+      setShowNewClientModal(false);
+      setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
+    } catch (e) {
+      alert("Error al crear cliente: " + e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const openCreate = () => {
-    setFCliente(""); setFClienteId(""); setFClienteManual(false); setFConsorcio(""); setFDetalle(""); 
+    setFCliente(""); setFClienteId(""); setFConsorcio(""); setFDetalle(""); 
     setFPrioridad("Leve"); setFCosto(""); setFRealizado(false); setFFechaRealizacion("");
     setFSedeId(""); setFSedeNombre(""); setFilteredSedes([]);
     setFFecha(new Date().toISOString().split("T")[0]);
@@ -166,7 +193,7 @@ export default function PlanAccionPage() {
   };
 
   const openEdit = (item: PlanItem) => {
-    setFCliente(item.cliente); setFClienteId(item.clienteId || ""); setFClienteManual(!item.clienteId); 
+    setFCliente(item.cliente); setFClienteId(item.clienteId || ""); 
     setFConsorcio(item.consorcio); setFFecha(item.fecha);
     setFDetalle(item.detalle); setFPrioridad(item.prioridad); setFCosto(String(item.costo || ""));
     setFRealizado(item.realizado || false); setFFechaRealizacion(item.fechaRealizacion || "");
@@ -187,8 +214,7 @@ export default function PlanAccionPage() {
     try {
       const payload: any = {
         cliente: fCliente,
-        clienteId: fClienteManual ? null : fClienteId,
-        clienteManual: fClienteManual,
+        clienteId: fClienteId || null,
         consorcio: fSedeId ? fSedeNombre : fConsorcio,
         sedeId: fSedeId || null,
         sedeNombre: fSedeNombre || "",
@@ -208,7 +234,7 @@ export default function PlanAccionPage() {
         await updateDoc(doc(db, "plan_accion", selectedItem.id), payload);
       }
       setModal(null);
-      fetchItems(role as string, currentUser);
+      fetchItems(role as string, currentUser, uid || "");
     } catch (e) { alert("Error al guardar."); }
     finally { setSaving(false); }
   };
@@ -217,7 +243,7 @@ export default function PlanAccionPage() {
     try {
       await deleteDoc(doc(db, "plan_accion", id));
       setDeleteConfirm(null);
-      fetchItems(role as string, currentUser);
+      fetchItems(role as string, currentUser, uid || "");
     } catch { alert("Error al eliminar."); }
   };
 
@@ -301,7 +327,6 @@ export default function PlanAccionPage() {
           <div style={{ textAlign: "center", padding: "60px", color: "#999" }}>No se encontraron registros en el Plan de Acción.</div>
         ) : (
           <>
-            {/* Desktop Table */}
             <div className="hide-on-mobile" style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
                 <thead>
@@ -441,7 +466,12 @@ export default function PlanAccionPage() {
               <h2 style={{ fontSize: "1.3rem", fontWeight: 800, color: "var(--primary-blue)", margin: 0 }}>
                 {modal === "view" ? "Detalle de Propuesta" : modal === "create" ? "Nueva Propuesta de Acción" : "Editar Propuesta"}
               </h2>
-              <button onClick={() => setModal(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#ccc' }}>✕</button>
+              <button 
+                onClick={() => setModal(null)} 
+                style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: '0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+              >✕</button>
             </div>
             
             {modal === "view" && selectedItem ? (
@@ -505,17 +535,14 @@ export default function PlanAccionPage() {
             ) : (
               <>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px", marginBottom: "15px" }}>
-              <div style={{ gridColumn: "span 2", position: "relative" }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                  <label style={labelSt}>Cliente *</label>
-                  <label style={{ fontSize: '0.75rem', color: 'var(--primary-blue)', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    <input type="checkbox" checked={fClienteManual} onChange={e => { setFClienteManual(e.target.checked); if(e.target.checked) { setFClienteId(""); setFSedeId(""); setFSedeNombre(""); setFilteredSedes([]); } }} />
-                    Carga Manual
-                  </label>
-                </div>
-                
-                {!fClienteManual ? (
-                  <>
+                  <div style={{ gridColumn: "span 2", position: "relative" }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                      <label style={labelSt}>Cliente *</label>
+                      <button type="button" onClick={() => setShowNewClientModal(true)} style={{ background: 'var(--primary-blue)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                        <Plus size={14} /> NUEVO CLIENTE
+                      </button>
+                    </div>
+                    
                     <input 
                       style={inputSt} 
                       value={fCliente} 
@@ -530,26 +557,15 @@ export default function PlanAccionPage() {
                             const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""} ${u.email || ""}`.toLowerCase();
                             return searchStr.includes(fCliente.toLowerCase());
                           })
-                          .map(u => {
-                            const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
-                            return (
-                              <div 
-                                key={u.id} 
-                                onClick={() => { 
-                                  setFCliente(display); 
-                                  setFClienteId(u.id);
-                                  setFilteredSedes(u.sedes || []);
-                                  setShowSuggestions(false); 
-                                }}
-                                style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
-                                onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"}
-                                onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-                              >
-                                <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{display}</div>
-                                <div style={{ fontSize: "0.7rem", color: "#888" }}>{u.email}</div>
-                              </div>
-                            );
-                          })}
+                          .map(u => (
+                            <div key={u.id} onClick={() => handleSelectCliente(u)}
+                              style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"}
+                              onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
+                              <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`}</div>
+                              <div style={{ fontSize: "0.7rem", color: "#888" }}>{u.email}</div>
+                            </div>
+                          ))}
                         {usuarios.length > 0 && usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase().includes(fCliente.toLowerCase())).length === 0 && fCliente && (
                           <div style={{ padding: "12px 15px", color: "#666", fontSize: "0.8rem", background: "#f8f9fa", fontStyle: 'italic' }}>
                             No se encontraron clientes registrados con ese nombre.
@@ -557,81 +573,74 @@ export default function PlanAccionPage() {
                         )}
                       </div>
                     )}
-                  </>
-                ) : (
-                  <input 
-                    style={inputSt} 
-                    value={fCliente} 
-                    onChange={e => setFCliente(e.target.value)} 
-                    placeholder="Nombre del cliente o empresa (Manual)..." 
-                  />
-                )}
-              </div>
-              
-              {!fClienteManual && fClienteId ? (
-                <div style={{ gridColumn: "span 2" }}>
-                  <label style={labelSt}>Sede / Obra / Consorcio</label>
-                  <select 
-                    style={inputSt} 
-                    value={fSedeId} 
-                    onChange={e => {
-                      const s = filteredSedes.find(x => x.id === e.target.value);
-                      if (s) {
-                        setFSedeId(s.id);
-                        setFSedeNombre(s.nombre);
-                        setFConsorcio(s.nombre);
-                      } else {
-                        setFSedeId("");
-                        setFSedeNombre("");
-                        setFConsorcio("");
-                      }
-                    }}
-                  >
-                    <option value="">{filteredSedes.length === 0 ? "Sin sedes registradas" : "Seleccionar sede (Opcional)"}</option>
-                    {filteredSedes.map(s => (
-                      <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <div style={{ gridColumn: "span 2" }}>
-                  <label style={labelSt}>Consorcio / Edificio (Manual)</label>
-                  <input style={inputSt} value={fConsorcio} onChange={e => setFConsorcio(e.target.value)} placeholder="Ej: Torre Alem" />
-                </div>
-              )}
+                  </div>
+                  
+                  {fClienteId && (
+                    <div style={{ gridColumn: "span 2" }}>
+                      <label style={labelSt}>Sede / Obra / Consorcio</label>
+                      <select 
+                        style={inputSt} 
+                        value={fSedeId} 
+                        onChange={e => {
+                          const s = filteredSedes.find(x => x.id === e.target.value);
+                          if (s) {
+                            setFSedeId(s.id);
+                            setFSedeNombre(s.nombre);
+                            setFConsorcio(s.nombre);
+                          } else {
+                            setFSedeId("");
+                            setFSedeNombre("");
+                            setFConsorcio("");
+                          }
+                        }}
+                      >
+                        <option value="">{filteredSedes.length === 0 ? "Sin sedes registradas" : "Seleccionar sede (Opcional)"}</option>
+                        {filteredSedes.map(s => (
+                          <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-              <div>
-                <label style={labelSt}>Fecha Propuesta</label>
-                <input type="date" style={inputSt} value={fFecha} onChange={e => setFFecha(e.target.value)} />
-              </div>
-              <div style={{ gridColumn: "span 2" }}>
-                <label style={labelSt}>Detalle de la Mejora / Observación *</label>
-                <textarea style={{ ...inputSt, height: "80px", resize: "none" }} value={fDetalle} onChange={e => setFDetalle(e.target.value)} placeholder="Describí lo que hay que hacer..." />
-              </div>
-              <div>
-                <label style={labelSt}>Prioridad</label>
-                <select style={inputSt} value={fPrioridad} onChange={e => setFPrioridad(e.target.value as any)}>
-                  {PRIORIDADES.map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label style={labelSt}>Costo Estimado ($)</label>
-                <input type="number" style={inputSt} value={fCosto} onChange={e => setFCosto(e.target.value)} placeholder="0" />
-              </div>
-            </div>
+                  {!fClienteId && (
+                    <div style={{ gridColumn: "span 2" }}>
+                      <label style={labelSt}>Consorcio / Edificio (Manual)</label>
+                      <input style={inputSt} value={fConsorcio} onChange={e => setFConsorcio(e.target.value)} placeholder="Ej: Torre Alem" />
+                    </div>
+                  )}
 
-            <div style={{ background: "#f8f9fa", padding: "15px", borderRadius: "10px", marginBottom: "25px", border: "1.5px solid #eee" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: fRealizado ? "10px" : "0" }}>
-                <input type="checkbox" id="check-realizado" checked={fRealizado} onChange={e => setFRealizado(e.target.checked)} style={{ width: "20px", height: "20px", cursor: "pointer" }} />
-                <label htmlFor="check-realizado" style={{ fontWeight: 700, cursor: "pointer", color: "var(--primary-blue)" }}>Marcar como REALIZADO</label>
-              </div>
-              {fRealizado && (
-                <div>
-                  <label style={{ ...labelSt, marginTop: "10px" }}>Fecha de Realización</label>
-                  <input type="date" style={inputSt} value={fFechaRealizacion} onChange={e => setFFechaRealizacion(e.target.value)} />
+                  <div>
+                    <label style={labelSt}>Fecha Propuesta</label>
+                    <input type="date" style={inputSt} value={fFecha} onChange={e => setFFecha(e.target.value)} />
+                  </div>
+                  <div style={{ gridColumn: "span 2" }}>
+                    <label style={labelSt}>Detalle de la Mejora / Observación *</label>
+                    <textarea style={{ ...inputSt, height: "80px", resize: "none" }} value={fDetalle} onChange={e => setFDetalle(e.target.value)} placeholder="Describí lo que hay que hacer..." />
+                  </div>
+                  <div>
+                    <label style={labelSt}>Prioridad</label>
+                    <select style={inputSt} value={fPrioridad} onChange={e => setFPrioridad(e.target.value as any)}>
+                      {PRIORIDADES.map(p => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelSt}>Costo Estimado ($)</label>
+                    <input type="number" style={inputSt} value={fCosto} onChange={e => setFCosto(e.target.value)} placeholder="0" />
+                  </div>
                 </div>
-              )}
-            </div>
+
+                <div style={{ background: "#f8f9fa", padding: "15px", borderRadius: "10px", marginBottom: "25px", border: "1.5px solid #eee" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: fRealizado ? "10px" : "0" }}>
+                    <input type="checkbox" id="check-realizado" checked={fRealizado} onChange={e => setFRealizado(e.target.checked)} style={{ width: "20px", height: "20px", cursor: "pointer" }} />
+                    <label htmlFor="check-realizado" style={{ fontWeight: 700, cursor: "pointer", color: "var(--primary-blue)" }}>Marcar como REALIZADO</label>
+                  </div>
+                  {fRealizado && (
+                    <div>
+                      <label style={{ ...labelSt, marginTop: "10px" }}>Fecha de Realización</label>
+                      <input type="date" style={inputSt} value={fFechaRealizacion} onChange={e => setFFechaRealizacion(e.target.value)} />
+                    </div>
+                  )}
+                </div>
 
                 <div style={{ display: "flex", gap: "10px" }}>
                   <button onClick={() => setModal(null)} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", background: "none", fontWeight: 700, cursor: "pointer" }}>Cancelar</button>
@@ -656,6 +665,103 @@ export default function PlanAccionPage() {
           </div>
         </div>
       )}
+
+      {/* Nuevo Cliente Modal */}
+      {showNewClientModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 20000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "35px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
+                <Plus size={24} strokeWidth={3} /> Registrar Nuevo Cliente
+              </h2>
+              <button 
+                onClick={() => setShowNewClientModal(false)} 
+                style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: '0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+              >✕</button>
+            </div>
+            
+            <div style={{ display: "grid", gap: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Nombre *</label>
+                  <input type="text" value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} style={inputSt} placeholder="Nombre" />
+                </div>
+                <div>
+                  <label style={labelSt}>Apellido</label>
+                  <input type="text" value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} style={inputSt} placeholder="Apellido" />
+                </div>
+              </div>
+
+              <div>
+                <label style={labelSt}>Email *</label>
+                <input type="email" value={newClientData.email} onChange={e => setNewClientData({...newClientData, email: e.target.value})} style={inputSt} placeholder="correo@ejemplo.com" />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Empresa / R. Social</label>
+                  <input type="text" value={newClientData.empresa} onChange={e => setNewClientData({...newClientData, empresa: e.target.value})} style={inputSt} placeholder="Empresa" />
+                </div>
+                <div>
+                  <label style={labelSt}>DNI / CUIT</label>
+                  <input type="text" value={newClientData.dniCuit} onChange={e => setNewClientData({...newClientData, dniCuit: e.target.value})} style={inputSt} placeholder="DNI o CUIT" />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Teléfono</label>
+                  <input type="text" value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} style={inputSt} placeholder="Teléfono" />
+                </div>
+                <div>
+                  <label style={labelSt}>Dirección</label>
+                  <input type="text" value={newClientData.direccion} onChange={e => setNewClientData({...newClientData, direccion: e.target.value})} style={inputSt} placeholder="Calle, Altura, Localidad" />
+                </div>
+              </div>
+
+              {/* SEDES */}
+              <div style={{ borderTop: "1px solid #eee", paddingTop: "20px" }}>
+                <label style={{ ...labelSt, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  Sedes / Ubicaciones
+                  <button type="button" onClick={() => {
+                    const id = Math.random().toString(36).substr(2, 9);
+                    setNewClientData({ ...newClientData, sedes: [...newClientData.sedes, { id, nombre: "", direccion: "" }] });
+                  }} style={{ background: "var(--primary-blue)", color: "#fff", border: "none", borderRadius: "4px", padding: "4px 8px", fontSize: "0.7rem", cursor: "pointer" }}>
+                    + AGREGAR SEDE
+                  </button>
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+                  {newClientData.sedes.map((s, idx) => (
+                    <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "10px", alignItems: "center", background: "#f8f9fa", padding: "10px", borderRadius: "8px" }}>
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Nombre sede..." value={s.nombre} onChange={e => {
+                        const newS = [...newClientData.sedes];
+                        newS[idx].nombre = e.target.value;
+                        setNewClientData({ ...newClientData, sedes: newS });
+                      }} />
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Dirección..." value={s.direccion} onChange={e => {
+                        const newS = [...newClientData.sedes];
+                        newS[idx].direccion = e.target.value;
+                        setNewClientData({ ...newClientData, sedes: newS });
+                      }} />
+                      <button onClick={() => {
+                        setNewClientData({ ...newClientData, sedes: newClientData.sedes.filter((_, i) => i !== idx) });
+                      }} style={{ background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", padding: "8px", cursor: "pointer" }}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
+                <button onClick={() => setShowNewClientModal(false)} style={{ flex: 1, padding: "15px", borderRadius: "12px", border: "1px solid #ddd", background: "#f8f9fa", fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={handleCreateNewClient} className="btn-red" style={{ flex: 2, padding: "15px", borderRadius: "12px", fontWeight: 800 }}>REGISTRAR CLIENTE</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* STYLES */}
       <style jsx>{`
         @media (max-width: 768px) {

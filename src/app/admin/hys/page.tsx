@@ -26,8 +26,8 @@ import {
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type TipoDoc = "Visita" | "Capacitación" | "ATS" | "Programa de Seguridad";
-const TIPOS: TipoDoc[] = ["Visita", "Capacitación", "ATS", "Programa de Seguridad"];
+type TipoDoc = "Visita" | "Capacitación" | "ATS" | "Programa de Seguridad" | "RGRL" | "RAR" | "Plan de Capacitación Anual" | "Medición de Contaminantes" | "Plan de acción";
+const TIPOS: TipoDoc[] = ["Visita", "Capacitación", "ATS", "Programa de Seguridad", "RGRL", "RAR", "Plan de Capacitación Anual", "Medición de Contaminantes", "Plan de acción"];
 
 interface HySDoc {
   id: string;
@@ -43,6 +43,12 @@ interface HySDoc {
   creadoPor?: string;
   createdAt?: any;
   updatedAt?: any;
+  fechaVencimiento?: string;
+  subtipoMedicion?: string;
+  clienteDniCuit?: string;
+  clienteTelefono?: string;
+  clienteDireccion?: string;
+  capacitaciones?: { tema: string, fechaPlanificada: string, cargada: boolean, archivo?: string }[];
 }
 
 const inputSt: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1.5px solid #ddd", fontSize: "0.92rem", outline: "none", boxSizing: "border-box" };
@@ -53,6 +59,11 @@ const TIPO_COLORS: Record<TipoDoc, { bg: string; color: string; dot: string }> =
   "Capacitación":        { bg: "#f0fdf4", color: "#15803d", dot: "#22c55e" },
   "ATS":                 { bg: "#fef9c3", color: "#854d0e", dot: "#eab308" },
   "Programa de Seguridad":{ bg: "#fdf2f8", color: "#86198f", dot: "#d946ef" },
+  "RGRL":                { bg: "#ede9fe", color: "#5b21b6", dot: "#8b5cf6" },
+  "RAR":                 { bg: "#ffedd5", color: "#9a3412", dot: "#f97316" },
+  "Plan de Capacitación Anual": { bg: "#dcfce7", color: "#166534", dot: "#22c55e" },
+  "Medición de Contaminantes": { bg: "#f1f5f9", color: "#334155", dot: "#64748b" },
+  "Plan de acción":      { bg: "#fee2e2", color: "#991b1b", dot: "#ef4444" },
 };
 
 export default function HySPage() {
@@ -77,17 +88,35 @@ export default function HySPage() {
   const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
 
   // Form
-  const [usuarios, setUsuarios] = useState<{id: string, nombre: string, apellido: string, empresa?: string, sedes?: any[]}[]>([]);
+  const [usuarios, setUsuarios] = useState<{id: string, nombre: string, apellido: string, email: string, empresa?: string, sedes?: any[]}[]>([]);
   const [fCliente, setFCliente] = useState("");
   const [fClienteId, setFClienteId] = useState("");
   const [fSedeId, setFSedeId] = useState("");
   const [fSedeNombre, setFSedeNombre] = useState("");
   const [fSedeRazonSocial, setFSedeRazonSocial] = useState("");
-  const [fClienteManual, setFClienteManual] = useState(false);
   const [fFecha, setFFecha] = useState(new Date().toISOString().split("T")[0]);
-  const [fTipos, setFTipos] = useState<TipoDoc[]>([]); // Array of types
+  const [fTipos, setFTipos] = useState<TipoDoc[]>([]);
   const [fDescripcion, setFDescripcion] = useState("");
   const [fImagenes, setFImagenes] = useState<string[]>([]);
+  const [fFechaVencimiento, setFFechaVencimiento] = useState("");
+  const [fSubtipoMedicion, setFSubtipoMedicion] = useState("");
+  const [fCapacitaciones, setFCapacitaciones] = useState<{ tema: string, fechaPlanificada: string, cargada: boolean, archivo?: string }[]>([]);
+  
+  const [showNewClientModal, setShowNewClientModal] = useState(false);
+  const [newClientData, setNewClientData] = useState({ 
+    nombre: "", 
+    apellido: "",
+    email: "", 
+    empresa: "", 
+    dniCuit: "", 
+    telefono: "", 
+    direccion: "",
+    sedes: [] as { id: string, nombre: string, direccion: string }[]
+  });
+  const [fDniCuit, setFDniCuit] = useState("");
+  const [fTelefono, setFTelefono] = useState("");
+  const [fDireccion, setFDireccion] = useState("");
+  
   const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
 
   useEffect(() => {
@@ -158,16 +187,21 @@ export default function HySPage() {
   };
 
   const openCreate = () => {
-    setFCliente(""); setFClienteId(""); setFSedeId(""); setFSedeNombre(""); setFSedeRazonSocial(""); setFClienteManual(false); setFFecha(new Date().toISOString().split("T")[0]);
+    setFCliente(""); setFClienteId(""); setFSedeId(""); setFSedeNombre(""); setFSedeRazonSocial(""); setFFecha(new Date().toISOString().split("T")[0]);
+    setFDniCuit(""); setFTelefono(""); setFDireccion("");
     setFTipos([]); setFDescripcion(""); setFImagenes([]); setFilteredSedes([]);
+    setFFechaVencimiento(""); setFSubtipoMedicion(""); setFCapacitaciones([]);
     setSelectedDoc(null); setModal("create");
     setShowSuggestions(false);
   };
 
   const openEdit = (d: HySDoc) => {
-    setFCliente(d.cliente); setFClienteId(d.clienteId || ""); setFClienteManual(!d.clienteId); setFFecha(d.fecha);
+    setFCliente(d.cliente); setFClienteId(d.clienteId || ""); setFFecha(d.fecha);
     setFTipos(d.tipo || []); setFDescripcion(d.descripcion || ""); setFImagenes([...d.imagenes]);
     setFSedeId(d.sedeId || ""); setFSedeNombre(d.sedeNombre || ""); setFSedeRazonSocial(d.sedeRazonSocial || "");
+    setFDniCuit(d.clienteDniCuit || ""); setFTelefono(d.clienteTelefono || ""); setFDireccion(d.clienteDireccion || "");
+    setFFechaVencimiento(d.fechaVencimiento || ""); setFSubtipoMedicion(d.subtipoMedicion || "");
+    setFCapacitaciones(d.capacitaciones || []);
     const u = usuarios.find(x => x.id === d.clienteId);
     setFilteredSedes(u?.sedes || []);
     setSelectedDoc(d); setModal("edit");
@@ -202,8 +236,10 @@ export default function HySPage() {
     try {
       const payload: any = {
         cliente: fCliente.trim(),
-        clienteId: fClienteManual ? null : fClienteId,
-        clienteManual: fClienteManual,
+        clienteId: fClienteId || null,
+        clienteDniCuit: fDniCuit,
+        clienteTelefono: fTelefono,
+        clienteDireccion: fDireccion,
         sedeId: fSedeId || null,
         sedeNombre: fSedeNombre || "",
         sedeRazonSocial: fSedeRazonSocial || "",
@@ -211,6 +247,9 @@ export default function HySPage() {
         tipo: fTipos,
         descripcion: fDescripcion.trim(),
         imagenes: fImagenes,
+        fechaVencimiento: fFechaVencimiento || null,
+        subtipoMedicion: fSubtipoMedicion || "",
+        capacitaciones: fCapacitaciones || [],
         updatedAt: serverTimestamp(),
       };
       if (modal === "create") {
@@ -220,6 +259,18 @@ export default function HySPage() {
       } else if (modal === "edit" && selectedDoc) {
         await updateDoc(doc(db, "hys_documentos", selectedDoc.id), payload);
       }
+
+      // Sincronizar datos del cliente si existe
+      if (fClienteId) {
+        await updateDoc(doc(db, "usuarios", fClienteId), {
+          nombre: fCliente,
+          dniCuit: fDniCuit,
+          telefono: fTelefono,
+          direccion: fDireccion,
+          updatedAt: serverTimestamp()
+        }).catch(err => console.error("Error updating client profile:", err));
+      }
+
       setModal(null);
       await fetchDocs(role as string, currentUser);
     } catch (e) { alert("Error al guardar: " + e); }
@@ -232,6 +283,35 @@ export default function HySPage() {
       setDeleteConfirm(null);
       setDocs(prev => prev.filter(d => d.id !== id));
     } catch { alert("Error al eliminar."); }
+  };
+
+  const onSelectCliente = (u: any) => {
+    setFClienteId(u.id);
+    setFCliente(u.nombre || u.razonSocial || "");
+    setFDniCuit(u.dniCuit || u.cuit || "");
+    setFTelefono(u.telefono || u.celular || "");
+    setFDireccion(u.direccion || u.domicilio || "");
+    setFilteredSedes(u.sedes || []);
+    setFSedeId(""); setFSedeNombre(""); setFSedeRazonSocial("");
+    setShowSuggestions(false);
+  };
+
+  const handleCreateNewClient = async () => {
+    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios");
+    try {
+      const docRef = await addDoc(collection(db, "usuarios"), {
+        ...newClientData,
+        rol: "cliente",
+        createdAt: serverTimestamp()
+      });
+      const newC = { id: docRef.id, ...newClientData, rol: "cliente" };
+      setUsuarios([...usuarios, newC]);
+      onSelectCliente(newC);
+      setShowNewClientModal(false);
+      setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
+    } catch (e) {
+      alert("Error al crear cliente: " + e);
+    }
   };
 
   // ── Filters ──────────────────────────────────────────────────────────────────
@@ -370,6 +450,16 @@ export default function HySPage() {
                               );
                             })}
                           </div>
+                          {d.fechaVencimiento && (
+                            <div style={{ marginTop: '5px', fontSize: '0.72rem', color: '#c62828', fontWeight: 800 }}>
+                              📅 Venc: {fmtFecha(d.fechaVencimiento)}
+                            </div>
+                          )}
+                          {d.subtipoMedicion && (
+                            <div style={{ fontSize: '0.72rem', color: '#666', fontWeight: 600 }}>
+                              🔬 Med: {d.subtipoMedicion}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: "14px 18px", fontSize: "0.85rem", color: "#555", maxWidth: "250px" }}>
                           {d.descripcion ? (
@@ -441,6 +531,19 @@ export default function HySPage() {
                     </div>
                   </div>
                   
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                    {d.fechaVencimiento && (
+                      <div style={{ fontSize: '0.75rem', color: '#c62828', fontWeight: 800 }}>
+                        📅 Venc: {fmtFecha(d.fechaVencimiento)}
+                      </div>
+                    )}
+                    {d.subtipoMedicion && (
+                      <div style={{ fontSize: '0.75rem', color: '#666', fontWeight: 700 }}>
+                        🔬 Med: {d.subtipoMedicion}
+                      </div>
+                    )}
+                  </div>
+
                   {d.descripcion && (
                     <p style={{ fontSize: "0.85rem", color: "#555", margin: "10px 0", lineHeight: "1.4" }}>{d.descripcion}</p>
                   )}
@@ -504,108 +607,84 @@ export default function HySPage() {
               <h2 style={{ fontWeight: 800, fontSize: "1.2rem", color: "var(--primary-blue)" }}>
                 {modal === "create" ? "Nuevo Documento HyS" : "Editar Documento"}
               </h2>
-              <button onClick={() => setModal(null)} style={{ background: "none", border: "none", fontSize: "1.4rem", cursor: "pointer", color: "#999" }}>✕</button>
+              <button 
+                onClick={() => setModal(null)} 
+                style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: '0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+              >✕</button>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
               {/* Cliente + Fecha */}
-              <div className="modal-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
                 <div style={{ position: "relative" }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                    <label style={labelSt}>Cliente / Inmueble *</label>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--primary-blue)', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                      <input type="checkbox" checked={fClienteManual} onChange={e => { setFClienteManual(e.target.checked); if(e.target.checked) setFClienteId(""); }} />
-                      Carga Manual
-                    </label>
+                    <label style={labelSt}>Cliente *</label>
+                    <button type="button" onClick={() => setShowNewClientModal(true)} style={{ background: 'var(--primary-blue)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 12px', fontSize: '0.7rem', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', transition: '0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.9'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>
+                      <Plus size={14} /> NUEVO CLIENTE
+                    </button>
                   </div>
-
-                  {!fClienteManual ? (
-                    <>
-                      <input 
-                        style={inputSt} 
-                        value={fCliente} 
-                        onChange={e => { setFCliente(e.target.value); setShowSuggestions(true); }} 
-                        onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
-                        placeholder="Buscar cliente registrado..." 
-                      />
-                      {showSuggestions && fCliente.length >= 2 && (
-                        <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", boxShadow: "0 10px 30px rgba(0,0,0,0.15)", zIndex: 9999, maxHeight: "220px", overflowY: "auto", marginTop: "5px" }}>
-                          {usuarios
-                            .filter(u => {
-                              const searchStr = `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase();
-                              return searchStr.includes(fCliente.toLowerCase());
-                            })
-                            .map(u => {
-                              const display = u.empresa ? `${u.empresa} - ${u.nombre} ${u.apellido}` : `${u.nombre} ${u.apellido}`;
-                              return (
-                                <div 
-                                  key={u.id} 
-                                  onClick={() => { 
-                                    setFCliente(display); 
-                                    setFClienteId(u.id);
-                                    setFilteredSedes(u.sedes || []);
-                                    setFSedeId("");
-                                    setFSedeNombre("");
-                                    setShowSuggestions(false); 
-                                  }}
-                                  style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #eee", fontSize: "0.85rem" }}
-                                  onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"}
-                                  onMouseLeave={e => e.currentTarget.style.background = "#fff"}
-                                >
-                                  <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{display}</div>
-                                </div>
-                              );
-                            })}
-                          {usuarios.length > 0 && usuarios.filter(u => `${u.nombre} ${u.apellido} ${u.empresa || ""}`.toLowerCase().includes(fCliente.toLowerCase())).length === 0 && fCliente && (
-                            <div style={{ padding: "12px 15px", color: "#666", fontSize: "0.8rem", background: "#f8f9fa", fontStyle: 'italic' }}>
-                              No se encontraron clientes registrados con ese nombre.
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <input 
-                      style={inputSt} 
-                      value={fCliente} 
-                      onChange={e => setFCliente(e.target.value)} 
-                      placeholder="Nombre del cliente o empresa (Manual)..." 
-                    />
+                  <input
+                    style={inputSt}
+                    placeholder="Buscar cliente registrado..."
+                    value={fCliente}
+                    onChange={e => {
+                      setFCliente(e.target.value);
+                      setShowSuggestions(true);
+                      if (!e.target.value) setFClienteId("");
+                    }}
+                    onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
+                  />
+                  {showSuggestions && fCliente.length > 1 && (
+                    <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", maxHeight: "200px", overflowY: "auto", marginTop: "5px" }}>
+                      {usuarios
+                        .filter(u => `${u.nombre} ${u.apellido || ""} ${u.empresa || ""} ${u.email || ""}`.toLowerCase().includes(fCliente.toLowerCase()))
+                        .map(u => (
+                          <div key={u.id} onClick={() => onSelectCliente(u)} style={{ padding: "10px 12px", cursor: "pointer", borderBottom: "1px solid #eee" }} onMouseEnter={e => e.currentTarget.style.background = "#f0f7ff"} onMouseLeave={e => e.currentTarget.style.background = "#fff"}>
+                            <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{u.nombre} {u.apellido}</div>
+                            {u.empresa && <div style={{ fontSize: "0.75rem", color: "#666" }}>{u.empresa}</div>}
+                          </div>
+                        ))}
+                    </div>
                   )}
                 </div>
+
                 <div>
                   <label style={labelSt}>Fecha *</label>
                   <input type="date" style={inputSt} value={fFecha} onChange={e => setFFecha(e.target.value)} />
                 </div>
               </div>
 
-              {/* SEDE / OBRA */}
-              {!fClienteManual && fClienteId && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                 <div>
-                  <label style={labelSt}>Sede / Obra / Consorcio</label>
-                  <select 
-                    style={{ ...inputSt, background: "#fff" }} 
-                    value={fSedeId} 
-                    onChange={e => {
-                      const s = filteredSedes.find(x => x.id === e.target.value);
-                      if (s) {
-                        setFSedeId(s.id);
-                        setFSedeNombre(s.nombre);
-                        setFSedeRazonSocial(s.razonSocial || "");
-                      } else {
-                        setFSedeId("");
-                        setFSedeNombre("");
-                        setFSedeRazonSocial("");
-                      }
-                    }}
-                  >
-                    <option value="">{filteredSedes.length === 0 ? "Sin sedes registradas" : "Seleccionar sede (Opcional)"}</option>
-                    {filteredSedes.map(s => (
-                      <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>
-                    ))}
+                  <label style={labelSt}>Sede / Ubicación</label>
+                  <select style={inputSt} value={fSedeId} onChange={e => {
+                    const s = filteredSedes.find(x => x.id === e.target.value);
+                    setFSedeId(e.target.value);
+                    setFSedeNombre(s ? s.nombre : "");
+                    setFSedeRazonSocial(s ? (s.razonSocial || "") : "");
+                  }}>
+                    <option value="">-- Seleccionar Sede --</option>
+                    {filteredSedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>)}
                   </select>
                 </div>
-              )}
+
+                <div>
+                  <label style={labelSt}>DNI / CUIT</label>
+                  <input style={inputSt} value={fDniCuit} onChange={e => setFDniCuit(e.target.value)} placeholder="DNI o CUIT" />
+                </div>
+
+                <div>
+                  <label style={labelSt}>Teléfono</label>
+                  <input style={inputSt} value={fTelefono} onChange={e => setFTelefono(e.target.value)} placeholder="Teléfono" />
+                </div>
+
+                <div>
+                  <label style={labelSt}>Domicilio</label>
+                  <input style={inputSt} value={fDireccion} onChange={e => setFDireccion(e.target.value)} placeholder="Dirección completa" />
+                </div>
+              </div>
 
               {/* Tipo */}
               <div>
@@ -637,6 +716,64 @@ export default function HySPage() {
                   value={fDescripcion} onChange={e => setFDescripcion(e.target.value)}
                   placeholder="Detalle de la actividad realizada..." />
               </div>
+
+              {/* Campos dinámicos según tipo */}
+              {(fTipos.includes("RGRL") || fTipos.includes("RAR") || fTipos.includes("Medición de Contaminantes")) && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                  <div>
+                    <label style={labelSt}>Próximo Vencimiento / Medición</label>
+                    <input type="date" style={inputSt} value={fFechaVencimiento} onChange={e => setFFechaVencimiento(e.target.value)} />
+                  </div>
+                  {fTipos.includes("Medición de Contaminantes") && (
+                    <div>
+                      <label style={labelSt}>Tipo de Medición</label>
+                      <select style={inputSt} value={fSubtipoMedicion} onChange={e => setFSubtipoMedicion(e.target.value)}>
+                        <option value="">Seleccionar...</option>
+                        <option value="Ruido">Ruido</option>
+                        <option value="Iluminacion">Iluminación</option>
+                        <option value="PAT">PAT (Puesta a Tierra)</option>
+                        <option value="Carga de Fuego">Carga de Fuego</option>
+                        <option value="Otro">Otro (especificar en desc.)</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {fTipos.includes("Plan de Capacitación Anual") && (
+                <div style={{ background: "#f8f9fa", padding: "15px", borderRadius: "10px", border: "1.5px solid #eee" }}>
+                  <label style={labelSt}>Cronograma de Capacitaciones</label>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                    {fCapacitaciones.map((cap, i) => (
+                      <div key={i} style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr 1fr auto", gap: "8px", alignItems: "center", background: "#fff", padding: "8px", borderRadius: "6px", border: "1px solid #ddd" }}>
+                        <input style={{ ...inputSt, padding: "6px 10px" }} value={cap.tema} onChange={e => {
+                          const newCaps = [...fCapacitaciones];
+                          newCaps[i].tema = e.target.value;
+                          setFCapacitaciones(newCaps);
+                        }} placeholder="Tema..." />
+                        <input type="date" style={{ ...inputSt, padding: "6px 10px" }} value={cap.fechaPlanificada} onChange={e => {
+                          const newCaps = [...fCapacitaciones];
+                          newCaps[i].fechaPlanificada = e.target.value;
+                          setFCapacitaciones(newCaps);
+                        }} />
+                        <select style={{ ...inputSt, padding: "6px 10px" }} value={cap.cargada ? "si" : "no"} onChange={e => {
+                          const newCaps = [...fCapacitaciones];
+                          newCaps[i].cargada = e.target.value === "si";
+                          setFCapacitaciones(newCaps);
+                        }}>
+                          <option value="no">Pendiente</option>
+                          <option value="si">Realizada</option>
+                        </select>
+                        <button onClick={() => setFCapacitaciones(fCapacitaciones.filter((_, idx) => idx !== i))} style={{ background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", padding: "6px", cursor: "pointer" }}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setFCapacitaciones([...fCapacitaciones, { tema: "", fechaPlanificada: "", cargada: false }])}
+                    style={{ background: "var(--primary-blue)", color: "#fff", border: "none", borderRadius: "6px", padding: "8px 12px", fontSize: "0.8rem", cursor: "pointer", fontWeight: 700 }}>
+                    + Agregar Capacitación
+                  </button>
+                </div>
+              )}
 
               {/* Imágenes */}
               <div>
@@ -681,6 +818,104 @@ export default function HySPage() {
           .modal-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
+      {/* Nuevo Cliente Modal */}
+      {showNewClientModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "35px", maxWidth: "600px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+              <h2 style={{ fontSize: "1.5rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0, display: "flex", alignItems: "center", gap: "10px" }}>
+                <Plus size={24} strokeWidth={3} /> Registrar Nuevo Cliente
+              </h2>
+              <button 
+                onClick={() => setShowNewClientModal(false)} 
+                style={{ background: '#f1f5f9', border: 'none', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b', transition: '0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.color = '#0f172a'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#64748b'; }}
+              >✕</button>
+            </div>
+            
+            <div style={{ display: "grid", gap: "20px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Nombre *</label>
+                  <input type="text" value={newClientData.nombre} onChange={e => setNewClientData({...newClientData, nombre: e.target.value})} style={inputSt} placeholder="Nombre" />
+                </div>
+                <div>
+                  <label style={labelSt}>Apellido</label>
+                  <input type="text" value={newClientData.apellido} onChange={e => setNewClientData({...newClientData, apellido: e.target.value})} style={inputSt} placeholder="Apellido" />
+                </div>
+              </div>
+
+              <div>
+                <label style={labelSt}>Email *</label>
+                <input type="email" value={newClientData.email} onChange={e => setNewClientData({...newClientData, email: e.target.value})} style={inputSt} placeholder="correo@ejemplo.com" />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Empresa / R. Social</label>
+                  <input type="text" value={newClientData.empresa} onChange={e => setNewClientData({...newClientData, empresa: e.target.value})} style={inputSt} placeholder="Empresa" />
+                </div>
+                <div>
+                  <label style={labelSt}>DNI / CUIT</label>
+                  <input type="text" value={newClientData.dniCuit} onChange={e => setNewClientData({...newClientData, dniCuit: e.target.value})} style={inputSt} placeholder="DNI o CUIT" />
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
+                <div>
+                  <label style={labelSt}>Teléfono</label>
+                  <input type="text" value={newClientData.telefono} onChange={e => setNewClientData({...newClientData, telefono: e.target.value})} style={inputSt} placeholder="Teléfono" />
+                </div>
+                <div>
+                  <label style={labelSt}>Dirección</label>
+                  <input type="text" value={newClientData.direccion} onChange={e => setNewClientData({...newClientData, direccion: e.target.value})} style={inputSt} placeholder="Calle, Altura, Localidad" />
+                </div>
+              </div>
+
+              {/* SEDES */}
+              <div style={{ borderTop: "1px solid #eee", paddingTop: "20px" }}>
+                <label style={{ ...labelSt, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  Sedes / Ubicaciones
+                  <button type="button" onClick={() => {
+                    const id = Math.random().toString(36).substr(2, 9);
+                    setNewClientData({ ...newClientData, sedes: [...newClientData.sedes, { id, nombre: "", direccion: "" }] });
+                  }} style={{ background: "var(--primary-blue)", color: "#fff", border: "none", borderRadius: "4px", padding: "4px 8px", fontSize: "0.7rem", cursor: "pointer" }}>
+                    + AGREGAR SEDE
+                  </button>
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginTop: "10px" }}>
+                  {newClientData.sedes.map((s, idx) => (
+                    <div key={s.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: "10px", alignItems: "center", background: "#f8f9fa", padding: "10px", borderRadius: "8px" }}>
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Nombre sede..." value={s.nombre} onChange={e => {
+                        const newS = [...newClientData.sedes];
+                        newS[idx].nombre = e.target.value;
+                        setNewClientData({ ...newClientData, sedes: newS });
+                      }} />
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Dirección..." value={s.direccion} onChange={e => {
+                        const newS = [...newClientData.sedes];
+                        newS[idx].direccion = e.target.value;
+                        setNewClientData({ ...newClientData, sedes: newS });
+                      }} />
+                      <button onClick={() => {
+                        setNewClientData({ ...newClientData, sedes: newClientData.sedes.filter((_, i) => i !== idx) });
+                      }} style={{ background: "#fee2e2", color: "#ef4444", border: "none", borderRadius: "4px", padding: "8px", cursor: "pointer" }}>✕</button>
+                    </div>
+                  ))}
+                  {newClientData.sedes.length === 0 && (
+                    <p style={{ fontSize: "0.8rem", color: "#999", fontStyle: "italic", textAlign: "center" }}>Sin sedes agregadas</p>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "15px", marginTop: "10px" }}>
+                <button onClick={() => setShowNewClientModal(false)} style={{ flex: 1, padding: "15px", borderRadius: "12px", border: "1px solid #ddd", background: "#f8f9fa", fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={handleCreateNewClient} className="btn-red" style={{ flex: 2, padding: "15px", borderRadius: "12px", fontWeight: 800 }}>REGISTRAR CLIENTE</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
