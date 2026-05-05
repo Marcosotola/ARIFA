@@ -5,26 +5,27 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { 
-  LayoutDashboard, 
-  Mail, 
-  ClipboardList, 
-  Flame, 
-  FileCheck, 
-  TrendingUp, 
-  HardHat, 
-  ShoppingCart, 
-  Users, 
-  Bell, 
-  Settings, 
-  CreditCard, 
-  Globe, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  Mail,
+  ClipboardList,
+  Flame,
+  FileCheck,
+  TrendingUp,
+  HardHat,
+  ShoppingCart,
+  Users,
+  Bell,
+  Settings,
+  CreditCard,
+  Globe,
+  LogOut,
   Hammer,
   AlertTriangle,
   ChevronRight,
   Menu,
-  X as CloseIcon
+  X as CloseIcon,
+  FolderOpen
 } from "lucide-react";
 import PWAInstallButton from "@/components/PWAInstallButton";
 
@@ -152,6 +153,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     icon: React.ReactNode;
     color?: string;
     badge?: number | string | null;
+    matchChildren?: boolean;
   }
 
   const sidebarLinks: LinkItem[] = [
@@ -216,6 +218,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Productos — admin, tecnico y secretaria
   if (isAdmin || isTecnico || isSecretaria) {
     sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: <ShoppingCart size={20} />, color: "#b45309" });
+  }
+
+  // Documentos — admin, secretaria y cliente (cliente: solo lectura)
+  if (isAdmin || isSecretaria || isClient) {
+    sidebarLinks.push({
+      label: "Documentos",
+      href: "/admin/documentos",
+      icon: <FolderOpen size={20} />,
+      color: "#0d9488",
+      matchChildren: true,
+    });
   }
 
   // Usuarios — admin y secretaria
@@ -302,7 +315,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <nav style={{ flex: 1 }}>
           <ul style={{ listStyle: "none", padding: 0 }}>
             {sidebarLinks.map((link) => {
-              const isActive = pathname === link.href;
+              const isActive = link.matchChildren
+              ? pathname === link.href || pathname.startsWith(link.href + "/")
+              : pathname === link.href;
               return (
                 <li key={link.href} style={{ marginBottom: "8px" }}>
                   <Link 

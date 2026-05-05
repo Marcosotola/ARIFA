@@ -8,7 +8,22 @@
       "Bash(git push *)",
       "Bash(xargs grep -l \"remito\")",
       "Bash(npx next *)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\" -Force)",
+      "Bash(Select-Object Name, FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(xargs grep -l \"presupuesto\\\\|budgets\\\\|presupuesto\")",
+      "Bash(New-Item -ItemType Directory -Force -Path \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\\\\src\\\\app\\\\admin\\\\documentos\\\\presupuestos\\\\nuevo\")",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType Directory -Force -Path \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\\\\src\\\\app\\\\admin\\\\documentos\\\\presupuestos\\\\[id]\")",
+      "Bash(Write-Host \"Dirs created\")",
+      "Bash(mkdir -p \"/c/Users/Marco Dev/Desktop/Marco Dev/Proyectos/ARIFA/ARIFA/src/app/admin/documentos/presupuestos/nuevo\" && mkdir -p \"/c/Users/Marco Dev/Desktop/Marco Dev/Proyectos/ARIFA/ARIFA/src/app/admin/documentos/presupuestos/[id]\" && echo \"OK\")",
+      "Bash(ls \"/c/Users/Marco Dev/.claude/projects/c--Users-Marco-Dev-Desktop-Marco-Dev-Proyectos-ARIFA-ARIFA/memory/\" 2>/dev/null && echo \"OK\" || echo \"EMPTY\")",
+      "Read(//c/Users/Marco Dev/.claude/projects/c--Users-Marco-Dev-Desktop-Marco-Dev-Proyectos-ARIFA-ARIFA/memory//**)",
+      "Bash(npx firebase *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Marco Dev\\Desktop\\Marco Dev\\Proyectos\\ARIFA\\ARIFA\\src\\app\\admin\\documentos\\presupuestos"
     ]
   }
 }

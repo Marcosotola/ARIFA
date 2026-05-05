@@ -4,21 +4,22 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, getDocs, where, doc, getDoc, orderBy, limit } from "firebase/firestore";
 import Link from "next/link";
-import { 
-  Mail, 
-  ClipboardList, 
-  Flame, 
-  FileCheck, 
-  TrendingUp, 
-  HardHat, 
-  ShoppingCart, 
-  Users, 
+import {
+  Mail,
+  ClipboardList,
+  Flame,
+  FileCheck,
+  TrendingUp,
+  HardHat,
+  ShoppingCart,
+  Users,
   Bell,
   LayoutDashboard,
   LogOut,
   ChevronRight,
   Sparkles,
-  ShieldCheck
+  ShieldCheck,
+  FolderOpen
 } from "lucide-react";
 
 // ─── Module definitions ───────────────────────────────────────────────────────
@@ -104,6 +105,16 @@ const MODULES = [
     href: "/admin/notificaciones",
     color: "#0891b2",
     roles: ["admin", "superadmin", "secretaria"],
+  },
+  {
+    icon: <FolderOpen size={24} />,
+    label: "Documentos",
+    description: "Presupuestos y documentos comerciales.",
+    href: "/admin/documentos",
+    color: "#0d9488",
+    roles: ["admin", "superadmin", "secretaria", "cliente"],
+    clientLabel: "Mis Documentos",
+    clientDescription: "Presupuestos y documentación de tus servicios.",
   },
 ];
 

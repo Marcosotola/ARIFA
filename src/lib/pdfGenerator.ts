@@ -289,3 +289,179 @@ export const generateRemitoPDF = async (remito: any) => {
 
     pdf.save(`Remito-${remito.tipo}-${remNum}.pdf`);
 };
+
+export const generatePresupuestoPDF = async (pres: any) => {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+    const presNum = String(pres.numero).padStart(5, "0");
+    const fecStr = pres.fecha ? new Date(pres.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
+
+    const fmt = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // ── Logo SVG → PNG ──
+    let logoPng: string | null = null;
+    try {
+        const resp = await fetch("/logos/logoFondoTransparente.svg");
+        const svgText = await resp.text();
+        const blob = new Blob([svgText], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth || 300; c.height = img.naturalHeight || 150;
+        c.getContext("2d")!.drawImage(img, 0, 0);
+        logoPng = c.toDataURL("image/png");
+        URL.revokeObjectURL(url);
+    } catch { /* no logo */ }
+
+    // ── Encabezado ──
+    const HEADER_H = 32; const top = 10;
+    pdf.setDrawColor(0, 34, 68); pdf.setLineWidth(0.5);
+    pdf.rect(ML, top, TW, HEADER_H);
+
+    if (logoPng) pdf.addImage(logoPng, "PNG", ML + 2, top + 2, 30, 28);
+    pdf.line(ML + 35, top, ML + 35, top + HEADER_H);
+
+    const rx = W - MR - 52;
+    const cx = ML + 35 + (rx - ML - 35) / 2;
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(12); pdf.setTextColor(0, 34, 68);
+    pdf.text("PRESUPUESTO", cx, top + 10, { align: "center" });
+    pdf.setFontSize(9); pdf.setFont("helvetica", "normal"); pdf.setTextColor(80, 80, 80);
+    pdf.text("ARIFA - Servicios de Protección contra Incendios", cx, top + 17, { align: "center" });
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(16); pdf.setTextColor(163, 31, 29);
+    pdf.text(`P-${presNum}`, cx, top + 27, { align: "center" });
+
+    pdf.line(rx, top, rx, top + HEADER_H);
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(7.5); pdf.setTextColor(0);
+    pdf.text("Fecha:", rx + 2, top + 8);
+    pdf.text("Validez:", rx + 2, top + 15);
+    pdf.text("Estado:", rx + 2, top + 22);
+    pdf.text("Emitido por:", rx + 2, top + 29);
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(7.5);
+    pdf.text(fecStr, rx + 22, top + 8);
+    pdf.text(`${pres.validezDias || 15} días`, rx + 22, top + 15);
+    const estadoLabel = pres.estado === "aceptado" ? "ACEPTADO" : pres.estado === "cancelado" ? "CANCELADO" : "PENDIENTE";
+    pdf.text(estadoLabel, rx + 22, top + 22);
+    pdf.text(pres.creadoPorNombre || "ARIFA", rx + 22, top + 29);
+
+    let y = top + HEADER_H + 8;
+
+    // ── Datos del cliente ──
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255);
+    pdf.text("DATOS DEL CLIENTE", ML + 3, y + 5);
+    y += 7;
+
+    const empresa = pres.sedeNombre
+        ? `${pres.clienteEmpresa || "-"} — Sede: ${pres.sedeNombre}`
+        : (pres.clienteEmpresa || "-");
+
+    autoTable(pdf, {
+        startY: y, margin: { left: ML, right: MR, bottom: 18 },
+        body: [
+            [{ content: "RAZÓN SOCIAL / CONTACTO:", styles: { fontStyle: "bold", cellWidth: 55 } }, `${pres.clienteNombre || "-"}${pres.clienteApellido ? " " + pres.clienteApellido : ""}`],
+            [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, empresa],
+            [{ content: "DNI / CUIT:", styles: { fontStyle: "bold" } }, pres.clienteDniCuit || "-"],
+            [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, pres.clienteDireccion || "-"],
+            [{ content: "TELÉFONO:", styles: { fontStyle: "bold" } }, pres.clienteTelefono || "-"],
+            [{ content: "EMAIL:", styles: { fontStyle: "bold" } }, pres.clienteEmail || "-"],
+        ],
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        tableLineColor: [0, 34, 68], tableLineWidth: 0.2,
+    });
+    y = (pdf as any).lastAutoTable.finalY + 8;
+
+    // ── Detalle de ítems ──
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255);
+    pdf.text("DETALLE DE SERVICIOS / PRODUCTOS", ML + 3, y + 5);
+    y += 7;
+
+    autoTable(pdf, {
+        startY: y, margin: { left: ML, right: MR, bottom: 18 },
+        head: [["Cant.", "Descripción", "P. Unitario", "Subtotal"]],
+        body: (pres.items || []).map((item: any) => [
+            item.cantidad,
+            item.descripcion || "-",
+            `$ ${fmt(item.precioUnitario || 0)}`,
+            `$ ${fmt(item.subtotal || 0)}`,
+        ]),
+        theme: "grid",
+        headStyles: { fillColor: [0, 34, 68], fontSize: 8.5, halign: "center" },
+        bodyStyles: { fontSize: 9 },
+        showHead: "everyPage",
+        columnStyles: {
+            0: { cellWidth: 18, halign: "center" },
+            2: { cellWidth: 35, halign: "right" },
+            3: { cellWidth: 35, halign: "right" },
+        },
+    });
+    y = (pdf as any).lastAutoTable.finalY + 10;
+
+    // ── Totales ── (si no hay espacio suficiente, nueva página)
+    if (y > 225) { pdf.addPage(); y = 20; }
+
+    const totW = 110; const totX = W - MR - totW;
+
+    const addTotalRow = (label: string, value: string, bold = false, colorRed = false) => {
+        y += 4;
+        pdf.setFont("helvetica", bold ? "bold" : "normal");
+        pdf.setFontSize(bold ? 10 : 9);
+        if (colorRed) pdf.setTextColor(163, 31, 29); else pdf.setTextColor(0);
+        pdf.text(label, totX + 2, y);
+        pdf.text(value, W - MR - 2, y, { align: "right" });
+        y += bold ? 4 : 3;
+    };
+
+    // Línea superior antes del subtotal
+    pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(totX, y, W - MR, y);
+    addTotalRow("Subtotal:", `$ ${fmt(pres.subtotal || 0)}`);
+
+    if ((pres.descuentoMonto || 0) > 0) {
+        const descLabel = pres.descuentoTipo === "porcentaje"
+            ? `Descuento (${pres.descuentoValor}%):`
+            : "Descuento:";
+        addTotalRow(descLabel, `- $ ${fmt(pres.descuentoMonto || 0)}`);
+    }
+    if ((pres.impuestoMonto || 0) > 0) {
+        const impLabel = pres.impuestoTipo === "porcentaje"
+            ? `Impuesto (${pres.impuestoValor}%):`
+            : "Impuesto:";
+        addTotalRow(impLabel, `+ $ ${fmt(pres.impuestoMonto || 0)}`);
+    }
+
+    // Línea gruesa antes del TOTAL
+    y += 3;
+    pdf.setDrawColor(0, 34, 68); pdf.setLineWidth(0.5); pdf.line(totX, y, W - MR, y);
+    addTotalRow("TOTAL:", `$ ${fmt(pres.total || 0)}`, true, true);
+    y += 8;
+
+    // ── Notas ──
+    if (pres.notas?.trim()) {
+        if (y > 240) { pdf.addPage(); y = 20; }
+        pdf.setFillColor(248, 249, 252); pdf.rect(ML, y, TW, 6, "F");
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.setTextColor(0, 34, 68);
+        pdf.text("NOTAS / CONDICIONES", ML + 3, y + 4);
+        y += 8;
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(60, 60, 60);
+        const noteLines = pdf.splitTextToSize(pres.notas, TW);
+        pdf.text(noteLines, ML, y);
+    }
+
+    // ── Pie de página en todas las páginas con paginación ──
+    const pageCount = pdf.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        const fy = 287;
+        pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(ML, fy - 5, W - MR, fy - 5);
+        pdf.setFont("helvetica", "italic"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+        pdf.text(`Este presupuesto tiene validez de ${pres.validezDias || 15} días desde su fecha de emisión.`, ML, fy);
+        pdf.text(`Página ${i} de ${pageCount}`, W / 2, fy, { align: "center" });
+        pdf.text("ARIFA - Protección contra Incendios", W - MR, fy, { align: "right" });
+    }
+
+    pdf.save(`Presupuesto-P${presNum}.pdf`);
+};
