@@ -60,6 +60,8 @@ function MatafuegosUnifiedContent() {
   const [savingInventory, setSavingInventory] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [checkingVenc, setCheckingVenc] = useState(false);
+  const [lastCheckResult, setLastCheckResult] = useState<{ ok: boolean; notificacionesCreadas?: number; error?: string } | null>(null);
   
   // Filtros
   const [search, setSearch] = useState("");
@@ -97,6 +99,26 @@ function MatafuegosUnifiedContent() {
 
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // ─── Check vencimientos ───────────────────────────────────────────────────
+  const checkVencimientos = useCallback(async (silent = false) => {
+    setCheckingVenc(true);
+    if (!silent) setLastCheckResult(null);
+    try {
+      const res = await fetch("/api/check-matafuegos-vencimientos", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        setLastCheckResult({ ok: true, notificacionesCreadas: data.notificacionesCreadas });
+      } else {
+        setLastCheckResult({ ok: false, error: data.error || "Error desconocido" });
+      }
+    } catch (e: any) {
+      setLastCheckResult({ ok: false, error: e.message });
+    } finally {
+      setCheckingVenc(false);
+      if (silent) setTimeout(() => setLastCheckResult(null), 8000);
+    }
+  }, []);
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -179,10 +201,16 @@ function MatafuegosUnifiedContent() {
 
       if (activeTab === "remitos") fetchRemitos(userRole, u.uid);
       else if (activeTab === "fichas") fetchFichas(userRole, u.uid);
-      else fetchMatafuegos(userRole, u.uid);
+      else {
+        fetchMatafuegos(userRole, u.uid);
+        // Auto-check expirations silently for staff when opening inventory tab
+        if (["admin", "superadmin", "secretaria"].includes(userRole)) {
+          checkVencimientos(true);
+        }
+      }
     });
     return () => unsub();
-  }, [router, activeTab, fetchRemitos, fetchFichas, fetchMatafuegos]);
+  }, [router, activeTab, fetchRemitos, fetchFichas, fetchMatafuegos, checkVencimientos]);
 
   const handleDelete = async () => {
     if (!deleteConfirm) return;
@@ -341,40 +369,90 @@ function MatafuegosUnifiedContent() {
       {/* ESPACIO PARA ESTADÍSTICAS SI ES INVENTARIO */}
       {activeTab === "inventario" && (
         <div style={{ marginBottom: "25px" }}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', 
-              gap: '15px', 
-              marginBottom: '20px' 
-            }}>
-              <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-                <div style={{ background: '#eff6ff', color: '#3b82f6', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><Package size={18} /></div>
-                <div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Total Equipos</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1e293b' }}>{stats.total}</div>
+            {/* Stats row + Check button */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px', flexWrap: 'wrap', marginBottom: '15px' }}>
+              <div style={{ 
+                flex: 1,
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
+                gap: '15px',
+              }}>
+                <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                  <div style={{ background: '#eff6ff', color: '#3b82f6', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><Package size={18} /></div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Total Equipos</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#1e293b' }}>{stats.total}</div>
+                  </div>
+                </div>
+                <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                  <div style={{ background: '#fef2f2', color: '#ef4444', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><Bell size={18} /></div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Carga Vencida</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ef4444' }}>{stats.vencidosCarga}</div>
+                  </div>
+                </div>
+                <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                  <div style={{ background: '#fff7ed', color: '#f97316', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><ShieldCheck size={18} /></div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>PH Vencida</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#f97316' }}>{stats.vencidosPH}</div>
+                  </div>
+                </div>
+                <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                  <div style={{ background: '#f0fdf4', color: '#22c55e', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><AlertTriangle size={18} /></div>
+                  <div>
+                    <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Vence este mes</div>
+                    <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#22c55e' }}>{stats.porVencerCarga}</div>
+                  </div>
                 </div>
               </div>
-              <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-                <div style={{ background: '#fef2f2', color: '#ef4444', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><Bell size={18} /></div>
-                <div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Carga Vencida</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#ef4444' }}>{stats.vencidosCarga}</div>
+
+              {/* Manual check button — only for admin/superadmin/secretaria */}
+              {(role === "admin" || role === "superadmin" || role === "secretaria") && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    onClick={() => checkVencimientos(false)}
+                    disabled={checkingVenc}
+                    title="Verificar vencimientos y enviar notificaciones automáticas"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      padding: '10px 18px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #3b82f6',
+                      background: checkingVenc ? '#f0f7ff' : '#fff',
+                      color: '#2563eb',
+                      fontWeight: 800,
+                      fontSize: '0.82rem',
+                      cursor: checkingVenc ? 'wait' : 'pointer',
+                      boxShadow: '0 2px 8px rgba(59,130,246,0.12)',
+                      transition: '0.2s',
+                      opacity: checkingVenc ? 0.7 : 1,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Bell size={16} strokeWidth={2.5} style={{ opacity: checkingVenc ? 0.5 : 1, transition: 'opacity 0.6s' }} />
+                    {checkingVenc ? "Verificando..." : "Verificar Vencimientos"}
+                  </button>
+                  {lastCheckResult && (
+                    <div style={{
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      background: lastCheckResult.ok ? '#f0fdf4' : '#fef2f2',
+                      color: lastCheckResult.ok ? '#16a34a' : '#dc2626',
+                      border: `1px solid ${lastCheckResult.ok ? '#bbf7d0' : '#fecaca'}`,
+                    }}>
+                      {lastCheckResult.ok
+                        ? lastCheckResult.notificacionesCreadas === 0
+                          ? '✓ Sin nuevas notificaciones'
+                          : `✓ ${lastCheckResult.notificacionesCreadas} notificación(es) enviada(s)`
+                        : `✗ ${lastCheckResult.error}`
+                      }
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-                <div style={{ background: '#fff7ed', color: '#f97316', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><ShieldCheck size={18} /></div>
-                <div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>PH Vencida</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#f97316' }}>{stats.vencidosPH}</div>
-                </div>
-              </div>
-              <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
-                <div style={{ background: '#f0fdf4', color: '#22c55e', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }}><AlertTriangle size={18} /></div>
-                <div>
-                  <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase' }}>Vence este mes</div>
-                  <div style={{ fontSize: '1.2rem', fontWeight: 900, color: '#22c55e' }}>{stats.porVencerCarga}</div>
-                </div>
-              </div>
+              )}
             </div>
         </div>
       )}
