@@ -465,3 +465,161 @@ export const generatePresupuestoPDF = async (pres: any) => {
 
     pdf.save(`Presupuesto-P${presNum}.pdf`);
 };
+
+export const generateReciboPDF = async (recibo: any) => {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+    const rcNum = String(recibo.numero).padStart(5, "0");
+    const fecStr = recibo.fecha ? new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
+    const fmt = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    const FORMA_PAGO_LABELS: Record<string, string> = {
+        efectivo: "Efectivo",
+        transferencia: "Transferencia bancaria",
+        cheque: "Cheque",
+        tarjeta_credito: "Tarjeta de crédito",
+        tarjeta_debito: "Tarjeta de débito",
+        otro: "Otro",
+    };
+
+    // ── Logo SVG → PNG ──
+    let logoPng: string | null = null;
+    try {
+        const resp = await fetch("/logos/logoFondoTransparente.svg");
+        const svgText = await resp.text();
+        const blob = new Blob([svgText], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth || 300; c.height = img.naturalHeight || 150;
+        c.getContext("2d")!.drawImage(img, 0, 0);
+        logoPng = c.toDataURL("image/png");
+        URL.revokeObjectURL(url);
+    } catch { /* no logo */ }
+
+    // ── Encabezado ──
+    const HEADER_H = 32; const top = 10;
+    pdf.setDrawColor(0, 34, 68); pdf.setLineWidth(0.5);
+    pdf.rect(ML, top, TW, HEADER_H);
+
+    if (logoPng) pdf.addImage(logoPng, "PNG", ML + 2, top + 2, 30, 28);
+    pdf.line(ML + 35, top, ML + 35, top + HEADER_H);
+
+    const rx = W - MR - 52;
+    const cx = ML + 35 + (rx - ML - 35) / 2;
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(12); pdf.setTextColor(0, 34, 68);
+    pdf.text("RECIBO DE COBRO", cx, top + 10, { align: "center" });
+    pdf.setFontSize(9); pdf.setFont("helvetica", "normal"); pdf.setTextColor(80, 80, 80);
+    pdf.text("ARIFA - Servicios de Protección contra Incendios", cx, top + 17, { align: "center" });
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(16); pdf.setTextColor(163, 31, 29);
+    pdf.text(`RC-${rcNum}`, cx, top + 27, { align: "center" });
+
+    pdf.line(rx, top, rx, top + HEADER_H);
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(7.5); pdf.setTextColor(0);
+    pdf.text("Fecha:", rx + 2, top + 8);
+    pdf.text("Forma pago:", rx + 2, top + 16);
+    pdf.text("Estado:", rx + 2, top + 24);
+    pdf.text("Emitido por:", rx + 2, top + 32);
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(7.5);
+    pdf.text(fecStr, rx + 26, top + 8);
+    pdf.text(FORMA_PAGO_LABELS[recibo.formaPago] || recibo.formaPago || "-", rx + 26, top + 16);
+    const estadoLabel = recibo.estado === "anulado" ? "ANULADO" : "EMITIDO";
+    pdf.text(estadoLabel, rx + 26, top + 24);
+    pdf.text(recibo.creadoPorNombre || "ARIFA", rx + 26, top + 32);
+
+    let y = top + HEADER_H + 8;
+
+    // ── Datos del cliente ──
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255);
+    pdf.text("DATOS DEL CLIENTE", ML + 3, y + 5);
+    y += 7;
+
+    const empresa = recibo.sedeNombre
+        ? `${recibo.clienteEmpresa || "-"} — Sede: ${recibo.sedeNombre}`
+        : (recibo.clienteEmpresa || "-");
+
+    autoTable(pdf, {
+        startY: y, margin: { left: ML, right: MR, bottom: 18 },
+        body: [
+            [{ content: "RAZÓN SOCIAL / CONTACTO:", styles: { fontStyle: "bold", cellWidth: 55 } }, `${recibo.clienteNombre || "-"}${recibo.clienteApellido ? " " + recibo.clienteApellido : ""}`],
+            [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, empresa],
+            [{ content: "DNI / CUIT:", styles: { fontStyle: "bold" } }, recibo.clienteDniCuit || "-"],
+            [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, recibo.clienteDireccion || "-"],
+            [{ content: "TELÉFONO:", styles: { fontStyle: "bold" } }, recibo.clienteTelefono || "-"],
+            [{ content: "EMAIL:", styles: { fontStyle: "bold" } }, recibo.clienteEmail || "-"],
+        ],
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        tableLineColor: [0, 34, 68], tableLineWidth: 0.2,
+    });
+    y = (pdf as any).lastAutoTable.finalY + 8;
+
+    // ── Detalle del cobro ──
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255);
+    pdf.text("DETALLE DEL COBRO", ML + 3, y + 5);
+    y += 7;
+
+    autoTable(pdf, {
+        startY: y, margin: { left: ML, right: MR, bottom: 18 },
+        body: [
+            [{ content: "FORMA DE PAGO:", styles: { fontStyle: "bold", cellWidth: 55 } }, FORMA_PAGO_LABELS[recibo.formaPago] || recibo.formaPago || "-"],
+            [{ content: "CONCEPTO:", styles: { fontStyle: "bold" } }, recibo.concepto || "-"],
+            ...(recibo.observaciones?.trim() ? [[{ content: "OBSERVACIONES:", styles: { fontStyle: "bold" } }, recibo.observaciones]] : []),
+        ],
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        tableLineColor: [0, 34, 68], tableLineWidth: 0.2,
+    });
+    y = (pdf as any).lastAutoTable.finalY + 8;
+
+    // ── Monto recibido ──
+    if (y > 220) { pdf.addPage(); y = 20; }
+    const totW = 110; const totX = W - MR - totW;
+    pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(totX, y, W - MR, y);
+    y += 6;
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(11); pdf.setTextColor(0, 34, 68);
+    pdf.text("MONTO RECIBIDO:", totX + 2, y);
+    pdf.setFontSize(14); pdf.setTextColor(163, 31, 29);
+    pdf.text(`$ ${fmt(recibo.monto || 0)}`, W - MR - 2, y, { align: "right" });
+    y += 8;
+    pdf.setDrawColor(0, 34, 68); pdf.setLineWidth(0.5); pdf.line(totX, y, W - MR, y);
+    y += 16;
+
+    // ── Firma del receptor ──
+    if (y > 220) { pdf.addPage(); y = 20; }
+    const bw = 100; const bx = (W - bw) / 2;
+    pdf.setDrawColor(200); pdf.setLineWidth(0.2);
+    pdf.rect(bx, y, bw, 45);
+    pdf.setFontSize(8); pdf.setTextColor(100);
+    pdf.text("FIRMA DEL RECEPTOR", bx + bw / 2, y + 5, { align: "center" });
+
+    if (recibo.firmaReceptor) {
+        try {
+            pdf.addImage(recibo.firmaReceptor, "PNG", bx + 5, y + 8, bw - 10, 26);
+        } catch { /* skip */ }
+    }
+
+    pdf.setDrawColor(80); pdf.setLineWidth(0.2);
+    pdf.line(bx + 5, y + 37, bx + bw - 5, y + 37);
+    pdf.setFontSize(9); pdf.setTextColor(0); pdf.setFont("helvetica", "bold");
+    pdf.text((recibo.nombreReceptor || "").toUpperCase(), bx + bw / 2, y + 43, { align: "center" });
+    y += 55;
+
+    // ── Pie de página ──
+    const pageCount = pdf.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        const fy = 287;
+        pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(ML, fy - 5, W - MR, fy - 5);
+        pdf.setFont("helvetica", "italic"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+        pdf.text(`Recibo emitido el ${fecStr}.`, ML, fy);
+        pdf.text(`Página ${i} de ${pageCount}`, W / 2, fy, { align: "center" });
+        pdf.text("ARIFA - Protección contra Incendios", W - MR, fy, { align: "right" });
+    }
+
+    pdf.save(`Recibo-RC${rcNum}.pdf`);
+};

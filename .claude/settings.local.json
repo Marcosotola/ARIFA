@@ -22,10 +22,13 @@
       "Read(//c/Users/Marco Dev/.claude/projects/c--Users-Marco-Dev-Desktop-Marco-Dev-Proyectos-ARIFA-ARIFA/memory//**)",
       "Bash(npx firebase *)",
       "Bash(findstr -i \"chart\\\\|recharts\\\\|victory\\\\|apex\\\\|nivo\\\\|d3\")",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\\\\src\\\\app\\\\admin\\\\documentos\\\\recibos\\\\[id]\" 2>/dev/null; echo \"ok\")",
+      "Bash(firebase --version)"
     ],
     "additionalDirectories": [
-      "C:\\Users\\Marco Dev\\Desktop\\Marco Dev\\Proyectos\\ARIFA\\ARIFA\\src\\app\\admin\\documentos\\presupuestos"
+      "C:\\Users\\Marco Dev\\Desktop\\Marco Dev\\Proyectos\\ARIFA\\ARIFA\\src\\app\\admin\\documentos\\presupuestos",
+      "c:\\Users\\Marco Dev\\Desktop\\Marco Dev\\Proyectos\\ARIFA\\ARIFA\\src\\app\\admin\\documentos\\recibos"
     ]
   }
 }
