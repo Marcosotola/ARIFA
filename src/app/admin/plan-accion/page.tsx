@@ -22,6 +22,8 @@ import {
   AlertCircle
 } from "lucide-react";
 
+import { PieChart, Pie, Cell, Tooltip } from "recharts";
+
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 type Prioridad = "Leve" | "Moderada" | "Crítica";
 const PRIORIDADES: Prioridad[] = ["Leve", "Moderada", "Crítica"];
@@ -261,6 +263,14 @@ export default function PlanAccionPage() {
   const isReadOnly = role === "cliente";
   const isAdmin = role === "admin" || role === "superadmin";
 
+  const totalRealizados = items.filter(i => i.realizado).length;
+  const totalPendientes = items.filter(i => !i.realizado).length;
+  const chartData = [
+    { name: "Realizados", value: totalRealizados, color: "#16a34a" },
+    { name: "Pendientes", value: totalPendientes, color: "#f59e0b" },
+  ];
+  const pctEjecucion = items.length > 0 ? Math.round((totalRealizados / items.length) * 100) : 0;
+
   return (
     <div style={{ maxWidth: "1350px", margin: "0 auto" }}>
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: "30px", flexWrap: "wrap", gap: "20px" }}>
@@ -318,6 +328,51 @@ export default function PlanAccionPage() {
           Limpiar
         </button>
       </div>
+
+      {/* GRÁFICO DE ESTADOS */}
+      {!loading && items.length > 0 && (
+        <div style={{ background: "#fff", padding: "24px 28px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "24px", border: "1px solid #eee", display: "flex", alignItems: "center", gap: "28px", flexWrap: "wrap" }}>
+          <PieChart width={150} height={150}>
+            <Pie
+              data={chartData}
+              cx={70}
+              cy={70}
+              innerRadius={45}
+              outerRadius={65}
+              dataKey="value"
+              startAngle={90}
+              endAngle={-270}
+              strokeWidth={0}
+            >
+              {chartData.map((entry, i) => (
+                <Cell key={i} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(val) => [`${val} ítems`]}
+              contentStyle={{ borderRadius: "8px", fontSize: "0.82rem", border: "1px solid #eee" }}
+            />
+          </PieChart>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            {chartData.map(d => (
+              <div key={d.name} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ width: "12px", height: "12px", borderRadius: "3px", background: d.color, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontWeight: 900, fontSize: "1.5rem", color: "#1e293b", lineHeight: 1 }}>{d.value}</div>
+                  <div style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px" }}>{d.name}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginLeft: "auto", textAlign: "right" }}>
+            <div style={{ fontSize: "0.7rem", color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Tasa de ejecución</div>
+            <div style={{ fontSize: "2.4rem", fontWeight: 900, color: "var(--primary-blue)", lineHeight: 1 }}>{pctEjecucion}%</div>
+            <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: "4px" }}>{items.length} propuestas en total</div>
+          </div>
+        </div>
+      )}
 
       {/* LISTADO */}
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden", border: "1px solid #eee", marginBottom: "20px" }}>

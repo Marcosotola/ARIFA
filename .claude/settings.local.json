@@ -20,7 +20,9 @@
       "Bash(mkdir -p \"/c/Users/Marco Dev/Desktop/Marco Dev/Proyectos/ARIFA/ARIFA/src/app/admin/documentos/presupuestos/nuevo\" && mkdir -p \"/c/Users/Marco Dev/Desktop/Marco Dev/Proyectos/ARIFA/ARIFA/src/app/admin/documentos/presupuestos/[id]\" && echo \"OK\")",
       "Bash(ls \"/c/Users/Marco Dev/.claude/projects/c--Users-Marco-Dev-Desktop-Marco-Dev-Proyectos-ARIFA-ARIFA/memory/\" 2>/dev/null && echo \"OK\" || echo \"EMPTY\")",
       "Read(//c/Users/Marco Dev/.claude/projects/c--Users-Marco-Dev-Desktop-Marco-Dev-Proyectos-ARIFA-ARIFA/memory//**)",
-      "Bash(npx firebase *)"
+      "Bash(npx firebase *)",
+      "Bash(findstr -i \"chart\\\\|recharts\\\\|victory\\\\|apex\\\\|nivo\\\\|d3\")",
+      "Bash(npm install *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Marco Dev\\Desktop\\Marco Dev\\Proyectos\\ARIFA\\ARIFA\\src\\app\\admin\\documentos\\presupuestos"
