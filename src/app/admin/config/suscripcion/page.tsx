@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, onSnapshot, setDoc, Timestamp, collection, query, orderBy, limit } from "firebase/firestore";
+import styles from "./page.module.css";
 
 export default function SuscripcionPage() {
   const [user, setUser] = useState<any>(null);
@@ -12,6 +13,8 @@ export default function SuscripcionPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [pagos, setPagos] = useState<any[]>([]);
+  const [showMpEmailModal, setShowMpEmailModal] = useState(false);
+  const [mpEmail, setMpEmail] = useState("");
 
   // Superadmin editable fields
   const [costo, setCosto] = useState(120000);
@@ -55,7 +58,6 @@ export default function SuscripcionPage() {
       setLoading(false);
     });
 
-    // Historial de pagos
     const q = query(collection(db, "pagos_suscripcion"), orderBy("fecha", "desc"), limit(10));
     const unsubPagos = onSnapshot(q, (snap) => {
       setPagos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -89,7 +91,17 @@ export default function SuscripcionPage() {
     }
   };
 
+  const handleOpenPayment = () => {
+    setMpEmail(user.email || "");
+    setShowMpEmailModal(true);
+  };
+
   const handlePayment = async () => {
+    if (!mpEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mpEmail)) {
+      alert("Ingresá un correo electrónico válido.");
+      return;
+    }
+    setShowMpEmailModal(false);
     setSaving(true);
     try {
       const res = await fetch("/api/mercadopago/preference", {
@@ -97,7 +109,7 @@ export default function SuscripcionPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           costo: subscription.costo,
-          email: user.email
+          email: mpEmail
         })
       });
       const data = await res.json();
@@ -115,44 +127,42 @@ export default function SuscripcionPage() {
     }
   };
 
-  if (loading) return <div style={{ padding: "40px", textAlign: "center", fontStyle: "italic", color: "var(--text-muted)" }}>Cargando datos de suscripción...</div>;
+  if (loading) return <div className={styles.loading}>Cargando datos de suscripción...</div>;
 
   const isSuperAdmin = role === "superadmin";
   const isExpired = subscription?.estado === "vencido" || (subscription?.vencimiento && subscription.vencimiento.toDate() < new Date());
   const isMaintenance = subscription?.estado === "mantenimiento";
 
+  const statusDotClass = isMaintenance
+    ? styles.statusDotMaintenance
+    : isExpired
+    ? styles.statusDotExpired
+    : styles.statusDotActive;
+
   return (
-    <div style={{ maxWidth: "900px", margin: "0 auto", paddingBottom: "100px" }}>
-      <header style={{ marginBottom: "35px" }}>
-        <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
-          Gestión de Suscripción
-        </h1>
-        <p style={{ color: "var(--text-muted)", marginTop: "5px", fontSize: "0.95rem" }}>
-          Estado actual y configuración de pagos recurrentes.
-        </p>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>Gestión de Suscripción</h1>
+        <p className={styles.subtitle}>Estado actual y configuración de pagos recurrentes.</p>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: "25px" }}>
-        
+      <div className={styles.grid}>
+
         {/* Status Card */}
-        <div style={{ background: "#fff", borderRadius: "16px", padding: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", border: "1px solid #eee" }}>
-          <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "20px" }}>Estado del Servicio</h3>
-          
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "25px" }}>
-            <div style={{ 
-              width: "12px", height: "12px", borderRadius: "50%", 
-              background: isMaintenance ? "#f59e0b" : (isExpired ? "var(--primary-red)" : "#10b981"),
-              boxShadow: `0 0 10px ${isMaintenance ? "#f59e0b" : (isExpired ? "var(--primary-red)" : "#10b981")}`
-            }} />
-            <span style={{ fontSize: "1.2rem", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px" }}>
+        <div className={styles.card}>
+          <h3 className={styles.cardTitle}>Estado del Servicio</h3>
+
+          <div className={styles.statusRow}>
+            <div className={`${styles.statusDot} ${statusDotClass}`} />
+            <span className={styles.statusLabel}>
               {isMaintenance ? "Mantenimiento" : (isExpired ? "Expirado" : "Activo")}
             </span>
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "15px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
-              <span style={{ color: "#666" }}>Vencimiento:</span>
-              <span style={{ fontWeight: 700 }}>
+          <div className={styles.infoList}>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Vencimiento:</span>
+              <span className={styles.infoValue}>
                 {(() => {
                   if (!subscription?.vencimiento) return "Sin fecha";
                   try {
@@ -164,23 +174,22 @@ export default function SuscripcionPage() {
                 })()}
               </span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", paddingBottom: "10px", borderBottom: "1px solid #f0f0f0" }}>
-              <span style={{ color: "#666" }}>Costo Mensual:</span>
-              <span style={{ fontWeight: 700 }}>${subscription?.costo?.toLocaleString('es-AR')}</span>
+            <div className={styles.infoRow}>
+              <span className={styles.infoLabel}>Costo Mensual:</span>
+              <span className={styles.infoValue}>${subscription?.costo?.toLocaleString('es-AR')}</span>
             </div>
           </div>
 
           {!isSuperAdmin && (
-            <div style={{ marginTop: "30px" }}>
-              <button 
-                className="btn-red"
-                style={{ width: "100%", padding: "15px", fontSize: "1rem" }}
-                onClick={handlePayment}
+            <div className={styles.paymentSection}>
+              <button
+                className={`btn-red ${styles.fullWidthBtn}`}
+                onClick={handleOpenPayment}
                 disabled={saving}
               >
                 {saving ? "Procesando..." : (isExpired ? "Renovar Suscripción" : "Pagar Próximo Mes")}
               </button>
-              <p style={{ fontSize: "0.75rem", color: "#999", textAlign: "center", marginTop: "12px" }}>
+              <p className={styles.paymentNote}>
                 El pago se procesa de forma segura a través de Mercado Pago.
               </p>
             </div>
@@ -189,36 +198,49 @@ export default function SuscripcionPage() {
 
         {/* Superadmin Config Card */}
         {isSuperAdmin && (
-          <div style={{ background: "#fff", borderRadius: "16px", padding: "30px", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", border: "1px solid #eee" }}>
-            <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--primary-red)", marginBottom: "20px" }}>Configuración Superadmin</h3>
-            
-            <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+          <div className={styles.card}>
+            <h3 className={styles.cardTitleRed}>Configuración Superadmin</h3>
+
+            <div className={styles.formGroup}>
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px" }}>Costo de Suscripción (ARS)</label>
-                <input 
-                  type="number" 
-                  value={costo} 
+                <label htmlFor="costo-input" className={styles.fieldLabel}>
+                  Costo de Suscripción (ARS)
+                </label>
+                <input
+                  id="costo-input"
+                  type="number"
+                  value={costo}
                   onChange={(e) => setCosto(Number(e.target.value))}
-                  style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #ddd" }}
+                  className={styles.input}
+                  title="Costo de suscripción en ARS"
+                  placeholder="120000"
                 />
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px" }}>Fecha de Vencimiento</label>
-                <input 
-                  type="date" 
-                  value={vencimientoStr} 
+                <label htmlFor="vencimiento-input" className={styles.fieldLabel}>
+                  Fecha de Vencimiento
+                </label>
+                <input
+                  id="vencimiento-input"
+                  type="date"
+                  value={vencimientoStr}
                   onChange={(e) => setVencimientoStr(e.target.value)}
-                  style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #ddd" }}
+                  className={styles.input}
+                  title="Fecha de vencimiento de la suscripción"
                 />
               </div>
 
               <div>
-                <label style={{ display: "block", fontSize: "0.85rem", fontWeight: 700, marginBottom: "8px" }}>Estado Forzado</label>
-                <select 
-                  value={estado} 
+                <label htmlFor="estado-select" className={styles.fieldLabel}>
+                  Estado Forzado
+                </label>
+                <select
+                  id="estado-select"
+                  value={estado}
                   onChange={(e) => setEstado(e.target.value)}
-                  style={{ width: "100%", padding: "12px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff" }}
+                  className={styles.select}
+                  title="Estado forzado de la suscripción"
                 >
                   <option value="activo">Activo</option>
                   <option value="vencido">Vencido / Suspendido</option>
@@ -226,22 +248,16 @@ export default function SuscripcionPage() {
                 </select>
               </div>
 
-              <div style={{ marginTop: "10px" }}>
-                <button 
+              <div className={styles.saveSection}>
+                <button
                   onClick={handleSaveConfig}
                   disabled={saving}
-                  style={{ 
-                    width: "100%", padding: "14px", background: "var(--primary-blue)", color: "#fff", 
-                    border: "none", borderRadius: "8px", fontWeight: 800, cursor: "pointer"
-                  }}
+                  className={styles.saveBtn}
                 >
                   {saving ? "Guardando..." : "Guardar Cambios"}
                 </button>
                 {message && (
-                  <div style={{ 
-                    marginTop: "15px", textAlign: "center", fontSize: "0.9rem", fontWeight: 700, 
-                    color: message.startsWith("✓") ? "#2e7d32" : "var(--primary-red)" 
-                  }}>
+                  <div className={`${styles.saveMessage} ${message.startsWith("✓") ? styles.saveMessageSuccess : styles.saveMessageError}`}>
                     {message}
                   </div>
                 )}
@@ -252,22 +268,22 @@ export default function SuscripcionPage() {
       </div>
 
       {/* Historial de Pagos */}
-      <div style={{ marginTop: "40px" }}>
-        <h3 style={{ fontSize: "1.2rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "20px" }}>Historial de Pagos</h3>
-        <div style={{ background: "#fff", borderRadius: "16px", overflow: "hidden", boxShadow: "0 10px 25px rgba(0,0,0,0.05)", border: "1px solid #eee" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
-            <thead style={{ background: "#f8f9fa", borderBottom: "1px solid #eee" }}>
+      <div className={styles.historySection}>
+        <h3 className={styles.historyTitle}>Historial de Pagos</h3>
+        <div className={styles.tableWrapper}>
+          <table className={styles.table}>
+            <thead className={styles.thead}>
               <tr>
-                <th style={{ padding: "15px", textAlign: "left", color: "#666" }}>Fecha</th>
-                <th style={{ padding: "15px", textAlign: "left", color: "#666" }}>Transacción ID</th>
-                <th style={{ padding: "15px", textAlign: "left", color: "#666" }}>Monto</th>
-                <th style={{ padding: "15px", textAlign: "center", color: "#666" }}>Estado</th>
+                <th className={styles.th}>Fecha</th>
+                <th className={styles.th}>Transacción ID</th>
+                <th className={styles.th}>Monto</th>
+                <th className={styles.thCenter}>Estado</th>
               </tr>
             </thead>
             <tbody>
               {pagos.length > 0 ? pagos.map((pago) => (
-                <tr key={pago.id} style={{ borderBottom: "1px solid #f5f5f5" }}>
-                  <td style={{ padding: "15px" }}>
+                <tr key={pago.id} className={styles.tr}>
+                  <td className={styles.td}>
                     {(() => {
                       if (!pago.fecha) return "Sin fecha";
                       try {
@@ -276,20 +292,15 @@ export default function SuscripcionPage() {
                       } catch (e) { return "Error fecha"; }
                     })()}
                   </td>
-                  <td style={{ padding: "15px", color: "var(--text-muted)", fontSize: "0.8rem" }}>{pago.paymentId || "N/A"}</td>
-                  <td style={{ padding: "15px", fontWeight: 700 }}>${pago.monto?.toLocaleString('es-AR') || "0"}</td>
-                  <td style={{ padding: "15px", textAlign: "center" }}>
-                    <span style={{ 
-                      padding: "4px 10px", borderRadius: "100px", background: "#dcfce7", 
-                      color: "#166534", fontSize: "0.75rem", fontWeight: 700 
-                    }}>
-                      {pago.estado || "Aprobado"}
-                    </span>
+                  <td className={styles.tdMuted}>{pago.paymentId || "N/A"}</td>
+                  <td className={styles.tdBold}>${pago.monto?.toLocaleString('es-AR') || "0"}</td>
+                  <td className={styles.tdCenter}>
+                    <span className={styles.badge}>{pago.estado || "Aprobado"}</span>
                   </td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={4} style={{ padding: "40px", textAlign: "center", color: "#999", fontStyle: "italic" }}>
+                  <td colSpan={4} className={styles.emptyTd}>
                     No hay pagos registrados aún.
                   </td>
                 </tr>
@@ -299,10 +310,52 @@ export default function SuscripcionPage() {
         </div>
       </div>
 
+      {/* Modal email Mercado Pago */}
+      {showMpEmailModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalBox}>
+            <h3 className={styles.modalTitle}>Confirmar correo de Mercado Pago</h3>
+            <p className={styles.modalDescription}>
+              Ingresá el correo asociado a tu cuenta de Mercado Pago. Puede ser diferente al correo con el que iniciás sesión en la app.
+            </p>
+            <label htmlFor="mp-email-input" className={styles.modalLabel}>
+              Correo de Mercado Pago
+            </label>
+            <input
+              id="mp-email-input"
+              type="email"
+              value={mpEmail}
+              onChange={(e) => setMpEmail(e.target.value)}
+              placeholder="tu@correo-mercadopago.com"
+              title="Correo de Mercado Pago"
+              className={styles.modalInput}
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && handlePayment()}
+            />
+            <div className={styles.modalActions}>
+              <button
+                type="button"
+                onClick={() => setShowMpEmailModal(false)}
+                className={styles.cancelBtn}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className={`btn-red ${styles.confirmBtn}`}
+                onClick={handlePayment}
+              >
+                Continuar al pago
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Info Section */}
-      <div style={{ marginTop: "40px", padding: "30px", background: "rgba(26, 58, 107, 0.05)", borderRadius: "16px", border: "1px solid rgba(26, 58, 107, 0.1)" }}>
-        <h4 style={{ color: "var(--primary-blue)", fontWeight: 800, marginBottom: "10px" }}>¿Cómo funciona la suscripción?</h4>
-        <ul style={{ paddingLeft: "20px", fontSize: "0.9rem", color: "#555", lineHeight: "1.7" }}>
+      <div className={styles.infoSection}>
+        <h4 className={styles.infoSectionTitle}>¿Cómo funciona la suscripción?</h4>
+        <ul className={styles.infoSectionList}>
           <li>El costo mensual es de <strong>${costo?.toLocaleString('es-AR')}</strong>.</li>
           <li>Si el pago no se registra antes de la fecha de vencimiento, el acceso se restringirá automáticamente para todos los usuarios excepto el Superadmin.</li>
           <li>Los administradores serán redirigidos a esta página para realizar el pago.</li>
