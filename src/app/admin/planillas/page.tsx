@@ -9,9 +9,9 @@ import {
 import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { 
-  Eye, Edit, FileText, Trash2, Plus, ClipboardList, 
-  Folder, Search, Shield, Zap, FileSearch, Flame, Scroll
+import {
+  Eye, Edit, Trash2, Plus, ClipboardList,
+  Folder, Search, Shield, Flame, Scroll, Settings
 } from "lucide-react";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
@@ -51,6 +51,167 @@ interface Plantilla {
   infoFields?: string[];
 }
 
+const urlToBase64 = async (url: string) => {
+  try {
+    if (!url || !url.startsWith("http")) return null;
+    const resp = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+    if (!resp.ok) throw new Error("Proxy error");
+    const blob = await resp.blob();
+    return new Promise<string>(resolve => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  } catch { return null; }
+};
+
+const downloadOTPDF = async (otId: string) => {
+  const snap = await getDoc(doc(db, "ordenes_trabajo", otId));
+  if (!snap.exists()) { alert("No se encontró la inspección."); return; }
+  const data = snap.data() as any;
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+  const otNum = String(data.numero || "").padStart(4, "0");
+  const fecStr = data.fecha ? new Date(data.fecha).toLocaleDateString("es-AR") : "-";
+  const estado: string = data.estado || "borrador";
+  const planillasEnOT: any[] = data.planillasSeleccionadas || [];
+  const fotos: string[] = data.fotos || [];
+  const tecnicosOT: any[] = data.tecnicosOT || (data.tecnicos || []).map((t: string) => ({ nombre: t }));
+  const nuevaObs: string = data.diagnostico || "";
+  const firmaTecnico: string | null = data.firmaTecnico || null;
+  const firmaCliente: string | null = data.firmaCliente || null;
+  const nombreFirmaTecnico: string = data.nombreFirmaTecnico || "";
+  const nombreFirmaCliente: string = data.nombreFirmaCliente || "";
+  const clienteNombre: string = data.clienteNombre || "";
+  const clienteEmpresa: string = data.clienteEmpresa || "";
+  const clienteDireccion: string = data.clienteDireccion || "";
+  const clienteTelefono: string = data.clienteTelefono || "";
+  const sedeNombre: string = data.sedeNombre || "";
+  const sedeRazonSocial: string = data.sedeRazonSocial || "";
+
+  let logoPng: string | null = null;
+  try {
+    const resp = await fetch("/logos/logoFondoTransparente.svg");
+    const svgText = await resp.text();
+    const img = new Image();
+    const blob = new Blob([svgText], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth || 300; c.height = img.naturalHeight || 150;
+    c.getContext("2d")!.drawImage(img, 0, 0);
+    logoPng = c.toDataURL("image/png");
+    URL.revokeObjectURL(url);
+  } catch {}
+
+  const HEADER_H = 30; const top = 10;
+  const drawHeader = (pg: any) => {
+    pg.setDrawColor(0, 34, 68); pg.setLineWidth(0.5); pg.rect(ML, top, TW, HEADER_H);
+    if (logoPng) pg.addImage(logoPng, "PNG", ML + 2, top + 2, 28, 26);
+    pg.line(ML + 33, top, ML + 33, top + HEADER_H);
+    const rx = W - MR - 48; const cx = ML + 33 + (rx - ML - 33) / 2;
+    pg.setFont("helvetica", "bold"); pg.setFontSize(11); pg.setTextColor(0, 34, 68);
+    pg.text("INSPECCIÓN TÉCNICA", cx, top + 9, { align: "center" });
+    pg.setFontSize(14); pg.setTextColor(163, 31, 29); pg.text(`IT-${otNum}`, cx, top + 23, { align: "center" });
+    pg.line(rx, top, rx, top + HEADER_H);
+    pg.setFontSize(7); pg.setTextColor(0);
+    pg.text("Fecha:", rx + 2, top + 11); pg.text("Estado:", rx + 2, top + 18); pg.text("Planilla:", rx + 2, top + 25);
+    pg.setFont("helvetica", "normal");
+    pg.text(fecStr, rx + 18, top + 11); pg.text(estado.toUpperCase(), rx + 18, top + 18);
+    pg.text(planillasEnOT[0]?.codigo || "-", rx + 18, top + 25);
+  };
+
+  drawHeader(pdf);
+  let y = top + HEADER_H + 8;
+
+  autoTable(pdf, {
+    startY: y, margin: { left: ML, right: MR },
+    body: [
+      [{ content: "CLIENTE / RAZÓN SOCIAL:", styles: { fontStyle: "bold", cellWidth: 45 } }, clienteNombre || "-"],
+      [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, (sedeRazonSocial || clienteEmpresa || "-") + (sedeNombre ? ` - SEDE: ${sedeNombre}` : "")],
+      [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, clienteDireccion || "-"],
+      [{ content: "TELÉFONO / CEL:", styles: { fontStyle: "bold" } }, clienteTelefono || "-"],
+    ],
+    styles: { fontSize: 9, cellPadding: 3 }, tableLineColor: [0, 34, 68], tableLineWidth: 0.1
+  });
+  y = (pdf as any).lastAutoTable.finalY + 8;
+
+  if (tecnicosOT.length > 0) {
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.setFont("helvetica", "bold");
+    pdf.text("EQUIPO TÉCNICO ASIGNADO", ML + 3, y + 5);
+    y += 7.5;
+    autoTable(pdf, { startY: y, margin: { left: ML, right: MR }, body: tecnicosOT.map(t => [t.nombre]), styles: { fontSize: 8.5, cellPadding: 3 } });
+    y = (pdf as any).lastAutoTable.finalY + 8;
+  }
+
+  const sevColors: Record<string, number[]> = { leve: [16, 185, 129], moderado: [245, 158, 11], critico: [239, 68, 68] };
+  const todasObs = [
+    nuevaObs.trim() ? { texto: `[GENERAL] ${nuevaObs}`, sev: "" } : null,
+    ...planillasEnOT.flatMap(p => (p.filasChecklist || []).filter((f: any) => f.observacion?.trim()).map((f: any) => ({ texto: `[${p.nombre}] ${f.descripcion}: ${f.observacion}`, sev: f.severidad || "" }))),
+  ].filter(Boolean) as { texto: string; sev: string }[];
+
+  if (todasObs.length > 0) {
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.text("RESUMEN DE OBSERVACIONES TÉCNICAS", ML + 3, y + 5);
+    y += 7.5;
+    autoTable(pdf, {
+      startY: y, margin: { left: ML, right: MR },
+      body: todasObs.map(o => [o.texto, o.sev ? o.sev.toUpperCase() : ""]),
+      styles: { fontSize: 8.5, cellPadding: 3 },
+      columnStyles: { 1: { cellWidth: 35, halign: "center", fontStyle: "bold" } },
+      willDrawCell: (cellData: any) => {
+        if (cellData.column.index === 1 && cellData.section === "body") {
+          const sev = todasObs[cellData.row.index]?.sev;
+          if (sev && sevColors[sev]) pdf.setTextColor(sevColors[sev][0], sevColors[sev][1], sevColors[sev][2]);
+        }
+      }
+    });
+    y = (pdf as any).lastAutoTable.finalY + 10;
+  }
+
+  if (fotos.length > 0) {
+    if (y > 220) { pdf.addPage(); drawHeader(pdf); y = top + HEADER_H + 10; }
+    pdf.setFillColor(240, 240, 240); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(0); pdf.text("REGISTRO FOTOGRÁFICO", ML + 3, y + 5);
+    y += 10; let xPh = ML;
+    for (const fUrl of fotos) {
+      const b64 = await urlToBase64(fUrl);
+      if (b64) {
+        if (xPh + 45 > W - MR) { xPh = ML; y += 45; }
+        if (y > 240) { pdf.addPage(); drawHeader(pdf); y = top + HEADER_H + 10; xPh = ML; }
+        pdf.addImage(b64, "JPEG", xPh, y, 42, 42); xPh += 45;
+      }
+    }
+    y += 50;
+  }
+
+  for (const p of planillasEnOT) {
+    if (y > 240) { pdf.addPage(); drawHeader(pdf); y = top + HEADER_H + 10; }
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.text(`PLANILLA: ${p.nombre}`, ML + 3, y + 5);
+    y += 9;
+    autoTable(pdf, {
+      startY: y, margin: { left: ML, right: MR },
+      head: p.tipo === "checklist" ? [["Ítem", "Res.", "Observación", "Prio."]] : [p.columnas],
+      body: p.tipo === "checklist"
+        ? (p.filasChecklist || []).filter((f: any) => !f.esGrupo).map((f: any) => [f.descripcion, f.valor?.toUpperCase() || "", f.observacion || "-", f.severidad?.toUpperCase() || "-"])
+        : (p.filasTabla || []).map((f: any) => (p.columnas || []).map((c: string) => f.celdas?.[c] || "-")),
+      styles: { fontSize: p.tipo === "tabla_piso" && (p.columnas || []).length > 8 ? 6.5 : 7.5, cellPadding: 2 },
+      headStyles: { fillColor: [80, 80, 80], overflow: "linebreak" }, theme: "grid"
+    });
+    y = (pdf as any).lastAutoTable.finalY + 10;
+  }
+
+  if (y > 230) { pdf.addPage(); drawHeader(pdf); y = top + HEADER_H + 10; }
+  pdf.setDrawColor(200); pdf.line(ML, y, W - MR, y); y += 5;
+  if (firmaTecnico) { pdf.addImage(firmaTecnico, "PNG", ML + 10, y, 40, 20); pdf.setFontSize(8); pdf.text(`Firma Técnico: ${nombreFirmaTecnico}`, ML + 10, y + 25); }
+  if (firmaCliente) { pdf.addImage(firmaCliente, "PNG", W - MR - 50, y, 40, 20); pdf.setFontSize(8); pdf.text(`Firma Cliente: ${nombreFirmaCliente}`, W - MR - 50, y + 25); }
+  pdf.save(`IT-${otNum}.pdf`);
+};
+
 const CATEGORIAS = [
   { value: "deteccion", label: "Detección", icon: <Search size={18} strokeWidth={2.5} color="#3b82f6" /> },
   { value: "extincion", label: "Extinción", icon: <Shield size={18} strokeWidth={2.5} color="#f97316" /> },
@@ -62,6 +223,7 @@ const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
   borrador: { bg: "#f5f5f5", color: "#666" },
   en_proceso: { bg: "#fff3e0", color: "#e65100" },
   completada: { bg: "#e8f5e9", color: "#2e7d32" },
+  firmada: { bg: "#e8f5e9", color: "#2e7d32" },
 };
 
 export default function OTUnifiedPage() {
@@ -274,7 +436,7 @@ export default function OTUnifiedPage() {
       <header style={{ marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "15px" }}>
         <div>
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
-            {isClient ? "Mis Órdenes" : "Órdenes de Trabajo"}
+            {isClient ? "Mis Inspecciones" : "Inspecciones Técnicas"}
           </h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>{activeTab === "ots" ? "Gestión de inspecciones en campo." : "Gestión de plantillas base."}</p>
         </div>
@@ -287,7 +449,7 @@ export default function OTUnifiedPage() {
             ) : (
               <>
                 <Link href="/admin/planillas/deteccion/nueva" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", textTransform: "uppercase", fontSize: "0.8rem", textDecoration: "none" }}>
-                  <Plus size={18} strokeWidth={3} /> Nueva OT
+                  <Plus size={18} strokeWidth={3} /> Nueva IT
                 </Link>
               </>
             )}
@@ -310,7 +472,7 @@ export default function OTUnifiedPage() {
             display: 'flex', alignItems: 'center', gap: '8px',
             transition: '0.3s'
           }}>
-          <ClipboardList size={18} strokeWidth={2.5} /> Listado OT
+          <ClipboardList size={18} strokeWidth={2.5} /> Listado IT
         </button>
         {isAdmin && !isReadOnly && (
           <button 
@@ -326,7 +488,7 @@ export default function OTUnifiedPage() {
               display: 'flex', alignItems: 'center', gap: '8px',
               transition: '0.3s'
             }}>
-            <Folder size={18} strokeWidth={2.5} /> Gestor
+            <Folder size={18} strokeWidth={2.5} /> Planillas
           </button>
         )}
       </div>
@@ -337,7 +499,7 @@ export default function OTUnifiedPage() {
           <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
             <div style={{ flex: 1, minWidth: "220px" }}>
               <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>
-                {isClient ? "Buscar OT" : "Buscar por OT o Cliente"}
+                {isClient ? "Buscar IT" : "Buscar por IT o Cliente"}
               </label>
               <input type="text" placeholder={isClient ? "Número de OT..." : "N°, cliente o empresa..."} value={search} onChange={e => setSearch(e.target.value)} style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.9rem" }} />
             </div>
@@ -379,7 +541,7 @@ export default function OTUnifiedPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>
                   <thead>
                     <tr style={{ background: "#f8f9fc", borderBottom: "2px solid #eef0f3" }}>
-                      {["N° OT", "Fecha", "Cliente", "Estado", ""].map(h => (
+                      {["N° IT", "Fecha", "Cliente", "Estado", ""].map(h => (
                         <th key={h} style={{ textAlign: "left", padding: "14px 16px", fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 700 }}>{h}</th>
                       ))}
                     </tr>
@@ -389,36 +551,43 @@ export default function OTUnifiedPage() {
                       const ec = ESTADO_COLORS[ot.estado] || ESTADO_COLORS.borrador;
                       return (
                         <tr key={ot.id} style={{ borderBottom: "1px solid #f2f5f9" }}>
-                          <td style={{ padding: "14px 16px", fontWeight: 800, color: "var(--primary-blue)" }}>OT-{String(ot.numero || "?").padStart(4, "0")}</td>
+                          <td style={{ padding: "14px 16px", fontWeight: 800, color: "var(--primary-blue)" }}>IT-{String(ot.numero || "?").padStart(4, "0")}</td>
                           <td style={{ padding: "14px 16px", fontSize: "0.85rem" }}>{ot.fecha ? new Date(ot.fecha).toLocaleDateString("es-AR") : "-"}</td>
                           <td style={{ padding: "14px 16px" }}>
                             <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{ot.clienteNombre}</div>
                             <div style={{ fontSize: "0.75rem", color: "#888" }}>{ot.clienteEmpresa}</div>
                           </td>
                           <td style={{ padding: "14px 16px" }}>
-                            <span style={{ fontSize: "0.65rem", padding: "4px 8px", borderRadius: "10px", fontWeight: 900, textTransform: "uppercase", background: ec.bg, color: ec.color }}>{ot.estado.replace("_", " ")}</span>
+                            <span style={{ fontSize: "0.65rem", padding: "4px 8px", borderRadius: "10px", fontWeight: 900, textTransform: "uppercase", background: ec.bg, color: ec.color }}>{(ot.estado === "firmada" ? "completada" : ot.estado).replace("_", " ")}</span>
                           </td>
                           <td style={{ padding: "14px 16px", textAlign: "right" }}>
                             <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
-                              <Link title="Ver Vista Previa" href={`/admin/planillas/deteccion/${ot.id}?view=true`} 
+                              <Link title="Ver Vista Previa" href={`/admin/planillas/deteccion/${ot.id}?view=true`}
                                 style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
                                 <Eye size={18} strokeWidth={2.5} />
                               </Link>
-                              
+
                               {!isReadOnly && (
-                                <Link title="Ver / Editar" href={`/admin/planillas/deteccion/${ot.id}`} 
-                                 style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
-                                 <Edit size={18} strokeWidth={2.5} />
-                               </Link>
+                                <Link title="Certificar" href={`/admin/certificados/nuevo?fromOt=${ot.id}`}
+                                  style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                                  <Settings size={18} strokeWidth={2.5} />
+                                </Link>
                               )}
 
-                              <Link title="Certificar" href={`/admin/certificados/nuevo?fromOt=${ot.id}`} 
-                                style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                              {!isReadOnly && (
+                                <Link title="Editar" href={`/admin/planillas/deteccion/${ot.id}`}
+                                  style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                                  <Edit size={18} strokeWidth={2.5} />
+                                </Link>
+                              )}
+
+                              <button title="Descargar PDF" onClick={() => downloadOTPDF(ot.id)}
+                                style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#fff7ed", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
                                 <Scroll size={18} strokeWidth={2.5} />
-                              </Link>
+                              </button>
 
                               {isAdmin && !isReadOnly && (
-                                <button title="Eliminar" onClick={() => setDeleteConfirm({ id: ot.id, type: "ot" })} 
+                                <button title="Eliminar" onClick={() => setDeleteConfirm({ id: ot.id, type: "ot" })}
                                   style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                   <Trash2 size={18} strokeWidth={2.5} />
                                 </button>

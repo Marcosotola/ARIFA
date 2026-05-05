@@ -35,13 +35,13 @@ const MODULES = [
   },
   {
     icon: <ClipboardList size={24} />,
-    label: "OT",
+    label: "Inspección Técnica",
     description: "Inspecciones en campo, checklists de detección, extinción y registros fotográficos.",
     href: "/admin/planillas",
     color: "#2b6cb0",
     roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente"],
-    clientLabel: "Mis Órdenes",
-    clientDescription: "Órdenes de trabajo e inspecciones de tus instalaciones.",
+    clientLabel: "Mis Inspecciones",
+    clientDescription: "Inspecciones técnicas de tus instalaciones.",
   },
   {
     icon: <Flame size={24} />,

@@ -170,9 +170,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // OT — todos los roles
+  // Inspección Técnica — todos los roles
   sidebarLinks.push({
-    label: "OT",
+    label: "Insp. Técnica",
     href: "/admin/planillas",
     icon: <ClipboardList size={20} />,
     color: "#2b6cb0",

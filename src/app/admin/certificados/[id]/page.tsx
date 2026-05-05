@@ -164,7 +164,7 @@ function CertificadosEditor() {
         setSistemaCertificado(data.planillasSeleccionadas.map((p:any) => p.nombre).join(", "));
       }
       
-      setMemoriaDescriptiva(`Inspección realizada en base a Orden de Trabajo N° OT-${String(data.numero || "").padStart(4, "0")}.`);
+      setMemoriaDescriptiva(`Inspección realizada en base a Inspección Técnica N° IT-${String(data.numero || "").padStart(4, "0")}.`);
       setFotos(data.fotos || []);
     } catch (e) { console.error("Error importing from OT:", e); }
   };

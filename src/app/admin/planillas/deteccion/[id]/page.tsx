@@ -91,6 +91,7 @@ function OTFormContent() {
   const searchParams = useSearchParams();
   const isReadOnly = role?.toLowerCase() === "cliente" || searchParams.get("view") === "true";
   const isAdmin = ["admin", "superadmin"].includes(role?.toLowerCase() || "");
+  const isAutoDownload = searchParams.get("download") === "true";
 
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -148,6 +149,11 @@ function OTFormContent() {
     return () => unsub();
   }, []);
 
+  useEffect(() => {
+    if (!loading && isAutoDownload && !isNueva) {
+      handlePDF();
+    }
+  }, [loading, isAutoDownload]);
 
   const loadPlantillas = async () => {
     const snap = await getDocs(query(collection(db, "plantillas_inspeccion"), orderBy("codigo")));
@@ -323,7 +329,7 @@ function OTFormContent() {
       const payload = sanitize(p);
       if (isNueva) { await addDoc(collection(db, "ordenes_trabajo"), { ...payload, createdAt: serverTimestamp() }); }
       else { await updateDoc(doc(db, "ordenes_trabajo", params.id as string), payload); }
-      router.push("/admin/planillas/deteccion");
+      router.push("/admin/planillas");
     } catch (e: any) { alert("Error: " + e.message); }
     finally { setSaving(false); }
   };
@@ -358,8 +364,8 @@ function OTFormContent() {
         pg.line(ML + 33, top, ML + 33, top + HEADER_H);
         const rx = W - MR - 48; const cx = ML + 33 + (rx - ML - 33) / 2;
         pg.setFont("helvetica", "bold"); pg.setFontSize(11); pg.setTextColor(0, 34, 68);
-        pg.text("ORDEN DE TRABAJO", cx, top + 9, { align: "center" });
-        pg.setFontSize(14); pg.setTextColor(163, 31, 29); pg.text(`OT-${otNum}`, cx, top + 23, { align: "center" });
+        pg.text("INSPECCIÓN TÉCNICA", cx, top + 9, { align: "center" });
+        pg.setFontSize(14); pg.setTextColor(163, 31, 29); pg.text(`IT-${otNum}`, cx, top + 23, { align: "center" });
         pg.line(rx, top, rx, top + HEADER_H);
         pg.setFontSize(7); pg.setTextColor(0);
         pg.text("Fecha:", rx + 2, top + 11); pg.text("Estado:", rx + 2, top + 18); pg.text("Planilla:", rx + 2, top + 25);
@@ -469,7 +475,7 @@ function OTFormContent() {
         pdf.addImage(firmaCliente, "PNG", W - MR - 50, y, 40, 20);
         pdf.setFontSize(8); pdf.text(`Firma Cliente: ${nombreFirmaCliente}`, W - MR - 50, y + 25);
     }
-    pdf.save(`OT-${otNum}.pdf`);
+    pdf.save(`IT-${otNum}.pdf`);
   };
 
   const addTecnico = (manual: boolean, nombre: string, id?: string) => {
@@ -486,13 +492,13 @@ function OTFormContent() {
             <button onClick={() => router.back()} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "15px" }}>
             <ArrowLeft size={18} /> Volver
           </button>
-            <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>{isNueva ? "Nueva OT" : `OT-${numero}`}</h1>
+            <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>{isNueva ? "Nueva IT" : `IT-${numero}`}</h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
             {!isNueva && <button onClick={handlePDF} className="btn-blue" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
               📄 Descargar PDF
             </button>}
-            {!isReadOnly && <button onClick={() => handleSave(estado === "firmada" ? "firmada" : "completada")} disabled={saving} className="btn-red" style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {!isReadOnly && <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
               {saving ? "Guardando..." : <><Check size={18} /> Finalizar</>}
             </button>}
         </div>
@@ -906,7 +912,7 @@ function OTFormContent() {
                </div>
              </div>
            </div>
-           <button onClick={() => handleSave("firmada")} disabled={saving} className="btn-red" style={{ width: "100%", padding: "20px", fontSize: "1.2rem", borderRadius: '15px', fontWeight: 900 }}>GUARDAR Y FINALIZAR</button>
+           <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ width: "100%", padding: "20px", fontSize: "1.2rem", borderRadius: '15px', fontWeight: 900 }}>GUARDAR Y FINALIZAR</button>
         </div>
       )}
     </div>
