@@ -223,12 +223,22 @@ export default function UsuariosPage() {
 
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee" }}>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "900px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "860px", tableLayout: "fixed" }}>
+            <colgroup>
+              <col style={{ width: "21%" }} />
+              <col style={{ width: "16%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ width: "19%" }} />
+              <col style={{ width: "10%" }} />
+              <col style={{ width: "9%" }} />
+              <col style={{ width: "12%" }} />
+            </colgroup>
             <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
               <tr>
-                {["Usuario", "Empresa / Cargo", "Contacto", "Dirección", "Rol", "Perfil", "Acciones"].map(h => (
+                {["Usuario", "Empresa / Cargo", "Contacto", "Dirección", "Rol", "Perfil"].map(h => (
                   <th key={h} style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700 }}>{h}</th>
                 ))}
+                <th style={{ textAlign: "left", padding: "14px 18px", fontSize: "0.72rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700, position: "sticky", right: 0, background: "#fafafa", boxShadow: "-2px 0 6px rgba(0,0,0,0.06)" }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -245,9 +255,9 @@ export default function UsuariosPage() {
                         <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "var(--bg-light)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary-blue)", fontWeight: 800, fontSize: "1rem", flexShrink: 0 }}>
                           {initials}
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.92rem" }}>{fullName}</div>
-                          <div style={{ fontSize: "0.78rem", color: "#888" }}>{u.email}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.92rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fullName}</div>
+                          <div style={{ fontSize: "0.78rem", color: "#888", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
                         </div>
                       </div>
                     </td>
@@ -279,8 +289,8 @@ export default function UsuariosPage() {
                     <td style={{ padding: "14px 18px", fontSize: "0.85rem", color: "#555" }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {u.direccion ? (
-                          <div style={{ fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <MapPin size={14} style={{ color: '#64748b' }} /> {u.direccion}
+                          <div style={{ fontWeight: 600, color: '#334155', display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <MapPin size={14} style={{ color: '#64748b', flexShrink: 0 }} /> {u.direccion}
                           </div>
                         ) : <span style={{ color: "#ccc" }}>—</span>}
                         {u.sedes?.length > 0 && (
@@ -314,7 +324,7 @@ export default function UsuariosPage() {
                         ? <span style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}><CheckCircle2 size={14} /> Completo</span>
                         : <span style={{ fontSize: "0.75rem", color: "#f59e0b", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}><AlertCircle size={14} /> Incompleto</span>}
                     </td>
-                    <td style={{ padding: "14px 18px", whiteSpace: "nowrap" }}>
+                    <td style={{ padding: "14px 12px", whiteSpace: "nowrap", position: "sticky", right: 0, background: "#fff", boxShadow: "-2px 0 6px rgba(0,0,0,0.06)" }}>
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button onClick={() => setViewingUser(u)} 
                           style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer' }} title="Ver Detalle">
