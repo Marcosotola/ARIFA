@@ -74,7 +74,7 @@ const downloadOTPDF = async (otId: string) => {
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
   const otNum = String(data.numero || "").padStart(4, "0");
-  const fecStr = data.fecha ? new Date(data.fecha).toLocaleDateString("es-AR") : "-";
+  const fecStr = data.fecha ? new Date(data.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
   const estado: string = data.estado || "borrador";
   const planillasEnOT: any[] = data.planillasSeleccionadas || [];
   const fotos: string[] = data.fotos || [];
@@ -552,7 +552,7 @@ export default function OTUnifiedPage() {
                       return (
                         <tr key={ot.id} style={{ borderBottom: "1px solid #f2f5f9" }}>
                           <td style={{ padding: "14px 16px", fontWeight: 800, color: "var(--primary-blue)" }}>IT-{String(ot.numero || "?").padStart(4, "0")}</td>
-                          <td style={{ padding: "14px 16px", fontSize: "0.85rem" }}>{ot.fecha ? new Date(ot.fecha).toLocaleDateString("es-AR") : "-"}</td>
+                          <td style={{ padding: "14px 16px", fontSize: "0.85rem" }}>{ot.fecha ? new Date(ot.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}</td>
                           <td style={{ padding: "14px 16px" }}>
                             <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{ot.clienteNombre}</div>
                             <div style={{ fontSize: "0.75rem", color: "#888" }}>{ot.clienteEmpresa}</div>

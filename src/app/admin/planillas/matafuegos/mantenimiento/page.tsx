@@ -176,7 +176,7 @@ export default function MantenimientoListPage() {
                       </span>
                     </td>
                     <td style={{ padding: "14px 16px", fontSize: "0.88rem", color: "#555", whiteSpace: "nowrap" }}>
-                      {ficha.fechaServicio ? new Date(ficha.fechaServicio).toLocaleDateString("es-AR") : "-"}
+                      {ficha.fechaServicio ? new Date(ficha.fechaServicio + "T12:00:00").toLocaleDateString("es-AR") : "-"}
                     </td>
                     <td style={{ padding: "14px 16px" }}>
                       <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{ficha.clienteNombre || "-"}</div>

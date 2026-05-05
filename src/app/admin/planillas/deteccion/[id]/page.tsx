@@ -340,7 +340,7 @@ function OTFormContent() {
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
     const otNum = String(numero).padStart(4, "0");
-    const fecStr = fecha ? new Date(fecha).toLocaleDateString("es-AR") : "-";
+    const fecStr = fecha ? new Date(fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
 
     let logoPng: string | null = null;
     try {
@@ -509,7 +509,7 @@ function OTFormContent() {
           <div style={cardSt}>
             <h2 style={{ fontWeight: 800, color: 'var(--primary-blue)', marginBottom: '15px', fontSize: '1.2rem' }}>Resumen del Servicio</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', fontSize: '0.9rem' }}>
-              <div><span style={{ fontWeight: 700, color: '#666' }}>Fecha:</span> {fecha ? new Date(fecha).toLocaleDateString('es-AR') : '-'}</div>
+              <div><span style={{ fontWeight: 700, color: '#666' }}>Fecha:</span> {fecha ? new Date(fecha + "T12:00:00").toLocaleDateString('es-AR') : '-'}</div>
               <div><span style={{ fontWeight: 700, color: '#666' }}>Estado:</span> <span style={{ textTransform: 'uppercase', fontWeight: 800, fontSize: '0.75rem', padding: '3px 8px', borderRadius: '4px', background: '#e0f2fe', color: '#0369a1' }}>{estado.replace('_', ' ')}</span></div>
               <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Cliente:</span> {clienteSeleccionado?.nombre || clienteNombre}</div>
               <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Ubicación:</span> {clienteSeleccionado?.direccion || clienteDireccion}</div>

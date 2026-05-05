@@ -126,8 +126,8 @@ export default function CertificadosPage() {
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
       const nCert = String(data.numero || "").padStart(4, "0");
-      const fInsp = data.fechaInspeccion ? new Date(data.fechaInspeccion).toLocaleDateString("es-AR") : "-";
-      const fVenc = data.fechaVencimiento ? new Date(data.fechaVencimiento).toLocaleDateString("es-AR") : "-";
+      const fInsp = data.fechaInspeccion ? new Date(data.fechaInspeccion + "T12:00:00").toLocaleDateString("es-AR") : "-";
+      const fVenc = data.fechaVencimiento ? new Date(data.fechaVencimiento + "T12:00:00").toLocaleDateString("es-AR") : "-";
 
       // Logo
       let logoDataUrl: string | null = null;
@@ -335,7 +335,7 @@ export default function CertificadosPage() {
                 <tbody>
                   {filteredCerts.map(c => {
                     const ec = ESTADO_COLORS[c.estado] || ESTADO_COLORS.borrador;
-                    const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento) : null;
+                    const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento + "T12:00:00") : null;
                     const vencido = venc && venc < new Date();
                     return (
                       <tr key={c.id} style={{ borderBottom: "1px solid #f2f5f9" }}
@@ -347,7 +347,7 @@ export default function CertificadosPage() {
                           </span>
                         </td>
                         <td style={{ padding: "14px 16px", fontSize: "0.88rem", color: "#555", whiteSpace: "nowrap" }}>
-                          {c.fechaInspeccion ? new Date(c.fechaInspeccion).toLocaleDateString("es-AR") : "-"}
+                          {c.fechaInspeccion ? new Date(c.fechaInspeccion + "T12:00:00").toLocaleDateString("es-AR") : "-"}
                         </td>
                         <td style={{ padding: "14px 16px", fontSize: "0.88rem", whiteSpace: "nowrap" }}>
                           <span style={{ color: vencido ? "#c62828" : "#2e7d32", fontWeight: 700 }}>
@@ -418,14 +418,14 @@ export default function CertificadosPage() {
             <div className="show-on-mobile" style={{ display: "none", flexDirection: "column", gap: "12px", padding: "12px" }}>
               {filteredCerts.map(c => {
                 const ec = ESTADO_COLORS[c.estado] || ESTADO_COLORS.borrador;
-                const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento) : null;
+                const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento + "T12:00:00") : null;
                 const vencido = venc && venc < new Date();
                 return (
                   <div key={c.id} style={{ background: "#fff", borderRadius: "12px", padding: "16px", border: "1.5px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                       <div>
                         <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1.1rem" }}>N°{String(c.numero || "?").padStart(4, "0")}</div>
-                        <div style={{ fontSize: "0.75rem", color: "#999", fontWeight: 600 }}>Inspección: {c.fechaInspeccion ? new Date(c.fechaInspeccion).toLocaleDateString("es-AR") : "-"}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#999", fontWeight: 600 }}>Inspección: {c.fechaInspeccion ? new Date(c.fechaInspeccion + "T12:00:00").toLocaleDateString("es-AR") : "-"}</div>
                       </div>
                       <span style={{ fontSize: "0.65rem", padding: "4px 10px", borderRadius: "20px", fontWeight: 800, textTransform: "capitalize", background: ec.bg, color: ec.color }}>{c.estado}</span>
                     </div>

@@ -89,7 +89,7 @@ export default function DetalleRemitoPage() {
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
     const remNum = String(r.numero).padStart(5, "0");
-    const fecStr = r.fecha ? new Date(r.fecha).toLocaleDateString("es-AR") : "-";
+    const fecStr = r.fecha ? new Date(r.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
 
     // ── Logo SVG → PNG ──
     let logoPng: string | null = null;
@@ -242,7 +242,7 @@ export default function DetalleRemitoPage() {
              <span style={{ background: isRetiro ? '#fff1f2' : '#f0fdf4', color: isRetiro ? '#e11d48' : '#16a34a', padding: '5px 15px', borderRadius: '20px', fontWeight: 800, fontSize: '0.8rem', textTransform: 'uppercase' }}>
                {remito.tipo}
              </span>
-             <span style={{ color: '#666', fontSize: '0.9rem' }}>Emitido el {new Date(remito.fecha).toLocaleDateString("es-AR")}</span>
+             <span style={{ color: '#666', fontSize: '0.9rem' }}>Emitido el {new Date(remito.fecha + "T12:00:00").toLocaleDateString("es-AR")}</span>
           </div>
 
           <div style={{ marginBottom: '30px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>

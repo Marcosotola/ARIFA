@@ -324,8 +324,8 @@ function CertificadosEditor() {
     const ce = clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa || "";
     const cuit = clienteSeleccionado?.cuit || clienteCuit || "";
     const cdir = clienteSeleccionado?.direccion || clienteDireccion || "";
-    const fInsp = fechaInspeccion ? new Date(fechaInspeccion).toLocaleDateString("es-AR") : "-";
-    const fVenc = fechaVencimiento ? new Date(fechaVencimiento).toLocaleDateString("es-AR") : "-";
+    const fInsp = fechaInspeccion ? new Date(fechaInspeccion + "T12:00:00").toLocaleDateString("es-AR") : "-";
+    const fVenc = fechaVencimiento ? new Date(fechaVencimiento + "T12:00:00").toLocaleDateString("es-AR") : "-";
 
     let logoDataUrl: string | null = null;
     try {
@@ -519,8 +519,8 @@ function CertificadosEditor() {
           <div style={cardSt}>
             <h2 style={{ fontWeight: 800, color: 'var(--primary-blue)', marginBottom: '15px', fontSize: '1.2rem' }}>Resumen del Certificado</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', fontSize: '0.9rem' }}>
-              <div><span style={{ fontWeight: 700, color: '#666' }}>Fecha Inspección:</span> {fechaInspeccion ? new Date(fechaInspeccion).toLocaleDateString('es-AR') : '-'}</div>
-              <div><span style={{ fontWeight: 700, color: '#666' }}>Vencimiento:</span> {fechaVencimiento ? new Date(fechaVencimiento).toLocaleDateString('es-AR') : '-'}</div>
+              <div><span style={{ fontWeight: 700, color: '#666' }}>Fecha Inspección:</span> {fechaInspeccion ? new Date(fechaInspeccion + "T12:00:00").toLocaleDateString('es-AR') : '-'}</div>
+              <div><span style={{ fontWeight: 700, color: '#666' }}>Vencimiento:</span> {fechaVencimiento ? new Date(fechaVencimiento + "T12:00:00").toLocaleDateString('es-AR') : '-'}</div>
               <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Sistema Certificado:</span> {sistemaCertificado || '-'}</div>
               <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Rubro:</span> {rubro === 'Otro' ? rubroCustom : rubro}</div>
               <div style={{ gridColumn: 'span 2' }}><span style={{ fontWeight: 700, color: '#666' }}>Ubicación:</span> {sedeNombre ? `${sedeNombre} (${clienteDireccion})` : (clienteSeleccionado?.direccion || clienteDireccion || '-')}</div>

@@ -227,11 +227,11 @@ function MatafuegosUnifiedContent() {
 
   const filteredRemitos = remitos.filter(r => {
     const matchesSearch = String(r.numero).includes(search) || r.clienteNombre?.toLowerCase().includes(search.toLowerCase()) || r.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
-    const rDate = r.fecha ? new Date(r.fecha) : null;
+    const rDate = r.fecha ? new Date(r.fecha + "T12:00:00") : null;
     let matchesDate = true;
     if (rDate) {
-      if (dateFrom && rDate < new Date(dateFrom)) matchesDate = false;
-      if (dateTo && rDate > new Date(dateTo)) matchesDate = false;
+      if (dateFrom && rDate < new Date(dateFrom + "T12:00:00")) matchesDate = false;
+      if (dateTo && rDate > new Date(dateTo + "T12:00:00")) matchesDate = false;
     }
     const matchesSede = filtroSede === "Todas" || (r as any).sedeNombre === filtroSede;
     return matchesSearch && matchesDate && matchesSede;
@@ -239,11 +239,11 @@ function MatafuegosUnifiedContent() {
 
   const filteredFichas = fichas.filter(f => {
     const matchesSearch = String(f.numeroFicha).includes(search) || f.clienteNombre?.toLowerCase().includes(search.toLowerCase()) || f.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
-    const fDate = f.fechaServicio ? new Date(f.fechaServicio) : null;
+    const fDate = f.fechaServicio ? new Date(f.fechaServicio + "T12:00:00") : null;
     let matchesDate = true;
     if (fDate) {
-      if (dateFrom && fDate < new Date(dateFrom)) matchesDate = false;
-      if (dateTo && fDate > new Date(dateTo)) matchesDate = false;
+      if (dateFrom && fDate < new Date(dateFrom + "T12:00:00")) matchesDate = false;
+      if (dateTo && fDate > new Date(dateTo + "T12:00:00")) matchesDate = false;
     }
     const matchesSede = filtroSede === "Todas" || (f as any).sedeNombre === filtroSede;
     return matchesSearch && matchesDate && matchesSede;
@@ -494,7 +494,7 @@ function MatafuegosUnifiedContent() {
                         <td style={{ padding: "14px 16px" }}>
                           <span style={{ fontSize: "0.65rem", padding: "4px 8px", borderRadius: "10px", fontWeight: 900, textTransform: "uppercase", background: r.tipo === "retiro" ? "#fee2e2" : "#dcfce7", color: r.tipo === "retiro" ? "#b91c1c" : "#166534" }}>{r.tipo}</span>
                         </td>
-                        <td style={{ padding: "14px 16px", fontSize: "0.85rem" }}>{r.fecha ? new Date(r.fecha).toLocaleDateString("es-AR") : "-"}</td>
+                        <td style={{ padding: "14px 16px", fontSize: "0.85rem" }}>{r.fecha ? new Date(r.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}</td>
                         <td style={{ padding: "14px 16px" }}>
                           <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{r.clienteNombre}</div>
                           <div style={{ fontSize: "0.75rem", color: "#888" }}>{r.clienteEmpresa}</div>
@@ -535,7 +535,7 @@ function MatafuegosUnifiedContent() {
                     filteredFichas.map(f => (
                       <tr key={f.id} style={{ borderBottom: "1px solid #f2f5f9" }}>
                         <td style={{ padding: "14px 16px", fontWeight: 800, color: "var(--primary-blue)" }}>FT-{String(f.numeroFicha || "?").padStart(5, "0")}</td>
-                        <td style={{ padding: "14px 16px", fontSize: "0.85rem" }}>{f.fechaServicio ? new Date(f.fechaServicio).toLocaleDateString("es-AR") : "-"}</td>
+                        <td style={{ padding: "14px 16px", fontSize: "0.85rem" }}>{f.fechaServicio ? new Date(f.fechaServicio + "T12:00:00").toLocaleDateString("es-AR") : "-"}</td>
                         <td style={{ padding: "14px 16px" }}>
                           <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{f.clienteNombre}</div>
                           <div style={{ fontSize: "0.75rem", color: "#888" }}>{f.clienteEmpresa}</div>

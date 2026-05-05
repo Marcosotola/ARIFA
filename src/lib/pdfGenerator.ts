@@ -1,12 +1,11 @@
 export const generateMantenimientoPDF = async (ficha: any) => {
-    // Importamos dinámicamente aquí dentro para que no afecte al bundle inicial
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
 
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+    const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const W = 297; const ML = 14; const MR = 14; const TW = W - ML - MR;
     const ftNum = String(ficha.numeroFicha).padStart(5, "0");
-    const fecStr = ficha.fechaServicio ? new Date(ficha.fechaServicio).toLocaleDateString("es-AR") : "-";
+    const fecStr = ficha.fechaServicio ? new Date(ficha.fechaServicio + "T12:00:00").toLocaleDateString("es-AR") : "-";
 
     // ── Logo SVG → PNG ──
     let logoPng: string | null = null;
@@ -24,24 +23,24 @@ export const generateMantenimientoPDF = async (ficha: any) => {
       URL.revokeObjectURL(url);
     } catch { /* no logo */ }
 
-    // ── Encabezado Estilo Oficial ──
-    const HEADER_H = 30;
+    // ── Encabezado ──
+    const HEADER_H = 28;
     const top = 10;
     pdf.setDrawColor(0, 34, 68);
     pdf.setLineWidth(0.5);
     pdf.rect(ML, top, TW, HEADER_H);
 
-    if (logoPng) pdf.addImage(logoPng, "PNG", ML + 1, top + 2, 30, 26);
-    pdf.line(ML + 33, top, ML + 33, top + HEADER_H);
+    if (logoPng) pdf.addImage(logoPng, "PNG", ML + 1, top + 1, 28, 24);
+    pdf.line(ML + 31, top, ML + 31, top + HEADER_H);
 
-    const rx = W - MR - 48;
-    const cx = ML + 33 + (rx - ML - 33) / 2;
+    const rx = W - MR - 60;
+    const cx = ML + 31 + (rx - ML - 31) / 2;
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(10);
+    pdf.setFontSize(11);
     pdf.setTextColor(0, 34, 68);
     pdf.text("CERTIFICADO TÉCNICO", cx, top + 9, { align: "center" });
-    pdf.text("Mantenimiento de Extintores", cx, top + 15, { align: "center" });
-    pdf.setFontSize(14);
+    pdf.text("Mantenimiento de Extintores", cx, top + 16, { align: "center" });
+    pdf.setFontSize(15);
     pdf.setTextColor(163, 31, 29);
     pdf.text(`FT-${ftNum}`, cx, top + 24, { align: "center" });
 
@@ -49,80 +48,124 @@ export const generateMantenimientoPDF = async (ficha: any) => {
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(7);
     pdf.setTextColor(0);
-    pdf.text("Fecha Serv:", rx + 2, top + 8);
-    pdf.text("Taller:", rx + 2, top + 15);
-    pdf.text("Técnico:", rx + 2, top + 22);
-    
+    pdf.text("Fecha Serv.:", rx + 2, top + 7);
+    pdf.text("Taller:", rx + 2, top + 14);
+    pdf.text("Técnico:", rx + 2, top + 21);
     pdf.setFont("helvetica", "normal");
-    pdf.text(fecStr, rx + 18, top + 8);
-    pdf.text(ficha.tallerNombre || "ARIFA - Taller Central", rx + 18, top + 15);
-    pdf.text(ficha.tecnicoNombre || "-", rx + 18, top + 22);
+    pdf.text(fecStr, rx + 22, top + 7);
+    pdf.text(ficha.tallerNombre || "ARIFA - Taller Central", rx + 22, top + 14);
+    pdf.text(ficha.tecnicoNombre || "-", rx + 22, top + 21);
 
-    let y = top + HEADER_H + 8;
+    let y = top + HEADER_H + 6;
 
+    // ── Datos cliente (2 columnas para aprovechar el ancho landscape) ──
     autoTable(pdf, {
       startY: y,
       margin: { left: ML, right: MR },
       body: [
-        [{ content: "CLIENTE:", styles: { fontStyle: "bold", cellWidth: 40 } }, ficha.clienteNombre],
-        [{ content: "EMPRESA:", styles: { fontStyle: "bold" } }, ficha.clienteEmpresa || "-"],
-        [{ content: "DNI/CUIT:", styles: { fontStyle: "bold" } }, ficha.dniCuit || "-"],
-        [{ content: "TELÉFONO:", styles: { fontStyle: "bold" } }, ficha.telefono || "-"],
-        [{ content: "DOMICILIO:", styles: { fontStyle: "bold" } }, ficha.domicilio || "-"],
-        [{ content: "RECIBIDO POR:", styles: { fontStyle: "bold" } }, ficha.quienRecibe || "-"],
+        [
+          { content: "CLIENTE:", styles: { fontStyle: "bold", cellWidth: 30 } },
+          { content: ficha.clienteNombre || "-", styles: { cellWidth: 80 } },
+          { content: "DNI/CUIT:", styles: { fontStyle: "bold", cellWidth: 25 } },
+          ficha.dniCuit || "-",
+        ],
+        [
+          { content: "EMPRESA:", styles: { fontStyle: "bold" } },
+          ficha.clienteEmpresa || "-",
+          { content: "TELÉFONO:", styles: { fontStyle: "bold" } },
+          ficha.telefono || "-",
+        ],
+        [
+          { content: "DOMICILIO:", styles: { fontStyle: "bold" } },
+          { content: ficha.domicilio || "-", colSpan: 3 },
+        ],
+        [
+          { content: "RECIBIDO POR:", styles: { fontStyle: "bold" } },
+          { content: ficha.quienRecibe || "-", colSpan: 3 },
+        ],
       ],
-      styles: { fontSize: 9, cellPadding: 2 },
+      styles: { fontSize: 8, cellPadding: 2 },
       tableLineColor: [0, 34, 68],
       tableLineWidth: 0.2,
     });
-    y = (pdf as any).lastAutoTable.finalY + 8;
+    y = (pdf as any).lastAutoTable.finalY + 6;
 
+    // ── Título tabla ──
     pdf.setFillColor(0, 34, 68);
     pdf.rect(ML, y, TW, 7, "F");
     pdf.setFontSize(8);
     pdf.setTextColor(255);
-    pdf.text("REGISTRO DETALLADO DE MANTENIMIENTO", ML + 3, y + 5);
+    pdf.text("REGISTRO DE EXTINTORES", ML + 3, y + 5);
     y += 7;
 
-    const tableData = ficha.items.map((item: any) => [
-      item.nroTarjeta,
-      `${item.agente} ${item.capacidad}`,
-      item.marca === "Otro" ? item.marcaOtro : item.marca,
-      item.anioFab,
-      `${item.presionInicial || "-"} / ${item.presionFinal || "-"}`,
-      `${item.pesoInicial || "-"} / ${item.pesoFinal || "-"}`,
-      item.vencimientoCarga
-    ]);
-
+    // ── Tabla principal ──
     autoTable(pdf, {
       startY: y,
       margin: { left: ML, right: MR },
-      head: [["Tarj. N°", "Agente/Cap.", "Marca", "Año", "Presión (I/F)", "Peso (I/F)", "Venc. Carga"]],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [0, 34, 68], fontSize: 8 },
-      bodyStyles: { fontSize: 7 },
+      head: [[
+        "Nº",
+        "Sector",
+        "Tipo",
+        "Base",
+        "Cap. (Kg/L)",
+        "Marca / Nº Fab.",
+        "Nº Tarjeta",
+        "Fecha PH",
+        "Fec. Mant.",
+        "Vence Mant.",
+      ]],
+      body: ficha.items.map((item: any, idx: number) => {
+        const marcaDisplay = item.marca === "Otro" ? (item.marcaOtro || "-") : (item.marca || "-");
+        const nroFab = item.nroFabricacion || "-";
+        const fechaPH = item.ultimaPH ? new Date(item.ultimaPH + "T12:00:00").toLocaleDateString("es-AR") : "-";
+        const venceMant = item.vencimientoCarga
+          ? item.vencimientoCarga.split("-").reverse().join("/")
+          : "-";
+        return [
+          idx + 1,
+          item.sector || "-",
+          item.agente || "-",
+          item.base || "-",
+          item.capacidad || "-",
+          `${marcaDisplay} / ${nroFab}`,
+          item.nroTarjeta || "-",
+          fechaPH,
+          fecStr,
+          venceMant,
+        ];
+      }),
+      theme: "grid",
+      headStyles: { fillColor: [0, 34, 68], fontSize: 8, halign: "center" },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 10, halign: "center" },
+        6: { halign: "center" },
+        7: { halign: "center" },
+        8: { halign: "center" },
+        9: { halign: "center" },
+      },
     });
 
-    y = (pdf as any).lastAutoTable.finalY + 15;
-    if (y > 250) { pdf.addPage(); y = 20; }
-    pdf.setFontSize(8);
+    y = (pdf as any).lastAutoTable.finalY + 10;
+    if (y > 165) { pdf.addPage(); y = 20; }
+
+    pdf.setFontSize(7.5);
     pdf.setTextColor(100);
+    pdf.setFont("helvetica", "normal");
     pdf.text("Se certifica que los extintores detallados han sido procesados bajo normativas de seguridad vigentes.", ML, y);
     pdf.text("La vigencia de las cargas es de 1 año a partir de la fecha de servicio. Se recomienda control mensual.", ML, y + 5);
     pdf.setFont("helvetica", "bold");
-    pdf.text("EMPRESA QUE REALIZO EL MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2: ARIFA", ML, y + 12);
+    pdf.setTextColor(0, 34, 68);
+    pdf.text("EMPRESA QUE REALIZÓ EL MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2: ARIFA", ML, y + 12);
 
-    // Ajuste de Firma - Más abajo
-    y += 45; 
-    if (y > 275) { pdf.addPage(); y = 40; } // Control de desborde
+    y += 40;
+    if (y > 185) { pdf.addPage(); y = 40; }
 
+    pdf.setTextColor(0);
     pdf.line(W - MR - 65, y, W - MR - 5, y);
-    
     if (ficha.firmaTecnico) {
-      pdf.addImage(ficha.firmaTecnico, "PNG", W - MR - 60, y - 25, 50, 20);
+      pdf.addImage(ficha.firmaTecnico, "PNG", W - MR - 60, y - 22, 50, 18);
     }
-    
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
     pdf.text("Firma Responsable Técnico", W - MR - 35, y + 5, { align: "center" });
@@ -137,7 +180,7 @@ export const generateRemitoPDF = async (remito: any) => {
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
     const remNum = String(remito.numero).padStart(5, "0");
-    const fecStr = remito.fecha ? new Date(remito.fecha).toLocaleDateString("es-AR") : "-";
+    const fecStr = remito.fecha ? new Date(remito.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
 
     // ── Logo SVG → PNG ──
     let logoPng: string | null = null;

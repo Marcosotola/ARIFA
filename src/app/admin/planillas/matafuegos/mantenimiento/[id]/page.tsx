@@ -126,7 +126,7 @@ export default function DetalleMantenimientoPage() {
           </div>
           <div style={{ textAlign: 'right' }}>
             <p style={{ fontSize: '0.7rem', fontWeight: 800, color: '#999', margin: 0, textTransform: 'uppercase' }}>Fecha de Servicio</p>
-            <p style={{ fontSize: '1.1rem', fontWeight: 700, margin: '5px 0' }}>{new Date(ficha.fechaServicio).toLocaleDateString("es-AR")}</p>
+            <p style={{ fontSize: '1.1rem', fontWeight: 700, margin: '5px 0' }}>{new Date(ficha.fechaServicio + "T12:00:00").toLocaleDateString("es-AR")}</p>
             <p style={{ color: '#666' }}>Técnico: {ficha.tecnicoNombre}</p>
           </div>
         </div>

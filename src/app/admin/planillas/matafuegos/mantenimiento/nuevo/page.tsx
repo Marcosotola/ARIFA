@@ -22,13 +22,16 @@ import {
 import SignatureCanvas from "react-signature-canvas";
 
 interface MantenimientoItem {
-  id: string; 
+  id: string;
   nroTarjeta: string;
+  sector: string;
   agente: string;
+  base: string;
   capacidad: string;
   claseFuego: string[];
   marca: string;
   marcaOtro?: string;
+  nroFabricacion: string;
   anioFab: string;
   estadoCilindro: "aprobado" | "rechazado";
   inspeccionVisual: "ok" | "nok" | "observaciones";
@@ -157,11 +160,15 @@ function FichaFormContent() {
             // Mapear equipos a items de mantenimiento
             const newItems: MantenimientoItem[] = rem.equipos.map((eq: any) => ({
               id: Math.random().toString(36).substr(2, 9),
-              nroTarjeta: eq.id || "", // Usamos el ID/Código del remito como tarjeta inicial
+              nroTarjeta: eq.id || "",
+              sector: "",
               agente: eq.tipo || "ABC",
+              base: "",
               capacidad: eq.capacidad || "",
               claseFuego: ["A", "B", "C"],
               marca: "",
+              marcaOtro: "",
+              nroFabricacion: "",
               anioFab: "",
               estadoCilindro: "aprobado",
               inspeccionVisual: "ok",
@@ -249,9 +256,9 @@ function FichaFormContent() {
   const agregarItem = () => {
     const nuevo: MantenimientoItem = {
       id: Math.random().toString(36).substr(2, 9),
-      nroTarjeta: "", agente: "ABC", capacidad: "5kg", claseFuego: ["A", "B", "C"],
-      marca: "", marcaOtro: "", anioFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
-      componentesReemplazados: [], agenteAdicional: "", 
+      nroTarjeta: "", sector: "", agente: "ABC", base: "", capacidad: "5kg", claseFuego: ["A", "B", "C"],
+      marca: "", marcaOtro: "", nroFabricacion: "", anioFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
+      componentesReemplazados: [], agenteAdicional: "",
       presionInicial: "", presionFinal: "", pesoInicial: "", pesoFinal: "",
       marbeteColor: "", marbeteAnio: new Date().getFullYear().toString(),
       precintoColor: "", vencimientoCarga: "", ultimaPH: "", proximaPH: "", observaciones: ""
@@ -340,6 +347,7 @@ function FichaFormContent() {
         tecnicoNombre: tecnico.nombre,
         tallerNombre,
         items,
+        firmaTecnico: sigCanvas.current && !sigCanvas.current.isEmpty() ? sigCanvas.current.getTrimmedCanvas().toDataURL("image/png") : null,
         updatedAt: serverTimestamp()
       };
 
@@ -621,14 +629,14 @@ function FichaFormContent() {
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>TARJETA N°</label>
                 <div style={{ display: 'flex', gap: '5px' }}>
-                  <input 
-                    value={item.nroTarjeta} 
-                    onChange={e => updateItem(idx, 'nroTarjeta', e.target.value)} 
+                  <input
+                    value={item.nroTarjeta}
+                    onChange={e => updateItem(idx, 'nroTarjeta', e.target.value)}
                     onBlur={e => handleObleaBlur(idx, e.target.value)}
                     placeholder="0000"
-                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} 
+                    style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
                   />
-                  <button 
+                  <button
                     onClick={() => asignarProximaOblea(idx)}
                     title="Asignar Siguiente Oblea Correlativa"
                     style={{ padding: '0 10px', borderRadius: '8px', border: '1px solid #3b82f6', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}>
@@ -637,13 +645,21 @@ function FichaFormContent() {
                 </div>
               </div>
               <div>
-                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>AGENTE</label>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>SECTOR</label>
+                <input value={item.sector} onChange={e => updateItem(idx, 'sector', e.target.value)} placeholder="Ej: Planta baja" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>AGENTE / TIPO</label>
                 <select value={item.agente} onChange={e => updateItem(idx, 'agente', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
                   <option value="ABC">Polvo ABC</option>
                   <option value="CO2">CO2</option>
                   <option value="Agua">Agua</option>
                   <option value="K">Clase K</option>
                 </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>BASE</label>
+                <input value={item.base} onChange={e => updateItem(idx, 'base', e.target.value)} placeholder="Ej: Portátil" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>CAPACIDAD</label>
@@ -656,13 +672,17 @@ function FichaFormContent() {
                   {marcasDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
                 {item.marca === "Otro" && (
-                  <input 
-                    value={item.marcaOtro} 
-                    onChange={e => updateItem(idx, 'marcaOtro', e.target.value)} 
+                  <input
+                    value={item.marcaOtro}
+                    onChange={e => updateItem(idx, 'marcaOtro', e.target.value)}
                     placeholder="Especifique marca"
-                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }} 
+                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
                   />
                 )}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>Nº FABRICACIÓN</label>
+                <input value={item.nroFabricacion} onChange={e => updateItem(idx, 'nroFabricacion', e.target.value)} placeholder="Serie del cilindro" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>AÑO FABRICACIÓN</label>
