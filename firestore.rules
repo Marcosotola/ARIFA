@@ -133,8 +133,18 @@ service cloud.firestore {
     }
 
     match /configuracion/remitos_doc {
-      allow read: if request.auth != null && isStaffMember();
-      allow write: if request.auth != null && isStaffMember();
+      allow read, write: if request.auth != null && isStaffMember();
+    }
+
+    // Estados de Cuenta
+    match /estados-cuenta/{id} {
+      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
+      allow create, update: if request.auth != null && isStaffMember();
+      allow delete: if isAdmin();
+    }
+
+    match /configuracion/estados-cuenta {
+      allow read, write: if request.auth != null && isStaffMember();
     }
 
     // Consultas y Notificaciones

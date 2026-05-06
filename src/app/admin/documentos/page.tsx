@@ -65,6 +65,14 @@ export default function DocumentosPage() {
             desc: "Entrega de materiales y equipos",
             hoverShadow: "0 8px 30px rgba(234,88,12,0.12)",
           },
+          {
+            href: "/admin/documentos/estado-cuenta",
+            icon: <FileText size={26} color="#2563eb" strokeWidth={2} />,
+            iconBg: "rgba(37,99,235,0.1)",
+            title: "Estado de Cuenta",
+            desc: "Seguimiento de costos e ingresos de obra",
+            hoverShadow: "0 8px 30px rgba(37,99,235,0.12)",
+          },
         ].map(item => (
           <Link key={item.href} href={item.href} style={{ textDecoration: "none" }}>
             <div

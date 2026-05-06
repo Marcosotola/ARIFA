@@ -755,3 +755,169 @@ export const generateReciboPDF = async (recibo: any) => {
 
     pdf.save(`Recibo-RC${rcNum}.pdf`);
 };
+
+export const generateEstadoCuentaPDF = async (estado: any) => {
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+    const ecNum = String(estado.numero).padStart(5, "0");
+    const fecStr = estado.fecha ? new Date(estado.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
+    const fmt = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    // ── Logo SVG → PNG ──
+    let logoPng: string | null = null;
+    try {
+        const resp = await fetch("/logos/logoFondoTransparente.svg");
+        const svgText = await resp.text();
+        const blob = new Blob([svgText], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth || 300; c.height = img.naturalHeight || 150;
+        c.getContext("2d")!.drawImage(img, 0, 0);
+        logoPng = c.toDataURL("image/png");
+        URL.revokeObjectURL(url);
+    } catch { /* no logo */ }
+
+    // ── Encabezado ──
+    const HEADER_H = 32; const top = 10;
+    pdf.setDrawColor(0, 34, 68); pdf.setLineWidth(0.5);
+    pdf.rect(ML, top, TW, HEADER_H);
+
+    if (logoPng) pdf.addImage(logoPng, "PNG", ML + 2, top + 2, 30, 28);
+    pdf.line(ML + 35, top, ML + 35, top + HEADER_H);
+
+    const rx = W - MR - 52;
+    const cx = ML + 35 + (rx - ML - 35) / 2;
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(12); pdf.setTextColor(0, 34, 68);
+    pdf.text("ESTADO DE CUENTA", cx, top + 10, { align: "center" });
+    pdf.setFontSize(9); pdf.setFont("helvetica", "normal"); pdf.setTextColor(80, 80, 80);
+    pdf.text("Seguimiento de Costos de Obra", cx, top + 17, { align: "center" });
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(16); pdf.setTextColor(163, 31, 29);
+    pdf.text(`EC-${ecNum}`, cx, top + 27, { align: "center" });
+
+    pdf.line(rx, top, rx, top + HEADER_H);
+    pdf.setFont("helvetica", "bold"); pdf.setFontSize(7.5); pdf.setTextColor(0);
+    pdf.text("Fecha:", rx + 2, top + 11);
+    pdf.text("Referencia:", rx + 2, top + 21);
+    pdf.text("Emitido por:", rx + 2, top + 31);
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(7.5);
+    pdf.text(fecStr, rx + 22, top + 11);
+    pdf.text(estado.obraNombre || "-", rx + 22, top + 21);
+    pdf.text(estado.creadoPorNombre || "ARIFA", rx + 22, top + 31);
+
+    let y = top + HEADER_H + 8;
+
+    // ── Datos del cliente ──
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255);
+    pdf.text("DATOS DEL CLIENTE", ML + 3, y + 5);
+    y += 7;
+
+    const empresa = estado.sedeNombre
+        ? `${estado.clienteEmpresa || "-"} — Sede: ${estado.sedeNombre}`
+        : (estado.clienteEmpresa || "-");
+
+    autoTable(pdf, {
+        startY: y, margin: { left: ML, right: MR, bottom: 18 },
+        body: [
+            [{ content: "RAZÓN SOCIAL / CONTACTO:", styles: { fontStyle: "bold", cellWidth: 55 } }, `${estado.clienteNombre || "-"}${estado.clienteApellido ? " " + estado.clienteApellido : ""}`],
+            [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, empresa],
+            [{ content: "DNI / CUIT:", styles: { fontStyle: "bold" } }, estado.clienteDniCuit || "-"],
+            [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, estado.clienteDireccion || "-"],
+            [{ content: "TELÉFONO:", styles: { fontStyle: "bold" } }, estado.clienteTelefono || "-"],
+        ],
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        tableLineColor: [0, 34, 68], tableLineWidth: 0.2,
+    });
+    y = (pdf as any).lastAutoTable.finalY + 8;
+
+    // ── Detalle de movimientos ──
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255);
+    pdf.text("MOVIMIENTOS Y SEGUIMIENTO", ML + 3, y + 5);
+    y += 7;
+
+    autoTable(pdf, {
+        startY: y, margin: { left: ML, right: MR, bottom: 18 },
+        head: [["Descripción", "Tipo", "Monto"]],
+        body: (estado.items || []).map((item: any) => [
+            item.descripcion || "-",
+            item.tipo === "egreso" ? "DEUDA" : "PAGO",
+            `$ ${fmt(item.monto || 0)}`,
+        ]),
+        theme: "grid",
+        headStyles: { fillColor: [0, 34, 68], fontSize: 8.5, halign: "center" },
+        bodyStyles: { fontSize: 9 },
+        columnStyles: {
+            1: { cellWidth: 30, halign: "center" },
+            2: { cellWidth: 40, halign: "right" },
+        },
+        didParseCell: (data) => {
+            if (data.section === 'body' && data.column.index === 1) {
+                if (data.cell.raw === 'DEUDA') {
+                    data.cell.styles.textColor = [163, 31, 29];
+                    data.cell.styles.fontStyle = 'bold';
+                } else if (data.cell.raw === 'PAGO') {
+                    data.cell.styles.textColor = [22, 163, 74];
+                    data.cell.styles.fontStyle = 'bold';
+                }
+            }
+        }
+    });
+    y = (pdf as any).lastAutoTable.finalY + 10;
+
+    // ── Totales y Saldo ──
+    if (y > 230) { pdf.addPage(); y = 20; }
+    const totW = 100; const totX = W - MR - totW;
+    
+    const addRow = (label: string, value: string, bold = false, color: [number, number, number] = [0, 0, 0]) => {
+        y += 5;
+        pdf.setFont("helvetica", bold ? "bold" : "normal");
+        pdf.setFontSize(bold ? 11 : 9);
+        pdf.setTextColor(color[0], color[1], color[2]);
+        pdf.text(label, totX + 2, y);
+        pdf.text(value, W - MR - 2, y, { align: "right" });
+        y += 2;
+    };
+
+    pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(totX, y, W - MR, y);
+    addRow("Total Deudas:", `$ ${fmt(estado.totalEgresos || 0)}`, false, [163, 31, 29]);
+    addRow("Total Pagos:", `$ ${fmt(estado.totalIngresos || 0)}`, false, [22, 163, 74]);
+    
+    y += 4;
+    pdf.setDrawColor(0, 34, 68); pdf.setLineWidth(0.5); pdf.line(totX, y, W - MR, y);
+    const colorSaldo: [number, number, number] = estado.saldoActual > 0 ? [163, 31, 29] : [22, 163, 74];
+    addRow("SALDO ACTUAL:", `$ ${fmt(Math.abs(estado.saldoActual || 0))}`, true, colorSaldo);
+    
+    y += 10;
+
+    // ── Notas ──
+    if (estado.notas?.trim()) {
+        if (y > 245) { pdf.addPage(); y = 20; }
+        pdf.setFillColor(248, 249, 252); pdf.rect(ML, y, TW, 6, "F");
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.setTextColor(0, 34, 68);
+        pdf.text("OBSERVACIONES ADICIONALES", ML + 3, y + 4);
+        y += 11;
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(60, 60, 60);
+        const noteLines = pdf.splitTextToSize(estado.notas, TW);
+        pdf.text(noteLines, ML, y);
+    }
+
+    // ── Pie ──
+    const pageCount = pdf.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        const fy = 287;
+        pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(ML, fy - 5, W - MR, fy - 5);
+        pdf.setFont("helvetica", "italic"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+        pdf.text(`Documento generado el ${fecStr}.`, ML, fy);
+        pdf.text(`Página ${i} de ${pageCount}`, W / 2, fy, { align: "center" });
+        pdf.text("ARIFA - Protección contra Incendios", W - MR, fy, { align: "right" });
+    }
+
+    pdf.save(`EstadoCuenta-EC${ecNum}.pdf`);
+};
