@@ -1,0 +1,189 @@
+"use client";
+import { useEffect, useState } from "react";
+import { db, auth } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import { generateRemitoPDF } from "@/lib/pdfGenerator";
+import { ArrowLeft, Edit, Scroll } from "lucide-react";
+
+function DataRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: "0.68rem", fontWeight: 800, color: "#aaa", textTransform: "uppercase", marginBottom: "2px" }}>{label}</div>
+      <div style={{ fontSize: "0.9rem", color: "#333", fontWeight: 500 }}>{value}</div>
+    </div>
+  );
+}
+
+export default function VerRemitoPage() {
+  const [remito, setRemito] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const router = useRouter();
+  const params = useParams();
+  const id = params.id as string;
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (u) => {
+      if (!u) { router.push("/login"); return; }
+      try {
+        const [userDoc, remitoDoc] = await Promise.all([
+          getDoc(doc(db, "usuarios", u.uid)),
+          getDoc(doc(db, "remitos_doc", id)),
+        ]);
+        const r = userDoc.exists() ? userDoc.data().rol : null;
+        if (r === "tecnico") { router.push("/admin"); return; }
+        setRole(r);
+        if (remitoDoc.exists()) {
+          setRemito({ id: remitoDoc.id, ...remitoDoc.data() });
+        } else {
+          alert("Remito no encontrado.");
+          router.push("/admin/documentos/remitos");
+        }
+      } catch (e) { console.error(e); }
+      finally { setLoading(false); }
+    });
+    return () => unsub();
+  }, [router, id]);
+
+  const handleDownload = async () => {
+    if (!remito) return;
+    setDownloading(true);
+    try { await generateRemitoPDF(remito); }
+    catch (e) { console.error(e); alert("Error al generar el PDF."); }
+    finally { setDownloading(false); }
+  };
+
+  const isStaff = ["admin", "superadmin", "secretaria"].includes(role || "");
+
+  if (loading) return <div style={{ padding: "100px", textAlign: "center", color: "var(--text-muted)" }}>Cargando...</div>;
+  if (!remito) return null;
+
+  const rmNum = String(remito.numero || "?").padStart(5, "0");
+  const fecStr = remito.fecha ? new Date(remito.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
+  const empresa = remito.sedeNombre
+    ? `${remito.clienteEmpresa || "-"} — Sede: ${remito.sedeNombre}`
+    : (remito.clienteEmpresa || "");
+
+  return (
+    <div style={{ maxWidth: "860px", margin: "0 auto", padding: "0 15px 60px" }}>
+      {/* Acciones */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px", flexWrap: "wrap", gap: "12px" }}>
+        <button onClick={() => router.push("/admin/documentos/remitos")} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", padding: 0, fontSize: "0.9rem" }}>
+          <ArrowLeft size={18} /> Volver a Remitos
+        </button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          {isStaff && (
+            <Link href={`/admin/documentos/remitos/nuevo?edit=${id}`} style={{ display: "flex", alignItems: "center", gap: "7px", padding: "10px 18px", borderRadius: "10px", background: "#f0f7ff", color: "#0061ff", textDecoration: "none", fontWeight: 700, fontSize: "0.85rem" }}>
+              <Edit size={16} /> Editar
+            </Link>
+          )}
+          <button onClick={handleDownload} disabled={downloading} style={{ display: "flex", alignItems: "center", gap: "7px", padding: "10px 18px", borderRadius: "10px", background: "#f5f3ff", color: "#7c3aed", border: "none", fontWeight: 700, fontSize: "0.85rem", cursor: "pointer", opacity: downloading ? 0.6 : 1 }}>
+            <Scroll size={16} /> {downloading ? "Generando..." : "Descargar PDF"}
+          </button>
+        </div>
+      </div>
+
+      {/* Documento */}
+      <div style={{ background: "#fff", borderRadius: "16px", boxShadow: "0 4px 30px rgba(0,0,0,0.08)", overflow: "hidden", border: "1px solid #eee" }}>
+        {/* Encabezado */}
+        <div style={{ background: "var(--primary-blue)", padding: "28px 32px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <img src="/logos/logoFondoTransparente.svg" alt="ARIFA" style={{ height: "55px" }} />
+            <div style={{ borderLeft: "1px solid rgba(255,255,255,0.3)", paddingLeft: "16px" }}>
+              <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.75rem", letterSpacing: "2px", textTransform: "uppercase", marginBottom: "2px" }}>Remito de Entrega</div>
+              <div style={{ color: "#fff", fontSize: "1.8rem", fontWeight: 900, letterSpacing: "1px" }}>RM-{rmNum}</div>
+            </div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-end" }}>
+              <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
+                <span style={{ color: "rgba(255,255,255,0.5)" }}>Fecha: </span>
+                <span style={{ color: "#fff", fontWeight: 700 }}>{fecStr}</span>
+              </div>
+              <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>
+                <span style={{ color: "rgba(255,255,255,0.5)" }}>Emitido por: </span>
+                <span style={{ color: "#fff", fontWeight: 700 }}>{remito.creadoPorNombre || "ARIFA"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Datos del cliente */}
+        <div style={{ padding: "24px 32px", borderBottom: "1px solid #f0f2f5" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--primary-blue)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "14px" }}>Datos del Cliente</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 30px" }}>
+            <DataRow label="Nombre / Contacto" value={`${remito.clienteNombre || "-"}${remito.clienteApellido ? " " + remito.clienteApellido : ""}`} />
+            <DataRow label="Empresa / Sede" value={empresa || remito.clienteNombre || "-"} />
+            <DataRow label="DNI / CUIT" value={remito.clienteDniCuit || "-"} />
+            <DataRow label="Teléfono" value={remito.clienteTelefono || "-"} />
+            <DataRow label="Email" value={remito.clienteEmail || "-"} />
+            <DataRow label="Dirección" value={remito.clienteDireccion || "-"} />
+          </div>
+        </div>
+
+        {/* Materiales */}
+        <div style={{ padding: "24px 32px", borderBottom: "1px solid #f0f2f5" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--primary-blue)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "14px" }}>Materiales / Equipos Entregados</div>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "#f8f9fc" }}>
+                <th style={{ textAlign: "center", padding: "10px 14px", fontSize: "0.72rem", color: "#aaa", textTransform: "uppercase", fontWeight: 700, width: "80px" }}>Cantidad</th>
+                <th style={{ textAlign: "left", padding: "10px 14px", fontSize: "0.72rem", color: "#aaa", textTransform: "uppercase", fontWeight: 700 }}>Descripción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(remito.items || []).map((item: any, i: number) => (
+                <tr key={i} style={{ borderTop: "1px solid #f0f2f5" }}>
+                  <td style={{ textAlign: "center", padding: "12px 14px", fontWeight: 800, fontSize: "1rem", color: "var(--primary-blue)" }}>{item.cantidad}</td>
+                  <td style={{ padding: "12px 14px", fontSize: "0.9rem", color: "#333" }}>{item.descripcion}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {remito.descripcionGeneral?.trim() && (
+            <div style={{ marginTop: "16px" }}>
+              <div style={{ fontSize: "0.68rem", fontWeight: 800, color: "#aaa", textTransform: "uppercase", marginBottom: "6px" }}>Motivo de Entrega</div>
+              <div style={{ fontSize: "0.95rem", color: "#333", lineHeight: 1.6, background: "#f8f9fc", padding: "14px 16px", borderRadius: "10px", whiteSpace: "pre-wrap" }}>{remito.descripcionGeneral}</div>
+            </div>
+          )}
+          {remito.observaciones?.trim() && (
+            <div style={{ marginTop: "16px" }}>
+              <div style={{ fontSize: "0.68rem", fontWeight: 800, color: "#aaa", textTransform: "uppercase", marginBottom: "6px" }}>Observaciones</div>
+              <p style={{ fontSize: "0.9rem", color: "#555", lineHeight: 1.6, margin: 0, whiteSpace: "pre-wrap" }}>{remito.observaciones}</p>
+            </div>
+          )}
+        </div>
+
+        {/* Firma */}
+        <div style={{ padding: "24px 32px", borderBottom: "1px solid #f0f2f5" }}>
+          <div style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--primary-blue)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "16px" }}>Firma del Receptor</div>
+          <div style={{ display: "flex", gap: "40px", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: "200px" }}>
+              {remito.firmaReceptor ? (
+                <div style={{ border: "1px solid #eee", borderRadius: "10px", overflow: "hidden", background: "#fafbfc", marginBottom: "8px" }}>
+                  <img src={remito.firmaReceptor} alt="Firma del receptor" style={{ display: "block", width: "100%", maxHeight: "120px", objectFit: "contain" }} />
+                </div>
+              ) : (
+                <div style={{ border: "1px dashed #ddd", borderRadius: "10px", height: "80px", display: "flex", alignItems: "center", justifyContent: "center", color: "#bbb", fontSize: "0.8rem", marginBottom: "8px" }}>Sin firma</div>
+              )}
+              <div style={{ borderTop: "1.5px solid #333", paddingTop: "6px", textAlign: "center" }}>
+                <div style={{ fontSize: "0.8rem", fontWeight: 700, color: "#444" }}>{remito.nombreReceptor || "—"}</div>
+                <div style={{ fontSize: "0.68rem", color: "#aaa", textTransform: "uppercase" }}>Firma y aclaración</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Pie */}
+        <div style={{ padding: "16px 32px", background: "#f8f9fc", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+          <span style={{ fontSize: "0.78rem", color: "#999", fontStyle: "italic" }}>Remito emitido el {fecStr}.</span>
+          <span style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--primary-blue)" }}>ARIFA — Protección contra Incendios</span>
+        </div>
+      </div>
+    </div>
+  );
+}

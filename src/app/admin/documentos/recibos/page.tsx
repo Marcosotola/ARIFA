@@ -27,16 +27,6 @@ interface Recibo {
   createdAt: any;
 }
 
-const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
-  emitido:  { bg: "#dcfce7", color: "#166534" },
-  anulado:  { bg: "#fee2e2", color: "#991b1b" },
-};
-
-const ESTADO_LABELS: Record<string, string> = {
-  emitido: "Emitido",
-  anulado: "Anulado",
-};
-
 const FORMA_PAGO_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
   transferencia: "Transferencia",
@@ -54,7 +44,6 @@ export default function RecibosPage() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("todos");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const router = useRouter();
@@ -119,12 +108,7 @@ export default function RecibosPage() {
     finally { setDownloadingId(null); }
   };
 
-  const handleEstadoChange = async (id: string, nuevoEstado: string) => {
-    try {
-      await updateDoc(doc(db, "recibos", id), { estado: nuevoEstado, updatedAt: serverTimestamp() });
-      setRecibos(prev => prev.map(p => p.id === id ? { ...p, estado: nuevoEstado as any } : p));
-    } catch { alert("Error al actualizar estado."); }
-  };
+
 
   const filtered = recibos.filter(p => {
     const q = search.toLowerCase();
@@ -134,7 +118,7 @@ export default function RecibosPage() {
       p.clienteEmpresa?.toLowerCase().includes(q) ||
       (p.clienteApellido || "").toLowerCase().includes(q) ||
       (p.concepto || "").toLowerCase().includes(q);
-    const matchEstado = filtroEstado === "todos" || p.estado === filtroEstado;
+    const matchEstado = true;
     return matchSearch && matchEstado;
   });
 
@@ -191,22 +175,8 @@ export default function RecibosPage() {
             />
           </div>
         </div>
-        <div style={{ width: "180px" }}>
-          <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>
-            Estado
-          </label>
-          <select
-            value={filtroEstado}
-            onChange={e => setFiltroEstado(e.target.value)}
-            style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.85rem", background: "#fff" }}
-          >
-            <option value="todos">Todos</option>
-            <option value="emitido">Emitido</option>
-            <option value="anulado">Anulado</option>
-          </select>
-        </div>
         <button
-          onClick={() => { setSearch(""); setFiltroEstado("todos"); }}
+          onClick={() => { setSearch(""); }}
           style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}
         >
           Limpiar
@@ -224,7 +194,7 @@ export default function RecibosPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
               <thead>
                 <tr style={{ background: "#f8f9fc", borderBottom: "2px solid #eef0f3" }}>
-                  {["N° RECIBO", "FECHA", "CLIENTE / EMPRESA", "CONCEPTO", "MONTO", "F. PAGO", "ESTADO", ""].map(h => (
+                  {["N° RECIBO", "FECHA", "CLIENTE / EMPRESA", "CONCEPTO", "MONTO", "F. PAGO", ""].map(h => (
                     <th key={h} style={{ textAlign: "left", padding: "14px 16px", fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 700 }}>
                       {h}
                     </th>
@@ -232,98 +202,75 @@ export default function RecibosPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(p => {
-                  const ec = ESTADO_COLORS[p.estado] || ESTADO_COLORS.emitido;
-                  return (
-                    <tr key={p.id} style={{ borderBottom: "1px solid #f2f5f9" }}>
-                      <td style={{ padding: "14px 16px", fontWeight: 800, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
-                        RC-{String(p.numero || "?").padStart(5, "0")}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
-                        {p.fecha ? new Date(p.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>
-                          {p.clienteNombre}{p.clienteApellido ? ` ${p.clienteApellido}` : ""}
-                        </div>
-                        {p.clienteEmpresa && (
-                          <div style={{ fontSize: "0.75rem", color: "#888" }}>{p.clienteEmpresa}</div>
-                        )}
-                        {p.sedeNombre && (
-                          <div style={{ fontSize: "0.7rem", color: "#aaa" }}>Sede: {p.sedeNombre}</div>
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: "0.85rem", maxWidth: "200px" }}>
-                        <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {p.concepto || "-"}
-                        </div>
-                      </td>
-                      <td style={{ padding: "14px 16px", fontWeight: 700, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
-                        $ {fmt(p.monto || 0)}
-                      </td>
-                      <td style={{ padding: "14px 16px", fontSize: "0.8rem", color: "#555", whiteSpace: "nowrap" }}>
-                        {FORMA_PAGO_LABELS[p.formaPago] || p.formaPago || "-"}
-                      </td>
-                      <td style={{ padding: "14px 16px" }}>
-                        {!isReadOnly ? (
-                          <select
-                            value={p.estado}
-                            onChange={e => handleEstadoChange(p.id, e.target.value)}
-                            style={{
-                              fontSize: "0.72rem", padding: "4px 8px", borderRadius: "10px",
-                              fontWeight: 900, textTransform: "uppercase", border: "1.5px solid",
-                              borderColor: ec.color, background: ec.bg, color: ec.color, cursor: "pointer",
-                            }}
-                          >
-                            <option value="emitido">Emitido</option>
-                            <option value="anulado">Anulado</option>
-                          </select>
-                        ) : (
-                          <span style={{ fontSize: "0.72rem", padding: "4px 8px", borderRadius: "10px", fontWeight: 900, textTransform: "uppercase", background: ec.bg, color: ec.color }}>
-                            {ESTADO_LABELS[p.estado] || p.estado}
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: "14px 16px", textAlign: "right" }}>
-                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                {filtered.map(p => (
+                  <tr key={p.id} style={{ borderBottom: "1px solid #f2f5f9" }}>
+                    <td style={{ padding: "14px 16px", fontWeight: 800, color: "var(--primary-blue)", whiteSpace: "nowrap" }}>
+                      RC-{String(p.numero || "?").padStart(5, "0")}
+                    </td>
+                    <td style={{ padding: "14px 16px", fontSize: "0.85rem", whiteSpace: "nowrap" }}>
+                      {p.fecha ? new Date(p.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}
+                    </td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                        {p.clienteNombre}{p.clienteApellido ? ` ${p.clienteApellido}` : ""}
+                      </div>
+                      {p.clienteEmpresa && (
+                        <div style={{ fontSize: "0.75rem", color: "#888" }}>{p.clienteEmpresa}</div>
+                      )}
+                      {p.sedeNombre && (
+                        <div style={{ fontSize: "0.7rem", color: "#aaa" }}>Sede: {p.sedeNombre}</div>
+                      )}
+                    </td>
+                    <td style={{ padding: "14px 16px", fontSize: "0.85rem", maxWidth: "200px" }}>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {p.concepto || "-"}
+                      </div>
+                    </td>
+                    <td style={{ padding: "14px 16px", fontWeight: 700, fontSize: "0.9rem", whiteSpace: "nowrap" }}>
+                      $ {fmt(p.monto || 0)}
+                    </td>
+                    <td style={{ padding: "14px 16px", fontSize: "0.8rem", color: "#555", whiteSpace: "nowrap" }}>
+                      {FORMA_PAGO_LABELS[p.formaPago] || p.formaPago || "-"}
+                    </td>
+                    <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                      <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                        <Link
+                          title="Ver Vista Previa"
+                          href={`/admin/documentos/recibos/${p.id}`}
+                          style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+                        >
+                          <Eye size={18} strokeWidth={2.5} />
+                        </Link>
+                        {!isReadOnly && (
                           <Link
-                            title="Ver Vista Previa"
-                            href={`/admin/documentos/recibos/${p.id}`}
-                            style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+                            title="Editar"
+                            href={`/admin/documentos/recibos/nuevo?edit=${p.id}`}
+                            style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
                           >
-                            <Eye size={18} strokeWidth={2.5} />
+                            <Edit size={18} strokeWidth={2.5} />
                           </Link>
-                          {!isReadOnly && (
-                            <Link
-                              title="Editar"
-                              href={`/admin/documentos/recibos/nuevo?edit=${p.id}`}
-                              style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
-                            >
-                              <Edit size={18} strokeWidth={2.5} />
-                            </Link>
-                          )}
+                        )}
+                        <button
+                          title="Descargar PDF"
+                          onClick={() => handleDownload(p.id)}
+                          disabled={downloadingId === p.id}
+                          style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", opacity: downloadingId === p.id ? 0.5 : 1 }}
+                        >
+                          <Scroll size={18} strokeWidth={2.5} />
+                        </button>
+                        {isAdmin && (
                           <button
-                            title="Descargar PDF"
-                            onClick={() => handleDownload(p.id)}
-                            disabled={downloadingId === p.id}
-                            style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", opacity: downloadingId === p.id ? 0.5 : 1 }}
+                            title="Eliminar"
+                            onClick={() => setDeleteConfirm(p.id)}
+                            style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
                           >
-                            <Scroll size={18} strokeWidth={2.5} />
+                            <Trash2 size={18} strokeWidth={2.5} />
                           </button>
-                          {isAdmin && (
-                            <button
-                              title="Eliminar"
-                              onClick={() => setDeleteConfirm(p.id)}
-                              style={{ width: "32px", height: "32px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                            >
-                              <Trash2 size={18} strokeWidth={2.5} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

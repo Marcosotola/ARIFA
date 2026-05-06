@@ -11,11 +11,6 @@ import { ArrowLeft, Edit, Scroll } from "lucide-react";
 const fmt = (n: number) =>
   n.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
-  emitido: { bg: "#dcfce7", color: "#166534" },
-  anulado: { bg: "#fee2e2", color: "#991b1b" },
-};
-
 const FORMA_PAGO_LABELS: Record<string, string> = {
   efectivo: "Efectivo",
   transferencia: "Transferencia bancaria",
@@ -72,7 +67,6 @@ export default function VerReciboPage() {
 
   const rcNum = String(recibo.numero || "?").padStart(5, "0");
   const fecStr = recibo.fecha ? new Date(recibo.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
-  const ec = ESTADO_COLORS[recibo.estado] || ESTADO_COLORS.emitido;
   const empresa = recibo.sedeNombre
     ? `${recibo.clienteEmpresa || "-"} — Sede: ${recibo.sedeNombre}`
     : (recibo.clienteEmpresa || "");
@@ -132,9 +126,7 @@ export default function VerReciboPage() {
                 <span style={{ color: "rgba(255,255,255,0.5)" }}>Emitido por: </span>
                 <span style={{ color: "#fff", fontWeight: 700 }}>{recibo.creadoPorNombre || "ARIFA"}</span>
               </div>
-              <span style={{ marginTop: "6px", fontSize: "0.72rem", padding: "4px 10px", borderRadius: "20px", fontWeight: 900, textTransform: "uppercase", background: ec.bg, color: ec.color }}>
-                {recibo.estado || "emitido"}
-              </span>
+
             </div>
           </div>
         </div>

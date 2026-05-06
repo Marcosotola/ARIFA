@@ -174,6 +174,139 @@ export const generateMantenimientoPDF = async (ficha: any) => {
 };
 
 export const generateRemitoPDF = async (remito: any) => {
+    // ── Remito de Entrega de Materiales (módulo Documentos) ──
+    if (remito.items && Array.isArray(remito.items) && !remito.equipos) {
+        const { default: jsPDF } = await import("jspdf");
+        const { default: autoTable } = await import("jspdf-autotable");
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+        const rmNum = String(remito.numero).padStart(5, "0");
+        const fecStr = remito.fecha ? new Date(remito.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
+
+        let logoPng: string | null = null;
+        try {
+            const resp = await fetch("/logos/logoFondoTransparente.svg");
+            const svgText = await resp.text();
+            const blob = new Blob([svgText], { type: "image/svg+xml" });
+            const url = URL.createObjectURL(blob);
+            const img = new Image();
+            await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = url; });
+            const c = document.createElement("canvas");
+            c.width = img.naturalWidth || 300; c.height = img.naturalHeight || 150;
+            c.getContext("2d")!.drawImage(img, 0, 0);
+            logoPng = c.toDataURL("image/png");
+            URL.revokeObjectURL(url);
+        } catch { /* no logo */ }
+
+        const HEADER_H = 38; const top = 10;
+        pdf.setDrawColor(0, 34, 68); pdf.setLineWidth(0.5);
+        pdf.rect(ML, top, TW, HEADER_H);
+        if (logoPng) pdf.addImage(logoPng, "PNG", ML + 2, top + 3, 32, 32);
+        pdf.line(ML + 37, top, ML + 37, top + HEADER_H);
+
+        const rx = W - MR - 52;
+        const cx = ML + 37 + (rx - ML - 37) / 2;
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(12); pdf.setTextColor(0, 34, 68);
+        pdf.text("REMITO DE ENTREGA", cx, top + 11, { align: "center" });
+        pdf.setFontSize(9); pdf.setFont("helvetica", "normal"); pdf.setTextColor(80, 80, 80);
+        pdf.text("ARIFA - Servicios de Protección contra Incendios", cx, top + 19, { align: "center" });
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(16); pdf.setTextColor(163, 31, 29);
+        pdf.text(`RM-${rmNum}`, cx, top + 31, { align: "center" });
+
+        pdf.line(rx, top, rx, top + HEADER_H);
+        pdf.setFont("helvetica", "bold"); pdf.setFontSize(7.5); pdf.setTextColor(0);
+        pdf.text("Fecha:", rx + 2, top + 10);
+        pdf.text("Emitido por:", rx + 2, top + 22);
+        pdf.text("Receptor:", rx + 2, top + 34);
+        pdf.setFont("helvetica", "normal"); pdf.setFontSize(7.5);
+        pdf.text(fecStr, rx + 28, top + 10);
+        pdf.text(remito.creadoPorNombre || "ARIFA", rx + 28, top + 22);
+        pdf.text(remito.nombreReceptor || "-", rx + 28, top + 34);
+
+        let y = top + HEADER_H + 8;
+
+        pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+        pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255);
+        pdf.text("DATOS DEL CLIENTE", ML + 3, y + 5);
+        y += 7;
+
+        const empresa = remito.sedeNombre
+            ? `${remito.clienteEmpresa || "-"} — Sede: ${remito.sedeNombre}`
+            : (remito.clienteEmpresa || "-");
+
+        autoTable(pdf, {
+            startY: y, margin: { left: ML, right: MR, bottom: 18 },
+            body: [
+                [{ content: "RAZÓN SOCIAL / CONTACTO:", styles: { fontStyle: "bold", cellWidth: 55 } }, `${remito.clienteNombre || "-"}${remito.clienteApellido ? " " + remito.clienteApellido : ""}`],
+                [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, empresa],
+                [{ content: "DNI / CUIT:", styles: { fontStyle: "bold" } }, remito.clienteDniCuit || "-"],
+                [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, remito.clienteDireccion || "-"],
+                [{ content: "TELÉFONO:", styles: { fontStyle: "bold" } }, remito.clienteTelefono || "-"],
+            ],
+            styles: { fontSize: 8.5, cellPadding: 2.5 },
+            tableLineColor: [0, 34, 68], tableLineWidth: 0.2,
+        });
+        y = (pdf as any).lastAutoTable.finalY + 8;
+
+        pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+        pdf.setFontSize(8); pdf.setFont("helvetica", "bold"); pdf.setTextColor(255);
+        pdf.text("MATERIALES / EQUIPOS ENTREGADOS", ML + 3, y + 5);
+        y += 7;
+
+        autoTable(pdf, {
+            startY: y, margin: { left: ML, right: MR, bottom: 18 },
+            head: [["Cant.", "Descripción"]],
+            body: (remito.items || []).map((item: any) => [item.cantidad, item.descripcion || "-"]),
+            theme: "grid",
+            headStyles: { fillColor: [0, 34, 68], fontSize: 8.5, halign: "center" },
+            bodyStyles: { fontSize: 9 },
+            columnStyles: { 0: { cellWidth: 20, halign: "center" } },
+        });
+        y = (pdf as any).lastAutoTable.finalY + 8;
+
+        if (remito.descripcionGeneral?.trim()) {
+            if (y > 240) { pdf.addPage(); y = 20; }
+            pdf.setFillColor(248, 249, 252); pdf.rect(ML, y, TW, 6, "F");
+            pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.setTextColor(0, 34, 68);
+            pdf.text("MOTIVO DE ENTREGA", ML + 3, y + 4);
+            y += 8;
+            pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(60, 60, 60);
+            const noteLines = pdf.splitTextToSize(remito.descripcionGeneral, TW);
+            pdf.text(noteLines, ML, y);
+            y += noteLines.length * 5 + 6;
+        }
+
+        if (y > 220) { pdf.addPage(); y = 20; }
+        const bw = 100; const bx = (W - bw) / 2;
+        pdf.setDrawColor(200); pdf.setLineWidth(0.2);
+        pdf.rect(bx, y, bw, 45);
+        pdf.setFontSize(8); pdf.setTextColor(100);
+        pdf.text("FIRMA DEL RECEPTOR", bx + bw / 2, y + 5, { align: "center" });
+        if (remito.firmaReceptor) {
+            try { pdf.addImage(remito.firmaReceptor, "PNG", bx + 5, y + 8, bw - 10, 26); } catch { /* skip */ }
+        }
+        pdf.setDrawColor(80); pdf.setLineWidth(0.2);
+        pdf.line(bx + 5, y + 37, bx + bw - 5, y + 37);
+        pdf.setFontSize(9); pdf.setTextColor(0); pdf.setFont("helvetica", "bold");
+        pdf.text((remito.nombreReceptor || "").toUpperCase(), bx + bw / 2, y + 43, { align: "center" });
+
+        const pageCount = pdf.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            pdf.setPage(i);
+            const fy = 287;
+            pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(ML, fy - 5, W - MR, fy - 5);
+            pdf.setFont("helvetica", "italic"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+            pdf.text(`Remito emitido el ${fecStr}.`, ML, fy);
+            pdf.text(`Página ${i} de ${pageCount}`, W / 2, fy, { align: "center" });
+            pdf.text("ARIFA - Protección contra Incendios", W - MR, fy, { align: "right" });
+        }
+
+        pdf.save(`Remito-RM${rmNum}.pdf`);
+        return;
+    }
+
+    // ── Remito de Movimiento de Inventario (legacy) ──
+    const _generateRemitoPDF = async (remito: any) => {
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
 
@@ -288,6 +421,8 @@ export const generateRemitoPDF = async (remito: any) => {
     pdf.text((remito.aclaracion || "").toUpperCase(), bx + bw/2, y + 36, { align: "center" });
 
     pdf.save(`Remito-${remito.tipo}-${remNum}.pdf`);
+    };
+    await _generateRemitoPDF(remito);
 };
 
 export const generatePresupuestoPDF = async (pres: any) => {
@@ -520,16 +655,13 @@ export const generateReciboPDF = async (recibo: any) => {
 
     pdf.line(rx, top, rx, top + HEADER_H);
     pdf.setFont("helvetica", "bold"); pdf.setFontSize(7.5); pdf.setTextColor(0);
-    pdf.text("Fecha:", rx + 2, top + 8);
-    pdf.text("Forma pago:", rx + 2, top + 16);
-    pdf.text("Estado:", rx + 2, top + 24);
-    pdf.text("Emitido por:", rx + 2, top + 32);
+    pdf.text("Fecha:", rx + 2, top + 9);
+    pdf.text("Forma pago:", rx + 2, top + 19);
+    pdf.text("Emitido por:", rx + 2, top + 29);
     pdf.setFont("helvetica", "normal"); pdf.setFontSize(7.5);
-    pdf.text(fecStr, rx + 26, top + 8);
-    pdf.text(FORMA_PAGO_LABELS[recibo.formaPago] || recibo.formaPago || "-", rx + 26, top + 16);
-    const estadoLabel = recibo.estado === "anulado" ? "ANULADO" : "EMITIDO";
-    pdf.text(estadoLabel, rx + 26, top + 24);
-    pdf.text(recibo.creadoPorNombre || "ARIFA", rx + 26, top + 32);
+    pdf.text(fecStr, rx + 26, top + 9);
+    pdf.text(FORMA_PAGO_LABELS[recibo.formaPago] || recibo.formaPago || "-", rx + 26, top + 19);
+    pdf.text(recibo.creadoPorNombre || "ARIFA", rx + 26, top + 29);
 
     let y = top + HEADER_H + 8;
 

@@ -257,7 +257,6 @@ function NuevoReciboContent() {
         updatedAt: serverTimestamp(),
       };
       if (!editId) {
-        payload.estado = "emitido";
         payload.createdAt = serverTimestamp();
         await addDoc(collection(db, "recibos"), payload);
         await setDoc(doc(db, "configuracion", "recibos"), { proximoNumero: Number(numero) + 1 }, { merge: true });

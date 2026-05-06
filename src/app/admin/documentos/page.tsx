@@ -5,7 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FileText, ChevronRight } from "lucide-react";
+import { FileText, ChevronRight, Package } from "lucide-react";
 
 export default function DocumentosPage() {
   const [role, setRole] = useState<string | null>(null);
@@ -56,6 +56,14 @@ export default function DocumentosPage() {
             title: "Recibos",
             desc: "Comprobantes de cobro",
             hoverShadow: "0 8px 30px rgba(124,58,237,0.12)",
+          },
+          {
+            href: "/admin/documentos/remitos",
+            icon: <Package size={26} color="#ea580c" strokeWidth={2} />,
+            iconBg: "rgba(234,88,12,0.1)",
+            title: "Remitos",
+            desc: "Entrega de materiales y equipos",
+            hoverShadow: "0 8px 30px rgba(234,88,12,0.12)",
           },
         ].map(item => (
           <Link key={item.href} href={item.href} style={{ textDecoration: "none" }}>

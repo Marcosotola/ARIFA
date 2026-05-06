@@ -122,6 +122,21 @@ service cloud.firestore {
       allow write: if request.auth != null && isStaffMember();
     }
 
+    // Remitos de Entrega
+    match /remitos_doc/{id} {
+      allow read: if request.auth != null && (
+        resource.data.clienteId == request.auth.uid || isStaffMember()
+      );
+      allow create: if request.auth != null && isStaffMember();
+      allow update: if request.auth != null && isStaffMember();
+      allow delete: if isAdmin();
+    }
+
+    match /configuracion/remitos_doc {
+      allow read: if request.auth != null && isStaffMember();
+      allow write: if request.auth != null && isStaffMember();
+    }
+
     // Consultas y Notificaciones
     match /consultas/{id} {
       allow read: if request.auth != null && (isAdmin() || getRole() == 'secretaria');
