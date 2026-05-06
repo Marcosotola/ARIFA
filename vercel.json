@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/check-matafuegos-vencimientos",
+      "schedule": "0 12 * * *"
+    }
+  ]
+}

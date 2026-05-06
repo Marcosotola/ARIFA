@@ -125,17 +125,20 @@ export async function POST(_req: NextRequest) {
     // 3. Load recent notifications to avoid duplicates (last 25 days)
     const since25 = new Date(today);
     since25.setDate(since25.getDate() - 25);
+    
+    // Simplificamos la consulta para evitar requerir un índice compuesto (equality + range)
+    // Buscamos solo por fecha y filtramos el subtipo en memoria si es necesario
     const recentSnap = await db
       .collection("notificaciones_enviadas")
       .where("creadaEn", ">=", since25)
-      .where("subtipo", "==", "matafuegos-auto")
       .get();
 
     // Key: `${matafuegoId}__${tipo}__${destinatarioUid}`
     const recentKeys = new Set<string>();
     recentSnap.forEach((d: any) => {
       const data = d.data();
-      if (data.matafuegoId && data.tipoAlerta && data.destinatarioUid) {
+      // Filtramos por subtipo en memoria para no forzar índice compuesto en Firestore
+      if (data.subtipo === "matafuegos-auto" && data.matafuegoId && data.tipoAlerta && data.destinatarioUid) {
         recentKeys.add(`${data.matafuegoId}__${data.tipoAlerta}__${data.destinatarioUid}`);
       }
     });
