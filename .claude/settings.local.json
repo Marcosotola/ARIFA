@@ -26,7 +26,13 @@
       "Bash(mkdir -p \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\\\\src\\\\app\\\\admin\\\\documentos\\\\recibos\\\\[id]\" 2>/dev/null; echo \"ok\")",
       "Bash(firebase --version)",
       "PowerShell($basePath = \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\"; Get-ChildItem -Path \"$basePath\\\\src\" -Recurse -File -ErrorAction SilentlyContinue | Where-Object {$_.Name -match \"\\(hys|higiene|seguridad\\)\" -or $_.DirectoryName -match \"\\(hys|higiene|seguridad\\)\"} | Select-Object -ExpandProperty FullName)",
-      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\" -File -Recurse -ErrorAction SilentlyContinue | Where-Object {$_.Extension -match \"\\\\.\\(json|md|txt\\)$\" -and $_.DirectoryName -notmatch \"node_modules|\\\\.next\"} | Select-Object -ExpandProperty FullName | Sort-Object)"
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\" -File -Recurse -ErrorAction SilentlyContinue | Where-Object {$_.Extension -match \"\\\\.\\(json|md|txt\\)$\" -and $_.DirectoryName -notmatch \"node_modules|\\\\.next\"} | Select-Object -ExpandProperty FullName | Sort-Object)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Marco Dev\\\\Desktop\\\\Marco Dev\\\\Proyectos\\\\ARIFA\\\\ARIFA\\\\src\" -Recurse -Name)",
+      "Bash(Sort-Object)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "WebSearch",
+      "WebFetch"
     ],
     "additionalDirectories": [
       "C:\\Users\\Marco Dev\\Desktop\\Marco Dev\\Proyectos\\ARIFA\\ARIFA\\src\\app\\admin\\documentos\\presupuestos",

@@ -7,17 +7,19 @@ import {
   getProductoBySlug,
   getCategoriaBySlug,
   getProductosByCategoria,
+  fetchAllProductos,
 } from "@/lib/productos";
 
 type Props = { params: { slug: string } };
 
 export async function generateStaticParams() {
-  return PRODUCTOS_PLACEHOLDER.map((p) => ({ slug: p.slug }));
+  const prods = await fetchAllProductos();
+  return prods.map((p) => ({ slug: p.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const prod = getProductoBySlug(slug);
+  const prod = await getProductoBySlug(slug);
   if (!prod) return { title: "Producto | ARIFA" };
   return {
     title: `${prod.nombre} | Catálogo ARIFA`,
@@ -27,15 +29,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ProductoDetailPage({ params }: Props) {
   const { slug } = await params;
-  const prod = getProductoBySlug(slug);
+  const prod = await getProductoBySlug(slug);
   if (!prod) notFound();
 
   const cat = getCategoriaBySlug(
-    CATEGORIAS_PLACEHOLDER.find((c) => c.id === prod.categoriaId)?.slug || ""
+    CATEGORIAS_PLACEHOLDER.find((c) => c.nombre === prod.categoriaId || c.id === prod.categoriaId)?.slug || ""
   );
 
   // Productos relacionados (misma categoría, excluye este)
-  const relacionados = getProductosByCategoria(prod.categoriaId)
+  const relacionadosRaw = await getProductosByCategoria(prod.categoriaId);
+  const relacionados = relacionadosRaw
     .filter((p) => p.id !== prod.id)
     .slice(0, 3);
 

@@ -211,11 +211,26 @@ export default function AdminProductos() {
     setProductos(prev => prev.map(x => x.id === p.id ? { ...x, activo: !x.activo } : x));
   };
 
-  const visible = productos.filter(p => {
-    const matchCat = filtroCat === "Todas" || p.categoria === filtroCat;
-    const matchQ = !search || p.titulo.toLowerCase().includes(search.toLowerCase()) || p.proveedor?.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchQ;
-  });
+  const visible = productos
+    .filter(p => {
+      const matchCat = filtroCat === "Todas" || p.categoria === filtroCat;
+      const matchQ = !search || p.titulo.toLowerCase().includes(search.toLowerCase()) || p.proveedor?.toLowerCase().includes(search.toLowerCase());
+      return matchCat && matchQ;
+    })
+    .sort((a, b) => {
+      // 1. Ordenar por categoría (según el orden de la constante CATEGORIAS)
+      const indexA = CATEGORIAS.indexOf(a.categoria);
+      const indexB = CATEGORIAS.indexOf(b.categoria);
+      
+      // Si no se encuentra (index -1), lo mandamos al final
+      const sortA = indexA === -1 ? 999 : indexA;
+      const sortB = indexB === -1 ? 999 : indexB;
+
+      if (sortA !== sortB) return sortA - sortB;
+      
+      // 2. Ordenar por título (secundario)
+      return a.titulo.localeCompare(b.titulo);
+    });
 
   const fmtPeso = (n: number) => `$${Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 

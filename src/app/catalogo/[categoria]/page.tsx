@@ -5,12 +5,14 @@ import {
   CATEGORIAS_PLACEHOLDER,
   getCategoriaBySlug,
   getProductosByCategoria,
+  fetchCategoriasDinamicas,
 } from "@/lib/productos";
 
 type Props = { params: { categoria: string } };
 
 export async function generateStaticParams() {
-  return CATEGORIAS_PLACEHOLDER.map((c) => ({ categoria: c.slug }));
+  const cats = await fetchCategoriasDinamicas();
+  return cats.map((c) => ({ categoria: c.slug }));
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -25,10 +27,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CategoriaPage({ params }: Props) {
   const { categoria: slug } = await params;
-  const cat = getCategoriaBySlug(slug);
+  const cats = await fetchCategoriasDinamicas();
+  const cat = cats.find(c => c.slug === slug);
   if (!cat) notFound();
 
-  const productos = getProductosByCategoria(cat.id);
+  const productos = await getProductosByCategoria(cat.nombre);
 
   return (
     <>
@@ -53,7 +56,7 @@ export default async function CategoriaPage({ params }: Props) {
               <div className="service-sidebar" style={{ background: '#fff', padding: '25px', borderRadius: '12px', border: '1px solid #f0f0f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)' }}>
                 <h3 style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: '20px', color: 'var(--primary-blue)', paddingBottom: '12px', borderBottom: '2px solid var(--bg-light)' }}>Categorías</h3>
                 <ul className="sidebar-link-list">
-                  {CATEGORIAS_PLACEHOLDER.map((c) => (
+                  {cats.map((c) => (
                     <li key={c.id} style={{ marginBottom: '8px' }}>
                       <Link
                         href={`/catalogo/${c.slug}`}
@@ -119,8 +122,8 @@ export default async function CategoriaPage({ params }: Props) {
               {productos.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "80px 40px", background: "#fff", borderRadius: "12px", border: '1px dashed #ccc' }}>
                   <div style={{ fontSize: "4rem", marginBottom: "20px" }}>📦</div>
-                  <h3 style={{ color: "var(--primary-blue)", fontSize: '1.4rem', fontWeight: 800, marginBottom: "10px" }}>Próximamente más productos</h3>
-                  <p style={{ color: "var(--text-muted)", maxWidth: '400px', margin: '0 auto 25px' }}>Estamos actualizando nuestro catálogo para ofrecerte lo mejor. Si no encontrás lo que buscás, contactanos.</p>
+                  <h3 style={{ color: "var(--primary-blue)", fontSize: '1.4rem', fontWeight: 800, marginBottom: "10px" }}>Aún no hay artículos de {cat.nombre}</h3>
+                  <p style={{ color: "var(--text-muted)", maxWidth: '400px', margin: '0 auto 25px' }}>Estamos actualizando nuestro catálogo de {cat.nombre.toLowerCase()} para ofrecerte lo mejor. Si no encontrás lo que buscás, contactanos.</p>
                   <Link href="/contacto" className="btn-red">
                     Consultar Disponibilidad
                   </Link>

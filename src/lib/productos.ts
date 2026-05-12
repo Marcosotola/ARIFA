@@ -1,9 +1,8 @@
 // ============================================================
 // TIPOS DE DATOS — Diseñados para Firebase/Firestore
-// Cuando se integre Firebase, estos datos vendrán de:
-//   - Colección: /categorias
-//   - Colección: /productos
 // ============================================================
+import { db } from "./firebase";
+import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
 
 export interface Categoria {
   id: string;
@@ -535,21 +534,115 @@ export const PRODUCTOS_PLACEHOLDER: Producto[] = [
 ];
 
 // ============================================================
-// HELPERS
+// HELPERS — Firestore Integration
 // ============================================================
 
 export function getCategoriaBySlug(slug: string): Categoria | undefined {
   return CATEGORIAS_PLACEHOLDER.find((c) => c.slug === slug);
 }
 
-export function getProductosByCategoria(categoriaId: string): Producto[] {
-  return PRODUCTOS_PLACEHOLDER.filter((p) => p.categoriaId === categoriaId && p.activo);
+// Convert Firestore doc to Producto type
+const docToProducto = (doc: any): Producto => {
+  const data = doc.data();
+  return {
+    id: doc.id,
+    nombre: data.titulo || data.nombre || "Sin nombre",
+    slug: data.slug || "",
+    categoriaId: data.categoria || "", 
+    descripcion: data.descripcion || "",
+    descripcionCorta: data.descripcion ? data.descripcion.substring(0, 100) + (data.descripcion.length > 100 ? "..." : "") : "",
+    imagenes: data.imagenes || [],
+    destacado: data.destacado || false,
+    activo: data.activo !== undefined ? data.activo : true,
+    caracteristicas: data.caracteristicas || [],
+    precio: data.precioVenta || data.precio || 0,
+  };
+};
+
+export async function getProductosByCategoria(categoriaNombre: string): Promise<Producto[]> {
+  try {
+    const q = query(
+      collection(db, "productos"), 
+      where("categoria", "==", categoriaNombre),
+      where("activo", "==", true)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(docToProducto);
+  } catch (e) {
+    console.error("Error fetching products by category:", e);
+    return [];
+  }
 }
 
-export function getProductoBySlug(slug: string): Producto | undefined {
-  return PRODUCTOS_PLACEHOLDER.find((p) => p.slug === slug);
+export async function getProductoBySlug(slug: string): Promise<Producto | undefined> {
+  try {
+    const q = query(collection(db, "productos"), where("slug", "==", slug), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return docToProducto(snap.docs[0]);
+    }
+    return PRODUCTOS_PLACEHOLDER.find((p) => p.slug === slug);
+  } catch (e) {
+    console.error("Error fetching product by slug:", e);
+    return undefined;
+  }
 }
 
-export function getProductosDestacados(): Producto[] {
-  return PRODUCTOS_PLACEHOLDER.filter((p) => p.destacado && p.activo).slice(0, 6);
+export async function getProductosDestacados(): Promise<Producto[]> {
+  try {
+    const q = query(
+      collection(db, "productos"), 
+      where("destacado", "==", true), 
+      where("activo", "==", true),
+      limit(6)
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(docToProducto);
+  } catch (e) {
+    console.error("Error fetching featured products:", e);
+    return [];
+  }
+}
+
+export async function fetchAllProductos(): Promise<Producto[]> {
+  try {
+    const q = query(collection(db, "productos"), where("activo", "==", true));
+    const snap = await getDocs(q);
+    return snap.docs.map(docToProducto);
+  } catch (e) {
+    console.error("Error fetching all products:", e);
+    return [];
+  }
+}
+
+export async function fetchCategoriasDinamicas(): Promise<Categoria[]> {
+  try {
+    const prods = await fetchAllProductos();
+    const nombresDeProductos = Array.from(new Set(prods.map(p => p.categoriaId).filter(Boolean)));
+    
+    // Empezamos con las fijas (placeholders) para que siempre existan sus páginas
+    const result: Categoria[] = [...CATEGORIAS_PLACEHOLDER];
+    
+    // Añadimos las nuevas que encontremos en productos y que no estén en la lista fija
+    nombresDeProductos.forEach(nombre => {
+      const existe = result.some(c => c.nombre === nombre);
+      if (!existe) {
+        const slug = nombre.toLowerCase().replace(/ /g, "-").replace(/[^\w-]+/g, "");
+        result.push({
+          id: `cat-${slug}`,
+          nombre: nombre,
+          slug: slug,
+          descripcion: `Productos de la categoría ${nombre}`,
+          icono: "📦",
+          orden: 99,
+          activa: true
+        });
+      }
+    });
+    
+    return result;
+  } catch (e) {
+    console.error("Error fetching dynamic categories:", e);
+    return CATEGORIAS_PLACEHOLDER;
+  }
 }

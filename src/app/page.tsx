@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getProductosDestacados, CATEGORIAS_PLACEHOLDER } from "@/lib/productos";
+import { getProductosDestacados, fetchCategoriasDinamicas } from "@/lib/productos";
 
 // ---- SLIDER DATA ----
 const SLIDES = [
@@ -37,9 +37,20 @@ const SECTORS = [
 
 export default function Home() {
   const [current, setCurrent] = useState(0);
+  const [featuredProds, setFeaturedProds] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
 
   useEffect(() => {
     const t = setInterval(() => setCurrent((c) => (c + 1) % SLIDES.length), 6000);
+    const fetchData = async () => {
+      const [prods, cats] = await Promise.all([
+        getProductosDestacados(),
+        fetchCategoriasDinamicas()
+      ]);
+      setFeaturedProds(prods);
+      setCategories(cats);
+    };
+    fetchData();
     return () => clearInterval(t);
   }, []);
 
@@ -304,8 +315,8 @@ export default function Home() {
           </div>
           
           <div className="prod-grid" style={{position:'relative', zIndex:'1'}}>
-            {getProductosDestacados().map((prod) => {
-              const cat = CATEGORIAS_PLACEHOLDER.find(c => c.id === prod.categoriaId);
+            {featuredProds.map((prod) => {
+              const cat = categories.find(c => c.nombre === prod.categoriaId);
               return (
                 <Link key={prod.id} href={`/catalogo/producto/${prod.slug}`} className="prod-card">
                   <div className="prod-img-wrap">
