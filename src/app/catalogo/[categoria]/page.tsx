@@ -146,6 +146,9 @@ export default async function CategoriaPage({ params }: Props) {
                       </div>
                       <div className="prod-body">
                         <h3>{prod.nombre}</h3>
+                        <div style={{ fontWeight: 800, color: "var(--primary-red)", fontSize: "0.95rem", marginBottom: "8px" }}>
+                          $ {prod.precio ? Number(prod.precio).toLocaleString("es-AR", { minimumFractionDigits: 0 }) : "Consultar"}
+                        </div>
                         <p>{prod.descripcionCorta}</p>
                         <span className="prod-cta">Ver detalles →</span>
                       </div>

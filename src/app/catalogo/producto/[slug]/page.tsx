@@ -110,21 +110,6 @@ export default async function ProductoDetailPage({ params }: Props) {
                   </span>
                 )}
               </div>
-
-              {/* Nota Firebase */}
-              <div
-                style={{
-                  marginTop: "12px",
-                  padding: "10px 14px",
-                  background: "#fff3cd",
-                  borderRadius: "4px",
-                  border: "1px solid #ffc107",
-                  fontSize: "0.8rem",
-                  color: "#856404",
-                }}
-              >
-                📸 Las imágenes se cargarán desde Firebase Storage una vez configurado el panel de administración.
-              </div>
             </div>
 
             {/* Info */}
@@ -149,9 +134,13 @@ export default async function ProductoDetailPage({ params }: Props) {
                 </Link>
               )}
 
-              <h2 style={{ fontSize: "1.8rem", fontWeight: 700, color: "var(--primary-blue)", marginBottom: "16px", lineHeight: 1.3 }}>
+              <h2 style={{ fontSize: "1.8rem", fontWeight: 700, color: "var(--primary-blue)", marginBottom: "8px", lineHeight: 1.3 }}>
                 {prod.nombre}
               </h2>
+
+              <div style={{ fontSize: "1.6rem", fontWeight: 900, color: "var(--primary-red)", marginBottom: "20px" }}>
+                $ {prod.precio ? Number(prod.precio).toLocaleString("es-AR", { minimumFractionDigits: 0 }) : "Consultar"}
+              </div>
 
               <p style={{ color: "var(--text-muted)", lineHeight: 1.85, marginBottom: "24px" }}>
                 {prod.descripcion}
@@ -237,6 +226,9 @@ export default async function ProductoDetailPage({ params }: Props) {
                     </div>
                     <div className="prod-body">
                       <h3>{rel.nombre}</h3>
+                      <div style={{ fontWeight: 800, color: "var(--primary-red)", fontSize: "0.95rem", marginBottom: "8px" }}>
+                        $ {rel.precio ? Number(rel.precio).toLocaleString("es-AR", { minimumFractionDigits: 0 }) : "—"}
+                      </div>
                       <p>{rel.descripcionCorta}</p>
                       <span className="prod-cta">Ver producto →</span>
                     </div>

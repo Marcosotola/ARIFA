@@ -555,7 +555,7 @@ const docToProducto = (doc: any): Producto => {
     destacado: data.destacado || false,
     activo: data.activo !== undefined ? data.activo : true,
     caracteristicas: data.caracteristicas || [],
-    precio: data.precioVenta || data.precio || 0,
+    precio: data.precioVenta || 0,
   };
 };
 
