@@ -9,9 +9,11 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Save, Plus, Trash2, User, FileText,
-  Hash, Calendar, Receipt,
+  Hash, Calendar, Receipt, Search, ClipboardList,
+  Package,
 } from "lucide-react";
 import { Suspense } from "react";
+import { fetchAllProductos } from "@/lib/productos";
 
 interface PresupuestoItem {
   id: string;
@@ -88,6 +90,14 @@ function NuevoPresupuestoContent() {
 
   // Notas
   const [notas, setNotas] = useState("");
+
+  // Catálogo y Plan de Acción
+  const [catalogo, setCatalogo] = useState<any[]>([]);
+  const [showCatalogoModal, setShowCatalogoModal] = useState(false);
+  const [catalogoSearch, setCatalogoSearch] = useState("");
+  
+  const [planAccion, setPlanAccion] = useState<any[]>([]);
+  const [showPlanAccionModal, setShowPlanAccionModal] = useState(false);
 
   // Modal nuevo cliente
   const [showNewClientModal, setShowNewClientModal] = useState(false);
@@ -166,8 +176,28 @@ function NuevoPresupuestoContent() {
       } catch (e) { console.error(e); }
       finally { setLoading(false); }
     });
+
+    // Cargar Catálogo
+    fetchAllProductos().then(setCatalogo).catch(console.error);
+
     return () => unsub();
   }, [router, editId]);
+
+  // Cargar Plan de Acción cuando cambia el cliente
+  useEffect(() => {
+    if (clienteSeleccionado) {
+      const qPlan = query(
+        collection(db, "plan_accion"), 
+        where("clienteId", "==", clienteSeleccionado.id),
+        where("realizado", "==", false)
+      );
+      getDocs(qPlan).then(snap => {
+        setPlanAccion(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }).catch(console.error);
+    } else {
+      setPlanAccion([]);
+    }
+  }, [clienteSeleccionado]);
 
   const clientesFiltrados = clientes.filter(c =>
     clienteSearch.length < 2 ? false :
@@ -207,8 +237,45 @@ function NuevoPresupuestoContent() {
   };
 
   const eliminarItem = (idx: number) => {
-    if (items.length === 1) return;
+    if (items.length === 1) {
+      setItems([{ id: crypto.randomUUID(), cantidad: "", descripcion: "", precioUnitario: "", subtotal: 0 }]);
+      return;
+    }
     setItems(items.filter((_, i) => i !== idx));
+  };
+
+  const agregarDesdeCatalogo = (p: any) => {
+    const newItem: PresupuestoItem = {
+      id: crypto.randomUUID(),
+      cantidad: 1,
+      descripcion: p.nombre,
+      precioUnitario: p.precio || 0,
+      subtotal: p.precio || 0,
+    };
+    // Si el único item está vacío, reemplazarlo
+    if (items.length === 1 && !items[0].descripcion && !items[0].cantidad) {
+      setItems([newItem]);
+    } else {
+      setItems([...items, newItem]);
+    }
+    setShowCatalogoModal(false);
+  };
+
+  const agregarDesdePlan = (p: any) => {
+    const newItem: PresupuestoItem = {
+      id: crypto.randomUUID(),
+      cantidad: 1,
+      descripcion: p.detalle,
+      precioUnitario: p.costo || 0,
+      subtotal: p.costo || 0,
+    };
+    // Si el único item está vacío, reemplazarlo
+    if (items.length === 1 && !items[0].descripcion && !items[0].cantidad) {
+      setItems([newItem]);
+    } else {
+      setItems([...items, newItem]);
+    }
+    setShowPlanAccionModal(false);
   };
 
   const handleSave = async () => {
@@ -435,13 +502,30 @@ function NuevoPresupuestoContent() {
       <div style={sectionStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
           <h3 style={{ ...sectionTitleStyle, margin: 0 }}><FileText size={20} /> Detalle de Servicios / Productos</h3>
-          <button
-            onClick={agregarItem}
-            className="btn-blue"
-            style={{ padding: "10px 18px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}
-          >
-            <Plus size={18} strokeWidth={3} /> Agregar Item
-          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button
+              onClick={() => setShowCatalogoModal(true)}
+              style={{ padding: "8px 14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", background: "#f0f7ff", color: "var(--primary-blue)", border: "1px solid #cce3ff", fontSize: "0.8rem" }}
+            >
+              <Package size={16} /> Catálogo
+            </button>
+            <button
+              onClick={() => {
+                if (!clienteSeleccionado) { alert("Seleccioná un cliente para ver su Plan de Acción."); return; }
+                setShowPlanAccionModal(true);
+              }}
+              style={{ padding: "8px 14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", background: "#fff9f0", color: "#92400e", border: "1px solid #fef3c7", fontSize: "0.8rem" }}
+            >
+              <ClipboardList size={16} /> Plan Acción
+            </button>
+            <button
+              onClick={agregarItem}
+              className="btn-blue"
+              style={{ padding: "8px 14px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem" }}
+            >
+              <Plus size={16} strokeWidth={3} /> Item
+            </button>
+          </div>
         </div>
 
         {/* Cabecera */}
@@ -726,6 +810,88 @@ function NuevoPresupuestoContent() {
               >
                 Crear y Seleccionar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── MODAL CATÁLOGO ── */}
+      {showCatalogoModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "30px", maxWidth: "600px", width: "100%", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "1.4rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0 }}>Catálogo de Productos</h2>
+              <button
+                onClick={() => setShowCatalogoModal(false)}
+                style={{ background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b" }}
+              >✕</button>
+            </div>
+            <div style={{ position: "relative", marginBottom: "20px" }}>
+              <Search size={18} style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#999" }} />
+              <input
+                style={{ ...inputStyle, paddingLeft: "40px" }}
+                placeholder="Buscar producto en el catálogo..."
+                value={catalogoSearch}
+                onChange={e => setCatalogoSearch(e.target.value)}
+              />
+            </div>
+            <div style={{ display: "grid", gap: "10px" }}>
+              {catalogo
+                .filter(p => p.nombre.toLowerCase().includes(catalogoSearch.toLowerCase()))
+                .map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => agregarDesdeCatalogo(p)}
+                    style={{ padding: "15px", border: "1px solid #eee", borderRadius: "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#f8f9ff")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 700, color: "var(--primary-blue)" }}>{p.nombre}</div>
+                      <div style={{ fontSize: "0.75rem", color: "#888" }}>{p.categoriaId}</div>
+                    </div>
+                    <div style={{ fontWeight: 800, color: "var(--primary-red)" }}>$ {fmt(p.precio || 0)}</div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL PLAN DE ACCIÓN ── */}
+      {showPlanAccionModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", backdropFilter: "blur(4px)" }}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "30px", maxWidth: "600px", width: "100%", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <div>
+                <h2 style={{ fontSize: "1.4rem", fontWeight: 900, color: "var(--primary-blue)", margin: 0 }}>Plan de Acción</h2>
+                <p style={{ fontSize: "0.85rem", color: "#666" }}>Items pendientes para {clienteNombre}</p>
+              </div>
+              <button
+                onClick={() => setShowPlanAccionModal(false)}
+                style={{ background: "#f1f5f9", border: "none", width: "36px", height: "36px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#64748b" }}
+              >✕</button>
+            </div>
+            <div style={{ display: "grid", gap: "10px" }}>
+              {planAccion.length === 0 ? (
+                <p style={{ textAlign: "center", color: "#999", padding: "20px" }}>No hay mejoras pendientes para este cliente.</p>
+              ) : (
+                planAccion.map(p => (
+                  <div
+                    key={p.id}
+                    onClick={() => agregarDesdePlan(p)}
+                    style={{ padding: "15px", border: "1px solid #eee", borderRadius: "12px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "15px" }}
+                    onMouseEnter={e => (e.currentTarget.style.background = "#fffbeb")}
+                    onMouseLeave={e => (e.currentTarget.style.background = "#fff")}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "0.7rem", color: "#999", fontWeight: 800 }}>{p.fecha} • {p.prioridad}</div>
+                      <div style={{ fontWeight: 700, color: "#92400e", fontSize: "0.9rem" }}>{p.detalle}</div>
+                      {p.sedeNombre && <div style={{ fontSize: "0.7rem", color: "#888" }}>📍 {p.sedeNombre}</div>}
+                    </div>
+                    <div style={{ fontWeight: 800, color: "#16a34a", whiteSpace: "nowrap" }}>$ {fmt(p.costo || 0)}</div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
