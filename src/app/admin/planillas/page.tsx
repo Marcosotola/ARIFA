@@ -55,14 +55,25 @@ interface Plantilla {
 const urlToBase64 = async (url: string) => {
   try {
     if (!url || !url.startsWith("http")) return null;
-    const resp = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
-    if (!resp.ok) throw new Error("Proxy error");
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const blob = await resp.blob();
-    return new Promise<string>(resolve => {
+    const dataUrl = await new Promise<string>((res, rej) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
+      reader.onloadend = () => res(reader.result as string);
+      reader.onerror = rej;
       reader.readAsDataURL(blob);
     });
+    // Normalise to JPEG via canvas (handles WEBP, HEIC, etc.)
+    const img = new Image();
+    await new Promise<void>(res => { img.onload = () => res(); img.src = dataUrl; });
+    const cnv = document.createElement("canvas");
+    const maxPx = 1200;
+    const ratio = Math.min(maxPx / (img.naturalWidth || maxPx), maxPx / (img.naturalHeight || maxPx), 1);
+    cnv.width = Math.round((img.naturalWidth || maxPx) * ratio);
+    cnv.height = Math.round((img.naturalHeight || maxPx) * ratio);
+    cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
+    return cnv.toDataURL("image/jpeg", 0.82);
   } catch { return null; }
 };
 
@@ -210,6 +221,18 @@ const downloadOTPDF = async (otId: string) => {
   pdf.setDrawColor(200); pdf.line(ML, y, W - MR, y); y += 5;
   if (firmaTecnico) { pdf.addImage(firmaTecnico, "PNG", ML + 10, y, 40, 20); pdf.setFontSize(8); pdf.text(`Firma Técnico: ${nombreFirmaTecnico}`, ML + 10, y + 25); }
   if (firmaCliente) { pdf.addImage(firmaCliente, "PNG", W - MR - 50, y, 40, 20); pdf.setFontSize(8); pdf.text(`Firma Cliente: ${nombreFirmaCliente}`, W - MR - 50, y + 25); }
+
+  const pageCount = pdf.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    pdf.setPage(i);
+    const fy = 287;
+    pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(ML, fy - 5, W - MR, fy - 5);
+    pdf.setFont("helvetica", "italic"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+    pdf.text(`Inspección Técnica IT-${otNum} — ${fecStr}`, ML, fy);
+    pdf.text(`Página ${i} de ${pageCount}`, W / 2, fy, { align: "center" });
+    pdf.text("ARIFA - Protección contra Incendios", W - MR, fy, { align: "right" });
+  }
+
   pdf.save(`IT-${otNum}.pdf`);
 };
 

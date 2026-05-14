@@ -328,6 +328,7 @@ function CertificadosEditor() {
     const { default: autoTable } = await import("jspdf-autotable");
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+    const PAGE_BOTTOM = 268;
     const nCert = String(parseInt(numero) || nextNum).padStart(4, "0");
     const rubroFinal = rubro === "Otro" ? rubroCustom : rubro;
     const cn = clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre || "-";
@@ -409,69 +410,112 @@ function CertificadosEditor() {
       styles: { fontSize: 9, cellPadding: 4 },
       tableLineColor: [0, 34, 68], tableLineWidth: 0.3,
       didParseCell: (data: any) => {
-        if (data.row.index === 7) data.cell.styles.fillColor = [245, 247, 255];
+        if (data.row.index === 6) data.cell.styles.fillColor = [245, 247, 255];
       },
     });
 
     y = (pdf as any).lastAutoTable.finalY + 10;
 
+    // ── Memoria Descriptiva ──────────────────────────────────────────────────
     if (memoriaDescriptiva.trim()) {
+      if (y + 14 > PAGE_BOTTOM) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
+      pdf.setFillColor(0, 34, 68);
+      pdf.rect(ML, y, TW, 7, "F");
+      pdf.setFontSize(8); pdf.setFont(undefined as any, "bold"); pdf.setTextColor(255);
+      pdf.text("MEMORIA DESCRIPTIVA", ML + 3, y + 5);
+      y += 11;
+
       const lines = memoriaDescriptiva.split("\n");
-      let firstSection = true;
       for (const line of lines) {
-        if (y > 260) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
-        if (!line.trim()) { y += 4; continue; }
-        const isHeader = line === line.toUpperCase() && line.trim().length > 3;
-        pdf.setFont(undefined as any, isHeader ? "bold" : "normal");
-        pdf.setFontSize(isHeader ? 10 : 9);
-        pdf.setTextColor(isHeader ? 0 : 50);
-        if (isHeader && !firstSection) y += 3;
-        const wrapped = pdf.splitTextToSize(line, TW);
-        pdf.text(wrapped, ML, y);
-        y += wrapped.length * (isHeader ? 6 : 5);
-        firstSection = false;
+        if (!line.trim()) { y += 3; continue; }
+        const isHeader = line.trim() === line.trim().toUpperCase() && line.trim().length > 3;
+        const lineH = isHeader ? 7 : 5.5;
+        const wrapped = pdf.splitTextToSize(line.trim(), isHeader ? TW - 8 : TW);
+        const blockH = wrapped.length * lineH + (isHeader ? 10 : 0);
+
+        if (y + blockH > PAGE_BOTTOM) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
+
+        if (isHeader) {
+          y += 3;
+          pdf.setFillColor(240, 244, 255);
+          pdf.rect(ML, y - 3, TW, wrapped.length * lineH + 5, "F");
+          pdf.setFillColor(0, 34, 68);
+          pdf.rect(ML, y - 3, 3.5, wrapped.length * lineH + 5, "F");
+          pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9.5); pdf.setTextColor(0, 34, 68);
+          pdf.text(wrapped, ML + 7, y + 1);
+          y += wrapped.length * lineH + 6;
+        } else {
+          pdf.setFont(undefined as any, "normal"); pdf.setFontSize(9); pdf.setTextColor(40, 40, 40);
+          pdf.text(wrapped, ML, y);
+          y += wrapped.length * lineH;
+        }
       }
-      y += 6;
+      y += 8;
     }
 
+    // ── Fotos ────────────────────────────────────────────────────────────────
     if (fotos.length > 0) {
-      if (y > 180) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
+      if (y + 72 > PAGE_BOTTOM) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
+      pdf.setFillColor(0, 34, 68);
+      pdf.rect(ML, y, TW, 7, "F");
+      pdf.setFontSize(8); pdf.setFont(undefined as any, "bold"); pdf.setTextColor(255);
+      pdf.text("REGISTRO FOTOGRÁFICO", ML + 3, y + 5);
+      y += 10;
+
       let col = 0;
       const imgW = (TW - 5) / 2;
+      const imgH = 55;
+
       for (const url of fotos) {
         try {
-          const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+          // Fetch directly — Firebase Storage download URLs support CORS from any origin
+          const resp = await fetch(url);
+          if (!resp.ok) continue;
+          const blob = await resp.blob();
+          const dataUrl = await new Promise<string>((res, rej) => {
+            const reader = new FileReader();
+            reader.onloadend = () => res(reader.result as string);
+            reader.onerror = rej;
+            reader.readAsDataURL(blob);
+          });
+          // Draw through canvas to normalise format (handles WEBP, HEIC, etc.)
           const img = new Image();
-          img.crossOrigin = "anonymous";
-          await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = proxyUrl; });
+          await new Promise<void>((res) => { img.onload = () => res(); img.src = dataUrl; });
           const cnv = document.createElement("canvas");
-          const maxW = 1200; const maxH = 900;
-          const ratio = Math.min(maxW / (img.naturalWidth || maxW), maxH / (img.naturalHeight || maxH), 1);
-          cnv.width = Math.round((img.naturalWidth || maxW) * ratio);
-          cnv.height = Math.round((img.naturalHeight || maxH) * ratio);
+          const maxPx = 1400;
+          const ratio = Math.min(maxPx / (img.naturalWidth || maxPx), maxPx / (img.naturalHeight || maxPx), 1);
+          cnv.width = Math.round((img.naturalWidth || maxPx) * ratio);
+          cnv.height = Math.round((img.naturalHeight || maxPx) * ratio);
           cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
-          const du = cnv.toDataURL("image/jpeg", 0.82);
+          const jpegUrl = cnv.toDataURL("image/jpeg", 0.82);
+
+          if (y + imgH > PAGE_BOTTOM) { pdf.addPage(); y = drawPageHeader(pdf) + 5; col = 0; }
           const x = ML + col * (imgW + 5);
-          pdf.addImage(du, "JPEG", x, y, imgW, 55);
+          pdf.addImage(jpegUrl, "JPEG", x, y, imgW, imgH);
           col++;
-          if (col === 2) { col = 0; y += 58; }
-          if (y > 230) { pdf.addPage(); y = drawPageHeader(pdf) + 5; col = 0; }
-        } catch { /* skip */ }
+          if (col === 2) { col = 0; y += imgH + 5; }
+        } catch { /* skip image */ }
       }
-      if (col > 0) y += 58;
+      if (col > 0) y += imgH + 5;
       y += 6;
     }
 
-    if (y > 210) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
-    pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9); pdf.setTextColor(0);
-    pdf.text("DECLARACION JURADA:", ML, y);
-    y += 6;
-    pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8.5); pdf.setTextColor(40);
+    // ── Declaración Jurada ───────────────────────────────────────────────────
     const djText = DECLARACION_JURADA.replace("DECLARACION JURADA: ", "");
     const djLines = pdf.splitTextToSize(djText, TW);
+    if (y + djLines.length * 5 + 20 > PAGE_BOTTOM) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
+
+    pdf.setFillColor(248, 249, 252);
+    pdf.rect(ML, y, TW, 6, "F");
+    pdf.setFont(undefined as any, "bold"); pdf.setFontSize(8.5); pdf.setTextColor(0, 34, 68);
+    pdf.text("DECLARACIÓN JURADA", ML + 3, y + 4);
+    y += 9;
+    pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8.5); pdf.setTextColor(40);
     pdf.text(djLines, ML, y);
     y += djLines.length * 5 + 10;
 
+    // ── Firmas ───────────────────────────────────────────────────────────────
+    if (y + 35 > PAGE_BOTTOM) { pdf.addPage(); y = drawPageHeader(pdf) + 5; }
     const bw = (TW - 10) / 2;
     pdf.rect(ML, y, bw, 28); pdf.rect(ML + bw + 10, y, bw, 28);
     pdf.setFontSize(8); pdf.setTextColor(80);
@@ -480,12 +524,18 @@ function CertificadosEditor() {
     if (firmaProfesional) try { pdf.addImage(firmaProfesional, "PNG", ML + 5, y + 6, bw - 10, 18); } catch { /* skip */ }
     if (firmaCliente) try { pdf.addImage(firmaCliente, "PNG", ML + bw + 15, y + 6, bw - 10, 18); } catch { /* skip */ }
 
+    // ── Pie de página en todas las hojas ─────────────────────────────────────
     const total = pdf.getNumberOfPages();
     for (let i = 1; i <= total; i++) {
       pdf.setPage(i);
-      pdf.setFontSize(7); pdf.setTextColor(150);
-      pdf.text(`Página ${i} / ${total}`, W / 2, 295, { align: "center" });
+      const fy = 287;
+      pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(ML, fy - 5, W - MR, fy - 5);
+      pdf.setFont(undefined as any, "italic"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+      pdf.text(`Emitido el ${fInsp}.`, ML, fy);
+      pdf.text(`Página ${i} de ${total}`, W / 2, fy, { align: "center" });
+      pdf.text("ARIFA - Protección contra Incendios", W - MR, fy, { align: "right" });
     }
+
     pdf.save(`ARIFA-Cert-${nCert}.pdf`);
   };
 

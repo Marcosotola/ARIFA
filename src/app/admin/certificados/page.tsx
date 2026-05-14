@@ -8,9 +8,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Eye, Edit, Download, Trash2, Scroll } from "lucide-react";
 
-// PDF libs
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 interface Certificado {
   id: string;
@@ -122,14 +119,17 @@ export default function CertificadosPage() {
       const snap = await getDoc(doc(db, "certificados", certId));
       if (!snap.exists()) { alert("Certificado no encontrado"); return; }
       const data = snap.data() as any;
-      
+
+      const { default: jsPDF } = await import("jspdf");
+      const { default: autoTable } = await import("jspdf-autotable");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+      const PAGE_BOTTOM = 268;
       const nCert = String(data.numero || "").padStart(4, "0");
       const fInsp = data.fechaInspeccion ? new Date(data.fechaInspeccion + "T12:00:00").toLocaleDateString("es-AR") : "-";
       const fVenc = data.fechaVencimiento ? new Date(data.fechaVencimiento + "T12:00:00").toLocaleDateString("es-AR") : "-";
+      const DECLARACION_JURADA = `La información consignada precedentemente reviste el carácter de Declaración Jurada; su omisión o falsedad precederá al decaimiento de su validez, sin perjuicio de las sanciones que pudiera corresponder. El profesional interviniente declara que cumple con las competencias exigidas, por ley, para completar el presente trabajo.`;
 
-      // Logo
       let logoDataUrl: string | null = null;
       try {
         const resp = await fetch("/logos/logoFondoTransparente.svg");
@@ -157,15 +157,19 @@ export default function CertificadosPage() {
         p.text("contra incendio, y emergencias", cx, T + 13, { align: "center" });
         p.setFontSize(7.5); p.setTextColor(163, 31, 29);
         p.text("DOCUMENTO TIENE CARÁCTER DE DECLARACIÓN JURADA.", cx, T + 19, { align: "center" });
-        p.setTextColor(0); p.setFontSize(9); p.text(`CERTIFICADO N°${nCert}`, cx, T + 28, { align: "center" });
+        p.setTextColor(0); p.setFont(undefined, "bold"); p.setFontSize(9);
+        p.text(`CERTIFICADO  N°${nCert}`, cx, T + 28, { align: "center" });
+        p.setFont(undefined, "italic"); p.setFontSize(7); p.setTextColor(90);
+        p.text("Ingeniería contra Incendio", ML + 2, T + H - 2);
         p.line(rx, T, rx, T + H);
         const rows = [["Rubro:", data.rubro || "-"], ["Fecha:", fInsp], ["Rev. planos:", data.revPlanos || "-"], ["Pagina:", String(p.getCurrentPageInfo().pageNumber)]];
-        rows.forEach(([k, v], i) => {
+        rows.forEach(([k, v]: string[], i: number) => {
           const ry = T + (H / 4) * i + (H / 8) + 1.5;
           p.setFont(undefined, "bold"); p.text(k, rx + 2, ry);
           p.setFont(undefined, "normal"); p.text(v, rx + 24, ry);
           if (i < 3) p.line(rx, T + (H / 4) * (i + 1), W - MR, T + (H / 4) * (i + 1));
         });
+        p.line(ML, T + H, W - MR, T + H);
         return T + H + 6;
       };
 
@@ -175,31 +179,115 @@ export default function CertificadosPage() {
         body: [
           [{ content: "Fecha de Inspección", styles: { fontStyle: "bold", cellWidth: 45 } }, fInsp, { content: "Fecha de Vencimiento", styles: { fontStyle: "bold", cellWidth: 45 } }, fVenc],
           [{ content: "Sistema certificado:", styles: { fontStyle: "bold" } }, { content: data.sistemaCertificado || "-", colSpan: 3, styles: { fontStyle: "bold", textColor: [163, 31, 29] } }],
-          [{ content: "Cliente:", styles: { fontStyle: "bold" } }, { content: data.clienteNombre + (data.sedeNombre ? ` - SEDE: ${data.sedeNombre}` : ""), colSpan: 3, styles: { halign: "center", fontStyle: "bold" } }],
+          [{ content: "Cliente:", styles: { fontStyle: "bold" } }, { content: (data.clienteNombre || "-") + (data.sedeNombre ? ` - SEDE: ${data.sedeNombre}` : ""), colSpan: 3, styles: { halign: "center", fontStyle: "bold" } }],
+          [{ content: "Razón social:", styles: { fontStyle: "bold" } }, { content: data.clienteCuit || data.sedeRazonSocial || data.clienteEmpresa || "-", colSpan: 3, styles: { halign: "center" } }],
           [{ content: "Domicilio:", styles: { fontStyle: "bold" } }, { content: data.clienteDireccion || "-", colSpan: 3 }],
           [{ content: "Responsable certificado:", styles: { fontStyle: "bold" } }, { content: data.responsableCertificado || "-", colSpan: 3 }],
-          [{ content: "Empresa Certificante:", styles: { fontStyle: "bold" } }, { content: "ARIFA — INGENIERIA EN SEGURIDAD CONTRA INCENDIOS | CUIT 20-35108395-7", colSpan: 3, styles: { fontStyle: "bold", textColor: [0, 34, 68] } }],
+          [{ content: "Empresa Certificante:", styles: { fontStyle: "bold" } }, { content: "ARIFA — INGENIERIA EN SEGURIDAD CONTRA INCENDIOS  |  CUIT 20-35108395-7  |  www.arifa.com.ar", colSpan: 3, styles: { fontStyle: "bold", textColor: [0, 34, 68] } }],
         ],
         styles: { fontSize: 9, cellPadding: 4 }, tableLineColor: [0, 34, 68], tableLineWidth: 0.3,
+        didParseCell: (d: any) => { if (d.row.index === 6) d.cell.styles.fillColor = [245, 247, 255]; },
       });
-
       y = (pdf as any).lastAutoTable.finalY + 10;
-      if (data.memoriaDescriptiva) {
-        const wrapped = pdf.splitTextToSize(data.memoriaDescriptiva, TW);
-        pdf.text(wrapped, ML, y);
-        y += wrapped.length * 5 + 10;
+
+      // ── Memoria Descriptiva ────────────────────────────────────────────────
+      if (data.memoriaDescriptiva?.trim()) {
+        if (y + 14 > PAGE_BOTTOM) { pdf.addPage(); y = drawHeader(pdf) + 5; }
+        pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+        pdf.setFontSize(8); pdf.setFont(undefined as any, "bold"); pdf.setTextColor(255);
+        pdf.text("MEMORIA DESCRIPTIVA", ML + 3, y + 5);
+        y += 11;
+
+        for (const line of data.memoriaDescriptiva.split("\n")) {
+          if (!line.trim()) { y += 3; continue; }
+          const isHeader = line.trim() === line.trim().toUpperCase() && line.trim().length > 3;
+          const lineH = isHeader ? 7 : 5.5;
+          const wrapped = pdf.splitTextToSize(line.trim(), isHeader ? TW - 8 : TW);
+          const blockH = wrapped.length * lineH + (isHeader ? 10 : 0);
+          if (y + blockH > PAGE_BOTTOM) { pdf.addPage(); y = drawHeader(pdf) + 5; }
+          if (isHeader) {
+            y += 3;
+            pdf.setFillColor(240, 244, 255); pdf.rect(ML, y - 3, TW, wrapped.length * lineH + 5, "F");
+            pdf.setFillColor(0, 34, 68); pdf.rect(ML, y - 3, 3.5, wrapped.length * lineH + 5, "F");
+            pdf.setFont(undefined as any, "bold"); pdf.setFontSize(9.5); pdf.setTextColor(0, 34, 68);
+            pdf.text(wrapped, ML + 7, y + 1);
+            y += wrapped.length * lineH + 6;
+          } else {
+            pdf.setFont(undefined as any, "normal"); pdf.setFontSize(9); pdf.setTextColor(40, 40, 40);
+            pdf.text(wrapped, ML, y);
+            y += wrapped.length * lineH;
+          }
+        }
+        y += 8;
       }
 
-      // Firmas
-      if (y > 220) { pdf.addPage(); y = drawHeader(pdf) + 5; }
-      pdf.setFont(undefined as any, "bold"); pdf.text("DECLARACION JURADA:", ML, y);
-      y += 6; pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8);
-      const dj = "La información consignada precedentemente reviste el carácter de Declaración Jurada; su omisión o falsedad precederá al decaimiento de su validez...";
-      pdf.text(pdf.splitTextToSize(dj, TW), ML, y);
-      y += 15;
-      pdf.rect(ML, y, 85, 25); pdf.rect(ML + 95, y, 85, 25);
-      if (data.firmaProfesional) pdf.addImage(data.firmaProfesional, "PNG", ML + 5, y + 5, 75, 15);
-      if (data.firmaCliente) pdf.addImage(data.firmaCliente, "PNG", ML + 100, y + 5, 75, 15);
+      // ── Fotos ──────────────────────────────────────────────────────────────
+      const fotos: string[] = data.fotos || [];
+      if (fotos.length > 0) {
+        if (y + 72 > PAGE_BOTTOM) { pdf.addPage(); y = drawHeader(pdf) + 5; }
+        pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+        pdf.setFontSize(8); pdf.setFont(undefined as any, "bold"); pdf.setTextColor(255);
+        pdf.text("REGISTRO FOTOGRÁFICO", ML + 3, y + 5);
+        y += 10;
+        let col = 0;
+        const imgW = (TW - 5) / 2; const imgH = 55;
+        for (const url of fotos) {
+          try {
+            const resp = await fetch(url);
+            if (!resp.ok) continue;
+            const blob = await resp.blob();
+            const dataUrl = await new Promise<string>((res, rej) => {
+              const reader = new FileReader();
+              reader.onloadend = () => res(reader.result as string);
+              reader.onerror = rej; reader.readAsDataURL(blob);
+            });
+            const img = new Image();
+            await new Promise<void>((res) => { img.onload = () => res(); img.src = dataUrl; });
+            const cnv = document.createElement("canvas");
+            const maxPx = 1400;
+            const ratio = Math.min(maxPx / (img.naturalWidth || maxPx), maxPx / (img.naturalHeight || maxPx), 1);
+            cnv.width = Math.round((img.naturalWidth || maxPx) * ratio);
+            cnv.height = Math.round((img.naturalHeight || maxPx) * ratio);
+            cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
+            if (y + imgH > PAGE_BOTTOM) { pdf.addPage(); y = drawHeader(pdf) + 5; col = 0; }
+            pdf.addImage(cnv.toDataURL("image/jpeg", 0.82), "JPEG", ML + col * (imgW + 5), y, imgW, imgH);
+            col++;
+            if (col === 2) { col = 0; y += imgH + 5; }
+          } catch { /* skip */ }
+        }
+        if (col > 0) y += imgH + 5;
+        y += 6;
+      }
+
+      // ── Declaración Jurada + Firmas ────────────────────────────────────────
+      const djLines = pdf.splitTextToSize(DECLARACION_JURADA, TW);
+      if (y + djLines.length * 5 + 40 > PAGE_BOTTOM) { pdf.addPage(); y = drawHeader(pdf) + 5; }
+      pdf.setFillColor(248, 249, 252); pdf.rect(ML, y, TW, 6, "F");
+      pdf.setFont(undefined as any, "bold"); pdf.setFontSize(8.5); pdf.setTextColor(0, 34, 68);
+      pdf.text("DECLARACIÓN JURADA", ML + 3, y + 4); y += 9;
+      pdf.setFont(undefined as any, "normal"); pdf.setFontSize(8.5); pdf.setTextColor(40);
+      pdf.text(djLines, ML, y); y += djLines.length * 5 + 10;
+
+      if (y + 35 > PAGE_BOTTOM) { pdf.addPage(); y = drawHeader(pdf) + 5; }
+      const bw = (TW - 10) / 2;
+      pdf.rect(ML, y, bw, 28); pdf.rect(ML + bw + 10, y, bw, 28);
+      pdf.setFontSize(8); pdf.setTextColor(80);
+      pdf.text("Firma Profesional Interviniente", ML + 2, y + 4);
+      pdf.text("Firma Propietario/Responsable del Inmueble", ML + bw + 12, y + 4);
+      if (data.firmaProfesional) try { pdf.addImage(data.firmaProfesional, "PNG", ML + 5, y + 6, bw - 10, 18); } catch {}
+      if (data.firmaCliente) try { pdf.addImage(data.firmaCliente, "PNG", ML + bw + 15, y + 6, bw - 10, 18); } catch {}
+
+      // ── Pie de página ──────────────────────────────────────────────────────
+      const total = pdf.getNumberOfPages();
+      for (let i = 1; i <= total; i++) {
+        pdf.setPage(i);
+        const fy = 287;
+        pdf.setDrawColor(200); pdf.setLineWidth(0.2); pdf.line(ML, fy - 5, W - MR, fy - 5);
+        pdf.setFont(undefined as any, "italic"); pdf.setFontSize(7.5); pdf.setTextColor(120);
+        pdf.text(`Emitido el ${fInsp}.`, ML, fy);
+        pdf.text(`Página ${i} de ${total}`, W / 2, fy, { align: "center" });
+        pdf.text("ARIFA - Protección contra Incendios", W - MR, fy, { align: "right" });
+      }
 
       pdf.save(`ARIFA-Cert-${nCert}.pdf`);
     } catch (err) { alert("Error al generar PDF: " + err); }
