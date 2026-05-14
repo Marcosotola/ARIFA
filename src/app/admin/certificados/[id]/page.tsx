@@ -468,8 +468,7 @@ function CertificadosEditor() {
 
       for (const url of fotos) {
         try {
-          // Fetch directly — Firebase Storage download URLs support CORS from any origin
-          const resp = await fetch(url);
+          const resp = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
           if (!resp.ok) continue;
           const blob = await resp.blob();
           const dataUrl = await new Promise<string>((res, rej) => {
@@ -478,9 +477,9 @@ function CertificadosEditor() {
             reader.onerror = rej;
             reader.readAsDataURL(blob);
           });
-          // Draw through canvas to normalise format (handles WEBP, HEIC, etc.)
           const img = new Image();
-          await new Promise<void>((res) => { img.onload = () => res(); img.src = dataUrl; });
+          await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = dataUrl; });
+          if (!img.naturalWidth || !img.naturalHeight) continue;
           const cnv = document.createElement("canvas");
           const maxPx = 1400;
           const ratio = Math.min(maxPx / (img.naturalWidth || maxPx), maxPx / (img.naturalHeight || maxPx), 1);

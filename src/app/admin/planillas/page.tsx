@@ -55,8 +55,8 @@ interface Plantilla {
 const urlToBase64 = async (url: string) => {
   try {
     if (!url || !url.startsWith("http")) return null;
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const resp = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+    if (!resp.ok) return null;
     const blob = await resp.blob();
     const dataUrl = await new Promise<string>((res, rej) => {
       const reader = new FileReader();
@@ -64,14 +64,14 @@ const urlToBase64 = async (url: string) => {
       reader.onerror = rej;
       reader.readAsDataURL(blob);
     });
-    // Normalise to JPEG via canvas (handles WEBP, HEIC, etc.)
     const img = new Image();
-    await new Promise<void>(res => { img.onload = () => res(); img.src = dataUrl; });
+    await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = dataUrl; });
+    if (!img.naturalWidth || !img.naturalHeight) return null;
     const cnv = document.createElement("canvas");
     const maxPx = 1200;
-    const ratio = Math.min(maxPx / (img.naturalWidth || maxPx), maxPx / (img.naturalHeight || maxPx), 1);
-    cnv.width = Math.round((img.naturalWidth || maxPx) * ratio);
-    cnv.height = Math.round((img.naturalHeight || maxPx) * ratio);
+    const ratio = Math.min(maxPx / img.naturalWidth, maxPx / img.naturalHeight, 1);
+    cnv.width = Math.round(img.naturalWidth * ratio);
+    cnv.height = Math.round(img.naturalHeight * ratio);
     cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
     return cnv.toDataURL("image/jpeg", 0.82);
   } catch { return null; }
