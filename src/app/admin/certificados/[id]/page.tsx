@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, addDoc, updateDoc, doc, getDoc, query, orderBy, serverTimestamp, where } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, setDoc, doc, getDoc, query, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dynamic from "next/dynamic";
 import { 
@@ -211,10 +211,16 @@ function CertificadosEditor() {
 
   const loadNextNum = async () => {
     try {
-      const snap = await getDocs(collection(db, "certificados"));
-      const nums = snap.docs.map(d => (d.data() as any).numero || 0);
-      const n = nums.length ? Math.max(...nums) + 1 : 1;
-      setNextNum(n); setNumero(String(n));
+      const configSnap = await getDoc(doc(db, "configuracion", "certificados"));
+      if (configSnap.exists()) {
+        const n = configSnap.data().proximoNumero || 1;
+        setNextNum(n); setNumero(String(n));
+      } else {
+        const snap = await getDocs(collection(db, "certificados"));
+        const nums = snap.docs.map(d => (d.data() as any).numero || 0);
+        const n = nums.length ? Math.max(...nums) + 1 : 1;
+        setNextNum(n); setNumero(String(n));
+      }
     } catch { setNumero("1"); }
   };
 
@@ -277,16 +283,17 @@ function CertificadosEditor() {
       };
       if (isNuevo) {
         await addDoc(collection(db, "certificados"), { ...payload, createdAt: serverTimestamp() });
+        await setDoc(doc(db, "configuracion", "certificados"), { proximoNumero: (parseInt(numero) || nextNum) + 1 }, { merge: true });
       } else {
         await updateDoc(doc(db, "certificados", params.id as string), payload);
       }
 
       if (clienteSeleccionado?.id) {
         await updateDoc(doc(db, "usuarios", clienteSeleccionado.id), {
-          nombre: clienteNombre || clienteSeleccionado.nombre,
-          empresa: clienteEmpresa || clienteSeleccionado.empresa,
-          cuit: clienteCuit || clienteSeleccionado.cuit,
-          direccion: clienteDireccion || clienteSeleccionado.direccion,
+          nombre: clienteNombre || clienteSeleccionado.nombre || null,
+          empresa: clienteEmpresa || clienteSeleccionado.empresa || null,
+          cuit: clienteCuit || clienteSeleccionado.cuit || null,
+          direccion: clienteDireccion || clienteSeleccionado.direccion || null,
           updatedAt: serverTimestamp()
         }).catch(err => console.error("Error updating client profile:", err));
       }
