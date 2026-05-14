@@ -3,7 +3,7 @@ import { useEffect, useState, useRef, Suspense } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, addDoc, updateDoc, setDoc, doc, getDoc, query, serverTimestamp, where } from "firebase/firestore";
+import { collection, getDocs, addDoc, updateDoc, setDoc, doc, getDoc, query, orderBy, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dynamic from "next/dynamic";
 import { useToast, Toast } from "@/components/Toast";
@@ -37,13 +37,6 @@ const PASOS_ICONS = [
 
 const DECLARACION_JURADA = `DECLARACION JURADA: La información consignada precedentemente reviste el carácter de Declaración Jurada; su omisión o falsedad precederá al decaimiento de su validez, sin perjuicio de las sanciones que pudiera corresponder. El profesional interviniente declara que cumple con las competencias exigidas, por ley, para completar el presente trabajo.`;
 
-const TEXTOS_ESTANDAR: Record<string, string> = {
-  "Detección y Alarma": `SISTEMA DE DETECCION Y ALARMA CONTRA INCENDIOS\nSe certifica que el establecimiento cuenta con un sistema de detección temprana de incendios, compuesto por una central de control, detectores automáticos de humo/temperatura, pulsadores manuales de alarma y avisadores sonoro-lumínicos. El sistema se encuentra operativo y cumple con las condiciones de mantenimiento preventivo.`,
-  "Hidrantes": `SISTEMA DE EXTINCION POR AGUA (HIDRANTES)\nSe certifica la operatividad de la red de incendio compuesta por bocas de incendio equipadas (BIE). Se ha verificado la presencia de mangueras, lanzas y llaves de ajustar en cada gabinete, así como la presión estática y dinámica en los puntos más desfavorables.`,
-  "Rociadores": `SISTEMA DE ROCIADORES AUTOMATICOS (SPRINKLERS)\nSe certifica que el sistema de rociadores automáticos se encuentra bajo presión y con sus válvulas de control en posición abierta. Se ha verificado el estado de las cabezas rociadoras, la ausencia de obstrucciones y el correcto funcionamiento de las alarmas de flujo.`,
-  "Iluminación de Emergencia": `SISTEMA DE ILUMINACION DE EMERGENCIA\nSe ha verificado el correcto funcionamiento de las unidades de iluminación de emergencia autónomas distribuidas en los medios de salida. Se realizó la prueba de autonomía mínima requerida, asegurando los niveles de iluminancia necesarios para la evacuación segura del personal.`,
-  "Señalización": `SEÑALIZACION DE MEDIOS DE ESCAPE\nEl establecimiento cuenta con señalización indicativa de salidas y medios de escape conforme a normativa vigente. Los carteles son fotoluminiscentes y/o iluminados, permitiendo la clara identificación de las rutas de egreso.`,
-};
 
 const labelSt: React.CSSProperties = { display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.4px" };
 const inputSt: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none", boxSizing: "border-box" };
@@ -89,6 +82,7 @@ function CertificadosEditor() {
 
   // Memoria
   const [memoriaDescriptiva, setMemoriaDescriptiva] = useState("");
+  const [textosEstandar, setTextosEstandar] = useState<{ id: string; titulo: string; contenido: string }[]>([]);
 
   // Fotos
   const [fotos, setFotos] = useState<string[]>([]);
@@ -131,6 +125,12 @@ function CertificadosEditor() {
     });
     return () => unsub();
   }, [fromOt]);
+
+  useEffect(() => {
+    getDocs(query(collection(db, "textos_memoria"), orderBy("createdAt", "asc")))
+      .then(snap => setTextosEstandar(snap.docs.map(d => ({ id: d.id, ...d.data() } as any))))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!loading && searchParams.get("download") === "true") {
@@ -766,10 +766,10 @@ function CertificadosEditor() {
             </p>
             <div style={{ marginBottom: "15px", display: "flex", gap: "8px", flexWrap: "wrap" }}>
               <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#666", alignSelf: "center" }}>Insertar texto estándar:</span>
-              {Object.keys(TEXTOS_ESTANDAR).map(key => (
-                <button key={key} type="button" onClick={() => setMemoriaDescriptiva(prev => prev + (prev ? "\n\n" : "") + TEXTOS_ESTANDAR[key])}
+              {textosEstandar.map(t => (
+                <button key={t.id} type="button" onClick={() => setMemoriaDescriptiva(prev => prev + (prev ? "\n\n" : "") + t.contenido)}
                   style={{ padding: "4px 10px", borderRadius: "15px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.7rem", fontWeight: 700, cursor: "pointer", color: "var(--primary-blue)" }}>
-                  + {key}
+                  + {t.titulo}
                 </button>
               ))}
             </div>

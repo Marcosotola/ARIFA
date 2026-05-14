@@ -2,11 +2,11 @@
 import { useEffect, useState } from "react";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Eye, Edit, Download, Trash2, Scroll } from "lucide-react";
+import { Plus, Eye, Edit, Download, Trash2, Scroll, BookText, ClipboardList } from "lucide-react";
 
 
 interface Certificado {
@@ -21,6 +21,12 @@ interface Certificado {
   clienteId?: string;
   estado: "borrador" | "emitido";
   createdAt: any;
+}
+
+interface TextoMemoria {
+  id: string;
+  titulo: string;
+  contenido: string;
 }
 
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
@@ -40,7 +46,12 @@ export default function CertificadosPage() {
   const [dateTo, setDateTo] = useState("");
   const [filtroSede, setFiltroSede] = useState("Todas");
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+  const [activeTab, setActiveTab] = useState<"listado" | "textos">("listado");
+  const [textos, setTextos] = useState<TextoMemoria[]>([]);
+  const [textoModal, setTextoModal] = useState<null | "create" | "edit">(null);
+  const [formTexto, setFormTexto] = useState({ titulo: "", contenido: "", id: "" });
+  const [deletingTexto, setDeletingTexto] = useState<string | null>(null);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -84,6 +95,47 @@ export default function CertificadosPage() {
       setCerts(all);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  const fetchTextos = async () => {
+    try {
+      const snap = await getDocs(query(collection(db, "textos_memoria"), orderBy("createdAt", "asc")));
+      if (snap.empty) {
+        const ejemplos = [
+          { titulo: "Detección y Alarma", contenido: "SISTEMA DE DETECCION Y ALARMA CONTRA INCENDIOS\nSe certifica que el establecimiento cuenta con un sistema de detección temprana de incendios, compuesto por una central de control, detectores automáticos de humo/temperatura, pulsadores manuales de alarma y avisadores sonoro-lumínicos. El sistema se encuentra operativo y cumple con las condiciones de mantenimiento preventivo." },
+          { titulo: "Hidrantes", contenido: "SISTEMA DE EXTINCION POR AGUA (HIDRANTES)\nSe certifica la operatividad de la red de incendio compuesta por bocas de incendio equipadas (BIE). Se ha verificado la presencia de mangueras, lanzas y llaves de ajustar en cada gabinete, así como la presión estática y dinámica en los puntos más desfavorables." },
+        ];
+        for (const e of ejemplos) {
+          await addDoc(collection(db, "textos_memoria"), { ...e, createdAt: serverTimestamp() });
+        }
+        const snap2 = await getDocs(query(collection(db, "textos_memoria"), orderBy("createdAt", "asc")));
+        setTextos(snap2.docs.map(d => ({ id: d.id, ...d.data() } as TextoMemoria)));
+      } else {
+        setTextos(snap.docs.map(d => ({ id: d.id, ...d.data() } as TextoMemoria)));
+      }
+    } catch { setTextos([]); }
+  };
+
+  const handleSaveTexto = async () => {
+    if (!formTexto.titulo.trim() || !formTexto.contenido.trim()) return;
+    try {
+      if (formTexto.id) {
+        await updateDoc(doc(db, "textos_memoria", formTexto.id), { titulo: formTexto.titulo.trim(), contenido: formTexto.contenido.trim() });
+      } else {
+        await addDoc(collection(db, "textos_memoria"), { titulo: formTexto.titulo.trim(), contenido: formTexto.contenido.trim(), createdAt: serverTimestamp() });
+      }
+      setTextoModal(null);
+      setFormTexto({ titulo: "", contenido: "", id: "" });
+      fetchTextos();
+    } catch (e) { alert("Error al guardar: " + e); }
+  };
+
+  const handleDeleteTexto = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "textos_memoria", id));
+      setTextos(prev => prev.filter(t => t.id !== id));
+      setDeletingTexto(null);
+    } catch (e) { alert("Error al eliminar: " + e); }
   };
 
   const handleDelete = async (id: string) => {
@@ -338,17 +390,38 @@ export default function CertificadosPage() {
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
             {isReadOnly ? "Mis Certificados" : "Certificados de Instalación"}
           </h1>
-          <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Generá y gestioná certificados con carácter de Declaración Jurada.</p>
+          <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>{activeTab === "listado" ? "Generá y gestioná certificados con carácter de Declaración Jurada." : "Gestioná los textos predefinidos para la Memoria Descriptiva."}</p>
         </div>
         {isStaff && !isReadOnly && (
-          <Link href="/admin/certificados/nuevo" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
-            <Plus size={18} /> Nuevo Certificado
-          </Link>
+          activeTab === "listado" ? (
+            <Link href="/admin/certificados/nuevo" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
+              <Plus size={18} /> Nuevo Certificado
+            </Link>
+          ) : isAdmin && (
+            <button onClick={() => { setFormTexto({ titulo: "", contenido: "", id: "" }); setTextoModal("create"); }} className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", border: "none", cursor: "pointer" }}>
+              <Plus size={18} /> Nuevo Texto
+            </button>
+          )
         )}
       </header>
 
+      {isAdmin && !isReadOnly && (
+        <div style={{ display: "flex", gap: "8px", background: "#f1f5f9", padding: "6px", borderRadius: "14px", marginBottom: "24px", width: "fit-content" }}>
+          <button type="button"
+            onClick={() => { setActiveTab("listado"); setSearch(""); }}
+            style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid", borderColor: activeTab === "listado" ? "#3b82f6" : "#bfdbfe", background: activeTab === "listado" ? "#fff" : "#eff6ff", fontWeight: 800, color: "#3b82f6", cursor: "pointer", boxShadow: activeTab === "listado" ? "0 4px 12px rgba(59,130,246,0.15)" : "none", display: "flex", alignItems: "center", gap: "8px", transition: "0.3s" }}>
+            <ClipboardList size={18} strokeWidth={2.5} /> Listado
+          </button>
+          <button type="button"
+            onClick={() => { setActiveTab("textos"); fetchTextos(); }}
+            style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid", borderColor: activeTab === "textos" ? "#16a34a" : "#bbf7d0", background: activeTab === "textos" ? "#fff" : "#f0fdf4", fontWeight: 800, color: "#16a34a", cursor: "pointer", boxShadow: activeTab === "textos" ? "0 4px 12px rgba(22,163,74,0.15)" : "none", display: "flex", alignItems: "center", gap: "8px", transition: "0.3s" }}>
+            <BookText size={18} strokeWidth={2.5} /> Textos
+          </button>
+        </div>
+      )}
+
       {/* FILTERS */}
-      <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
+      <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: activeTab === "listado" ? "flex" : "none", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
         <div style={{ flex: 1, minWidth: "220px" }}>
           <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>
             {isReadOnly ? "Buscar por Certificado o Sistema" : "Buscar por Certificado o Cliente"}
@@ -400,7 +473,7 @@ export default function CertificadosPage() {
         </button>
       </div>
 
-      <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden", marginBottom: "20px" }}>
+      <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden", marginBottom: "20px", display: activeTab === "listado" ? undefined : "none" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>Cargando certificados...</div>
         ) : filteredCerts.length === 0 ? (
@@ -564,6 +637,75 @@ export default function CertificadosPage() {
           </>
         )}
       </div>
+
+      {activeTab === "textos" && (
+        <div style={{ marginBottom: "20px" }}>
+          {textos.length === 0 ? (
+            <div style={{ background: "#fff", borderRadius: "12px", padding: "60px", textAlign: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
+              <div style={{ fontSize: "3rem", marginBottom: "12px", opacity: 0.3 }}>📝</div>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>No hay textos creados aún. Usá "+ Nuevo Texto" para agregar el primero.</p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "16px" }}>
+              {textos.map(t => (
+                <div key={t.id} style={{ background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", border: "1px solid #eee" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                    <span style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "0.95rem" }}>{t.titulo}</span>
+                    {isAdmin && (
+                      <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "10px" }}>
+                        <button type="button" onClick={() => { setFormTexto({ titulo: t.titulo, contenido: t.contenido, id: t.id }); setTextoModal("edit"); }} style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #ddd", background: "#f0f7ff", color: "#0061ff", cursor: "pointer", display: "flex" }}>
+                          <Edit size={14} />
+                        </button>
+                        <button type="button" onClick={() => setDeletingTexto(t.id)} style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", color: "var(--primary-red)", cursor: "pointer", display: "flex" }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <p style={{ fontSize: "0.82rem", color: "#666", lineHeight: "1.6", margin: 0, whiteSpace: "pre-wrap", maxHeight: "80px", overflow: "hidden" }}>
+                    {t.contenido}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {textoModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "560px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
+            <h3 style={{ fontWeight: 800, marginBottom: "20px", color: "var(--primary-blue)" }}>
+              {textoModal === "create" ? "Nuevo texto de memoria" : "Editar texto"}
+            </h3>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Título (nombre de la píldora)</label>
+              <input value={formTexto.titulo} onChange={e => setFormTexto(f => ({ ...f, titulo: e.target.value }))} placeholder="Ej: Detección y Alarma" style={{ width: "100%", padding: "10px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Contenido</label>
+              <textarea value={formTexto.contenido} onChange={e => setFormTexto(f => ({ ...f, contenido: e.target.value }))} rows={8} style={{ width: "100%", padding: "10px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.88rem", resize: "vertical", fontFamily: "inherit", lineHeight: "1.6", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button type="button" onClick={() => { setTextoModal(null); setFormTexto({ titulo: "", contenido: "", id: "" }); }} style={{ flex: 1, padding: "12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+              <button type="button" onClick={handleSaveTexto} className="btn-red" style={{ flex: 1, padding: "12px" }}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingTexto && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "400px", width: "100%" }}>
+            <h3 style={{ fontWeight: 800, marginBottom: "12px" }}>¿Eliminar texto?</h3>
+            <p style={{ color: "var(--text-muted)", marginBottom: "25px", fontSize: "0.9rem" }}>Esta acción no se puede deshacer.</p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button type="button" onClick={() => setDeletingTexto(null)} style={{ flex: 1, padding: "12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+              <button type="button" onClick={() => handleDeleteTexto(deletingTexto)} className="btn-red" style={{ flex: 1, padding: "12px" }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {deleteConfirm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
