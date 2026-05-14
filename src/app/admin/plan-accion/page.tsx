@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { 
@@ -60,6 +61,7 @@ export default function PlanAccionPage() {
   const [modal, setModal] = useState<"create" | "edit" | "view" | null>(null);
   const [selectedItem, setSelectedItem] = useState<PlanItem | null>(null);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const router = useRouter();
 
@@ -165,7 +167,7 @@ export default function PlanAccionPage() {
   };
 
   const handleCreateNewClient = async () => {
-    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios");
+    if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios.", "error"); return; }
     try {
       setSaving(true);
       const docRef = await addDoc(collection(db, "usuarios"), {
@@ -179,7 +181,7 @@ export default function PlanAccionPage() {
       setShowNewClientModal(false);
       setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
     } catch (e) {
-      alert("Error al crear cliente: " + e);
+      showToast("Error al crear cliente. Intentá de nuevo.", "error");
     } finally {
       setSaving(false);
     }
@@ -211,7 +213,7 @@ export default function PlanAccionPage() {
   };
 
   const handleSave = async () => {
-    if (!fCliente || !fDetalle) { alert("Cliente y Detalle son obligatorios."); return; }
+    if (!fCliente || !fDetalle) { showToast("Cliente y Detalle son obligatorios.", "error"); return; }
     setSaving(true);
     try {
       const payload: any = {
@@ -237,7 +239,8 @@ export default function PlanAccionPage() {
       }
       setModal(null);
       fetchItems(role as string, currentUser, uid || "");
-    } catch (e) { alert("Error al guardar."); }
+      showToast("Elemento guardado correctamente", "success");
+    } catch (e) { showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -246,7 +249,7 @@ export default function PlanAccionPage() {
       await deleteDoc(doc(db, "plan_accion", id));
       setDeleteConfirm(null);
       fetchItems(role as string, currentUser, uid || "");
-    } catch { alert("Error al eliminar."); }
+    } catch { showToast("Error al eliminar. Intentá de nuevo.", "error"); }
   };
 
   const filtered = items.filter(i => {
@@ -824,6 +827,7 @@ export default function PlanAccionPage() {
           .show-on-mobile { display: flex !important; }
         }
       `}</style>
+      <Toast {...toast} />
     </div>
   );
 }

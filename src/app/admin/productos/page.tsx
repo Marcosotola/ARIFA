@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -72,6 +73,7 @@ export default function AdminProductos() {
   const [form, setForm] = useState({ ...EMPTY });
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filtroCat, setFiltroCat] = useState("Todas");
@@ -140,7 +142,7 @@ export default function AdminProductos() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.titulo.trim()) { alert("El título es obligatorio."); return; }
+    if (!form.titulo.trim()) { showToast("El título es obligatorio.", "error"); return; }
     setSaving(true);
     try {
       // 1. Upload new files
@@ -188,7 +190,8 @@ export default function AdminProductos() {
       setImageFiles([]);
       setPreviews([]);
       await fetch();
-    } catch (err) { alert("Error al guardar: " + err); }
+      showToast("Producto guardado correctamente", "success");
+    } catch (err) { showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -203,7 +206,7 @@ export default function AdminProductos() {
       await deleteDoc(doc(db, "productos", id));
       setDeleteConfirm(null);
       setProductos(prev => prev.filter(p => p.id !== id));
-    } catch { alert("Error al eliminar."); }
+    } catch { showToast("Error al eliminar. Intentá de nuevo.", "error"); }
   };
 
   const toggleActivo = async (p: Producto) => {
@@ -455,6 +458,7 @@ export default function AdminProductos() {
           </div>
         </div>
       )}
+      <Toast {...toast} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy, addDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -39,6 +40,7 @@ export default function UsuariosPage() {
   const [viewingUser, setViewingUser] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const { toast, showToast } = useToast();
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -112,21 +114,22 @@ export default function UsuariosPage() {
       
       await fetchUsuarios();
       setIsModalOpen(false);
+      showToast("Usuario guardado correctamente", "success");
     } catch (e) {
-      alert("Error al guardar usuario");
+      showToast("Error al guardar usuario. Intentá de nuevo.", "error");
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (id === currentUser?.uid) { alert("No podés eliminar tu propia cuenta."); return; }
+    if (id === currentUser?.uid) { showToast("No podés eliminar tu propia cuenta.", "error"); return; }
     if (!confirm("¿Eliminar este usuario? Esta acción no se puede deshacer.")) return;
     setActionLoading(true);
     try {
       await deleteDoc(doc(db, "usuarios", id));
       setUsuarios(usuarios.filter(u => u.id !== id));
-    } catch { alert("Error al eliminar"); }
+    } catch { showToast("Error al eliminar. Intentá de nuevo.", "error"); }
     finally { setActionLoading(false); }
   };
 
@@ -165,7 +168,7 @@ export default function UsuariosPage() {
     const rs = (document.getElementById("sede-rs") as HTMLInputElement)?.value;
 
     if (!nombre) {
-      alert("El nombre es obligatorio para la sede.");
+      showToast("El nombre es obligatorio para la sede.", "error");
       return;
     }
 
@@ -548,6 +551,7 @@ export default function UsuariosPage() {
           </div>
         </div>
       )}
+      <Toast {...toast} />
     </div>
   );
 }

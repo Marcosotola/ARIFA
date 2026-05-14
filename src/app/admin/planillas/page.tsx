@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { 
@@ -238,6 +239,7 @@ export default function OTUnifiedPage() {
   const [editingPlantilla, setEditingPlantilla] = useState<Plantilla | null>(null);
 
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [newInfoField, setNewInfoField] = useState("");
   const [newCol, setNewCol] = useState("");
 
@@ -340,11 +342,11 @@ export default function OTUnifiedPage() {
         setPlantillas(prev => prev.filter(p => p.id !== deleteConfirm.id));
       }
       setDeleteConfirm(null);
-    } catch (e) { alert("Error al eliminar."); }
+    } catch (e) { showToast("Error al eliminar. Intentá de nuevo.", "error"); }
   };
 
   const handleSavePlantilla = async () => {
-    if (!formPlantilla.codigo || !formPlantilla.nombre) { alert("Código y nombre son obligatorios."); return; }
+    if (!formPlantilla.codigo || !formPlantilla.nombre) { showToast("Código y nombre son obligatorios.", "error"); return; }
     setSaving(true);
     try {
       const payload: any = {
@@ -373,7 +375,8 @@ export default function OTUnifiedPage() {
       }
       setModalGestor(null);
       await fetchPlantillas();
-    } catch (e) { alert("Error al guardar: " + e); }
+      showToast("Plantilla guardada correctamente", "success");
+    } catch (e) { showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -735,6 +738,7 @@ export default function OTUnifiedPage() {
         </div>
       )}
 
+      <Toast {...toast} />
     </div>
   );
 }

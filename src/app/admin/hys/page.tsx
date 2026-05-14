@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -116,6 +117,7 @@ export default function HySPage() {
   const [detailDoc, setDetailDoc] = useState<HySDoc | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [uploading, setUploading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -263,7 +265,7 @@ export default function HySPage() {
         urls.push(await getDownloadURL(r));
       }
       setFImagenes(prev => [...prev, ...urls]);
-    } catch { alert("Error al subir el archivo."); }
+    } catch { showToast("Error al subir el archivo. Intentá de nuevo.", "error"); }
     finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -273,8 +275,8 @@ export default function HySPage() {
   const removeImagen = (idx: number) => setFImagenes(prev => prev.filter((_, i) => i !== idx));
 
   const handleSave = async () => {
-    if (!fCliente.trim()) { alert("El campo cliente es obligatorio."); return; }
-    if (!fFecha) { alert("La fecha es obligatoria."); return; }
+    if (!fCliente.trim()) { showToast("El campo cliente es obligatorio.", "error"); return; }
+    if (!fFecha) { showToast("La fecha es obligatoria.", "error"); return; }
     setSaving(true);
     try {
       const hasExpediente = fTipos.includes("Expediente CIEC") || fTipos.includes("Expediente Bomberos");
@@ -320,7 +322,8 @@ export default function HySPage() {
 
       setModal(null);
       await fetchDocs(role as string, currentUser);
-    } catch (e) { alert("Error al guardar: " + e); }
+      showToast("Documento guardado correctamente", "success");
+    } catch (e) { showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -336,7 +339,7 @@ export default function HySPage() {
       await deleteDoc(doc(db, "hys_documentos", id));
       setDeleteConfirm(null);
       setDocs(prev => prev.filter(d => d.id !== id));
-    } catch { alert("Error al eliminar."); }
+    } catch { showToast("Error al eliminar. Intentá de nuevo.", "error"); }
   };
 
   const onSelectCliente = (u: any) => {
@@ -351,7 +354,7 @@ export default function HySPage() {
   };
 
   const handleCreateNewClient = async () => {
-    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios");
+    if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios.", "error"); return; }
     try {
       const docRef = await addDoc(collection(db, "usuarios"), {
         ...newClientData,
@@ -364,7 +367,7 @@ export default function HySPage() {
       setShowNewClientModal(false);
       setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
     } catch (e) {
-      alert("Error al crear cliente: " + e);
+      showToast("Error al crear cliente. Intentá de nuevo.", "error");
     }
   };
 
@@ -1299,6 +1302,7 @@ export default function HySPage() {
           </div>
         </div>
       )}
+      <Toast {...toast} />
     </div>
   );
 }

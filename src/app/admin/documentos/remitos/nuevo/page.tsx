@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useRef } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc, setDoc } from "firebase/firestore";
@@ -19,6 +20,7 @@ function NuevoRemitoContent() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [numero, setNumero] = useState<number | "">("");
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0]);
@@ -153,9 +155,9 @@ function NuevoRemitoContent() {
   const removeItem = (id: string) => setItems(prev => prev.filter(it => it.id !== id));
 
   const handleSave = async () => {
-    if (!clienteNombre.trim()) { alert("El nombre del cliente es obligatorio."); return; }
-    if (!numero) { alert("El número de remito es obligatorio."); return; }
-    if (items.some(it => !it.descripcion.trim())) { alert("Todos los ítems deben tener descripción."); return; }
+    if (!clienteNombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
+    if (!numero) { showToast("El número de remito es obligatorio.", "error"); return; }
+    if (items.some(it => !it.descripcion.trim())) { showToast("Todos los ítems deben tener descripción.", "error"); return; }
     setSaving(true);
     try {
       const payload: any = {
@@ -178,8 +180,9 @@ function NuevoRemitoContent() {
       } else {
         await updateDoc(doc(db, "remitos_doc", editId), payload);
       }
-      router.push("/admin/documentos/remitos");
-    } catch (e) { console.error(e); alert("Error al guardar."); }
+      showToast("Remito guardado correctamente", "success");
+      setTimeout(() => router.push("/admin/documentos/remitos"), 1200);
+    } catch (e) { console.error(e); showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -343,6 +346,7 @@ function NuevoRemitoContent() {
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
         }
       `}</style>
+      <Toast {...toast} />
     </div>
   );
 }

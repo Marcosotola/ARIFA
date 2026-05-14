@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, updateDoc, onSnapshot, setDoc, Timestamp, collection, query, orderBy, limit } from "firebase/firestore";
@@ -11,6 +12,7 @@ export default function SuscripcionPage() {
   const [loading, setLoading] = useState(true);
   const [subscription, setSubscription] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [message, setMessage] = useState("");
   const [pagos, setPagos] = useState<any[]>([]);
   const [showMpEmailModal, setShowMpEmailModal] = useState(false);
@@ -98,7 +100,7 @@ export default function SuscripcionPage() {
 
   const handlePayment = async () => {
     if (!mpEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mpEmail)) {
-      alert("Ingresá un correo electrónico válido.");
+      showToast("Ingresá un correo electrónico válido.", "error");
       return;
     }
     setShowMpEmailModal(false);
@@ -117,11 +119,11 @@ export default function SuscripcionPage() {
         window.location.href = data.init_point;
       } else {
         const errorMsg = data.details || data.error || "Error desconocido";
-        alert(`Error al generar el link de pago: ${errorMsg}. Verificá la configuración de Mercado Pago.`);
+        showToast(`Error al generar el link: ${errorMsg}`, "error");
       }
     } catch (error) {
       console.error(error);
-      alert("Error al procesar el pago.");
+      showToast("Error al procesar el pago. Intentá de nuevo.", "error");
     } finally {
       setSaving(false);
     }
@@ -362,6 +364,7 @@ export default function SuscripcionPage() {
           <li>Una vez realizado el pago, el servicio se reactivará instantáneamente.</li>
         </ul>
       </div>
+      <Toast {...toast} />
     </div>
   );
 }

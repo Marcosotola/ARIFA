@@ -5,6 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
+import { useToast, Toast } from "@/components/Toast";
 import { 
   ArrowLeft, 
   Save, 
@@ -37,6 +38,7 @@ export default function NuevoRemitoPage() {
   const editId = searchParams.get("edit");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const sigCanvas = useRef<any>(null);
 
   // Datos del Remito
@@ -205,11 +207,11 @@ export default function NuevoRemitoPage() {
   };
 
   const handleSave = async () => {
-    if (!nombre.trim()) return alert("El nombre del cliente es obligatorio.");
-    if (equipos.length === 0) return alert("Debes agregar al menos un equipo.");
-    if (equipos.some(eq => !eq.cantidad)) return alert("Todos los renglones deben tener una cantidad definida.");
-    if (!editId && (!sigCanvas.current || sigCanvas.current.isEmpty())) return alert("El cliente debe firmar el remito.");
-    if (!aclaracion.trim()) return alert("Por favor, ingresa la aclaración de la firma.");
+    if (!nombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
+    if (equipos.length === 0) { showToast("Debés agregar al menos un equipo.", "error"); return; }
+    if (equipos.some(eq => !eq.cantidad)) { showToast("Todos los renglones deben tener una cantidad definida.", "error"); return; }
+    if (!editId && (!sigCanvas.current || sigCanvas.current.isEmpty())) { showToast("El cliente debe firmar el remito.", "error"); return; }
+    if (!aclaracion.trim()) { showToast("Ingresá la aclaración de la firma.", "error"); return; }
 
     setSaving(true);
     try {
@@ -284,11 +286,11 @@ export default function NuevoRemitoPage() {
 
       await Promise.all(updates);
 
-      alert(editId ? "¡Remito actualizado!" : "¡Remito generado con éxito!");
-      router.push("/admin/planillas/matafuegos?tab=remitos");
+      showToast(editId ? "Remito actualizado correctamente" : "Remito generado con éxito", "success");
+      setTimeout(() => router.push("/admin/planillas/matafuegos?tab=remitos"), 1200);
     } catch (e) {
       console.error(e);
-      alert("Error al guardar.");
+      showToast("Error al guardar. Intentá de nuevo.", "error");
     } finally {
       setSaving(false);
     }
@@ -624,7 +626,7 @@ export default function NuevoRemitoPage() {
                       onClick={() => {
                         const n = (document.getElementById("new-sede-nombre") as HTMLInputElement).value;
                         const d = (document.getElementById("new-sede-direccion") as HTMLInputElement).value;
-                        if (!n) return alert("Nombre de sede obligatorio");
+                        if (!n) { showToast("Nombre de sede obligatorio", "error"); return; }
                         const newSede = { id: Math.random().toString(36).substr(2, 9), nombre: n, direccion: d };
                         setNewClientData({...newClientData, sedes: [...newClientData.sedes, newSede]});
                         (document.getElementById("new-sede-nombre") as HTMLInputElement).value = "";
@@ -642,7 +644,7 @@ export default function NuevoRemitoPage() {
                 <button onClick={() => setShowNewClientModal(false)} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 700 }}>Cancelar</button>
                 <button 
                 onClick={async () => {
-                  if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios.");
+                  if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios.", "error"); return; }
                   try {
                     const docRef = await addDoc(collection(db, "usuarios"), {
                       ...newClientData,
@@ -655,7 +657,7 @@ export default function NuevoRemitoPage() {
                     setShowNewClientModal(false);
                     setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", cargo: "", sedes: [] });
                   } catch (e) {
-                    alert("Error al crear cliente.");
+                    showToast("Error al crear cliente. Intentá de nuevo.", "error");
                   }
                 }}
                 className="btn-red" style={{ flex: 2, padding: "14px", borderRadius: "12px", fontWeight: 800, textTransform: "uppercase" }}>
@@ -665,6 +667,7 @@ export default function NuevoRemitoPage() {
           </div>
         </div>
       )}
+      <Toast {...toast} />
     </div>
   );
 }

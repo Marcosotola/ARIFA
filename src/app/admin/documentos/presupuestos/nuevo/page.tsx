@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -53,6 +54,7 @@ function NuevoPresupuestoContent() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Datos del presupuesto
@@ -279,9 +281,9 @@ function NuevoPresupuestoContent() {
   };
 
   const handleSave = async () => {
-    if (!clienteNombre.trim()) { alert("El nombre del cliente es obligatorio."); return; }
-    if (items.some(it => !it.descripcion.trim())) { alert("Todos los renglones deben tener una descripción."); return; }
-    if (!numero) { alert("El número de presupuesto es obligatorio."); return; }
+    if (!clienteNombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
+    if (items.some(it => !it.descripcion.trim())) { showToast("Todos los renglones deben tener una descripción.", "error"); return; }
+    if (!numero) { showToast("El número de presupuesto es obligatorio.", "error"); return; }
     setSaving(true);
     try {
       const payload: any = {
@@ -323,8 +325,9 @@ function NuevoPresupuestoContent() {
         delete payload.estado;
         await updateDoc(doc(db, "presupuestos", editId), payload);
       }
-      router.push("/admin/documentos/presupuestos");
-    } catch (e) { console.error(e); alert("Error al guardar."); }
+      showToast("Presupuesto guardado correctamente", "success");
+      setTimeout(() => router.push("/admin/documentos/presupuestos"), 1200);
+    } catch (e) { console.error(e); showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -511,7 +514,7 @@ function NuevoPresupuestoContent() {
             </button>
             <button
               onClick={() => {
-                if (!clienteSeleccionado) { alert("Seleccioná un cliente para ver su Plan de Acción."); return; }
+                if (!clienteSeleccionado) { showToast("Seleccioná un cliente para ver su Plan de Acción.", "error"); return; }
                 setShowPlanAccionModal(true);
               }}
               style={{ padding: "8px 14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", background: "#fff9f0", color: "#92400e", border: "1px solid #fef3c7", fontSize: "0.8rem" }}
@@ -767,7 +770,7 @@ function NuevoPresupuestoContent() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!newSedeNombre.trim()) { alert("El nombre de la sede es obligatorio."); return; }
+                      if (!newSedeNombre.trim()) { showToast("El nombre de la sede es obligatorio.", "error"); return; }
                       setNewClientData({
                         ...newClientData,
                         sedes: [...newClientData.sedes, { id: crypto.randomUUID(), nombre: newSedeNombre.trim(), direccion: newSedeDireccion.trim() }],
@@ -791,7 +794,7 @@ function NuevoPresupuestoContent() {
               </button>
               <button
                 onClick={async () => {
-                  if (!newClientData.nombre || !newClientData.email) { alert("Nombre y Email son obligatorios."); return; }
+                  if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios.", "error"); return; }
                   try {
                     const docRef = await addDoc(collection(db, "usuarios"), {
                       ...newClientData,
@@ -803,7 +806,7 @@ function NuevoPresupuestoContent() {
                     onSelectCliente(docRef.id);
                     setShowNewClientModal(false);
                     setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", cargo: "", sedes: [] });
-                  } catch { alert("Error al crear cliente."); }
+                  } catch { showToast("Error al crear cliente. Intentá de nuevo.", "error"); }
                 }}
                 className="btn-red"
                 style={{ flex: 2, padding: "14px", borderRadius: "12px", fontWeight: 800, textTransform: "uppercase" }}
@@ -904,6 +907,7 @@ function NuevoPresupuestoContent() {
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
         }
       `}</style>
+      <Toast {...toast} />
     </div>
   );
 }

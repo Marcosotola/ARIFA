@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useRef, Suspense } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -86,6 +87,7 @@ function OTFormContent() {
   const [role, setRole] = useState<string | null>(null);
   const [paso, setPaso] = useState(0);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [loading, setLoading] = useState(true);
 
   const searchParams = useSearchParams();
@@ -271,7 +273,7 @@ function OTFormContent() {
   };
 
   const handleCreateNewClient = async () => {
-    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios.");
+    if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios.", "error"); return; }
     try {
       const docRef = await addDoc(collection(db, "usuarios"), {
         ...newClientData,
@@ -290,7 +292,7 @@ function OTFormContent() {
       setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
     } catch (e) {
       console.error(e);
-      alert("Error al crear cliente.");
+      showToast("Error al crear cliente. Intentá de nuevo.", "error");
     }
   };
 
@@ -329,8 +331,9 @@ function OTFormContent() {
       const payload = sanitize(p);
       if (isNueva) { await addDoc(collection(db, "ordenes_trabajo"), { ...payload, createdAt: serverTimestamp() }); }
       else { await updateDoc(doc(db, "ordenes_trabajo", params.id as string), payload); }
-      router.push("/admin/planillas");
-    } catch (e: any) { alert("Error: " + e.message); }
+      showToast("Orden de trabajo guardada correctamente", "success");
+      setTimeout(() => router.push("/admin/planillas"), 1200);
+    } catch (e: any) { showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -1011,6 +1014,7 @@ function OTFormContent() {
       </div>
     </div>
   )}
+      <Toast {...toast} />
 </div>
   );
 }

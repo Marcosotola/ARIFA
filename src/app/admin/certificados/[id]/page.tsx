@@ -6,6 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, addDoc, updateDoc, setDoc, doc, getDoc, query, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dynamic from "next/dynamic";
+import { useToast, Toast } from "@/components/Toast";
 import { 
   ClipboardList, 
   FileText, 
@@ -112,6 +113,7 @@ function CertificadosEditor() {
     sedes: [] as { id: string, nombre: string, direccion: string }[]
   });
 
+  const { toast, showToast } = useToast();
   const isReadOnly = role?.toLowerCase() === "cliente" || searchParams.get("view") === "true";
 
   useEffect(() => {
@@ -179,7 +181,7 @@ function CertificadosEditor() {
   };
 
   const handleCreateNewClient = async () => {
-    if (!newClientData.nombre || !newClientData.email) return alert("Nombre y Email son obligatorios");
+    if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios", "error"); return; }
     try {
       const docRef = await addDoc(collection(db, "usuarios"), {
         ...newClientData,
@@ -195,7 +197,7 @@ function CertificadosEditor() {
       setShowNewClientModal(false);
       setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", sedes: [] });
     } catch (e) {
-      alert("Error al crear cliente: " + e);
+      showToast("Error al crear cliente. Intentá de nuevo.", "error");
     }
   };
 
@@ -298,8 +300,9 @@ function CertificadosEditor() {
         }).catch(err => console.error("Error updating client profile:", err));
       }
 
-      router.push("/admin/certificados");
-    } catch (e) { alert("Error al guardar: " + e); }
+      showToast("Certificado guardado correctamente", "success");
+      setTimeout(() => router.push("/admin/certificados"), 1200);
+    } catch (e) { showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -315,7 +318,7 @@ function CertificadosEditor() {
         urls.push(await getDownloadURL(r));
       }
       setFotos(prev => [...prev, ...urls]);
-    } catch { alert("Error al subir foto."); }
+    } catch { showToast("Error al subir la foto. Intentá de nuevo.", "error"); }
     finally { setUploadingFoto(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
   };
 
@@ -904,6 +907,7 @@ function CertificadosEditor() {
           </div>
         </div>
       )}
+      <Toast {...toast} />
     </div>
   );
 }

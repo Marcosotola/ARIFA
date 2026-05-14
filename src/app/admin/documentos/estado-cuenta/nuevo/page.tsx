@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -50,6 +51,7 @@ function NuevoEstadoCuentaContent() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Datos del documento
@@ -217,9 +219,9 @@ function NuevoEstadoCuentaContent() {
   };
 
   const handleSave = async () => {
-    if (!clienteNombre.trim()) { alert("El nombre del cliente es obligatorio."); return; }
-    if (items.some(it => !it.descripcion.trim() || !it.monto)) { alert("Todos los renglones deben tener una descripción y monto."); return; }
-    if (!numero) { alert("El número de documento es obligatorio."); return; }
+    if (!clienteNombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
+    if (items.some(it => !it.descripcion.trim() || !it.monto)) { showToast("Todos los renglones deben tener una descripción y monto.", "error"); return; }
+    if (!numero) { showToast("El número de documento es obligatorio.", "error"); return; }
     setSaving(true);
     try {
       const payload: any = {
@@ -252,8 +254,9 @@ function NuevoEstadoCuentaContent() {
       } else {
         await updateDoc(doc(db, "estados-cuenta", editId), payload);
       }
-      router.push("/admin/documentos/estado-cuenta");
-    } catch (e) { console.error(e); alert("Error al guardar."); }
+      showToast("Estado de cuenta guardado correctamente", "success");
+      setTimeout(() => router.push("/admin/documentos/estado-cuenta"), 1200);
+    } catch (e) { console.error(e); showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -588,7 +591,7 @@ function NuevoEstadoCuentaContent() {
               </button>
               <button
                 onClick={async () => {
-                  if (!newClientData.nombre || !newClientData.email) { alert("Nombre y Email son obligatorios."); return; }
+                  if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios.", "error"); return; }
                   try {
                     const docRef = await addDoc(collection(db, "usuarios"), {
                       ...newClientData,
@@ -600,7 +603,7 @@ function NuevoEstadoCuentaContent() {
                     onSelectCliente(docRef.id);
                     setShowNewClientModal(false);
                     setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", cargo: "", sedes: [] });
-                  } catch { alert("Error al crear cliente."); }
+                  } catch { showToast("Error al crear cliente. Intentá de nuevo.", "error"); }
                 }}
                 className="btn-red"
                 style={{ flex: 2, padding: "14px", borderRadius: "12px", fontWeight: 800, textTransform: "uppercase" }}
@@ -619,6 +622,7 @@ function NuevoEstadoCuentaContent() {
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
         }
       `}</style>
+      <Toast {...toast} />
     </div>
   );
 }

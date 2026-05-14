@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
@@ -43,6 +44,7 @@ function NuevoReciboContent() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Datos del recibo
@@ -227,10 +229,10 @@ function NuevoReciboContent() {
   };
 
   const handleSave = async () => {
-    if (!clienteNombre.trim()) { alert("El nombre del cliente es obligatorio."); return; }
-    if (!concepto.trim()) { alert("El concepto del recibo es obligatorio."); return; }
-    if (!monto || Number(monto) <= 0) { alert("El monto debe ser mayor a cero."); return; }
-    if (!numero) { alert("El número de recibo es obligatorio."); return; }
+    if (!clienteNombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
+    if (!concepto.trim()) { showToast("El concepto del recibo es obligatorio.", "error"); return; }
+    if (!monto || Number(monto) <= 0) { showToast("El monto debe ser mayor a cero.", "error"); return; }
+    if (!numero) { showToast("El número de recibo es obligatorio.", "error"); return; }
     setSaving(true);
     try {
       const payload: any = {
@@ -263,8 +265,9 @@ function NuevoReciboContent() {
       } else {
         await updateDoc(doc(db, "recibos", editId), payload);
       }
-      router.push("/admin/documentos/recibos");
-    } catch (e) { console.error(e); alert("Error al guardar."); }
+      showToast("Recibo guardado correctamente", "success");
+      setTimeout(() => router.push("/admin/documentos/recibos"), 1200);
+    } catch (e) { console.error(e); showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -625,7 +628,7 @@ function NuevoReciboContent() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (!newSedeNombre.trim()) { alert("El nombre de la sede es obligatorio."); return; }
+                      if (!newSedeNombre.trim()) { showToast("El nombre de la sede es obligatorio.", "error"); return; }
                       setNewClientData({
                         ...newClientData,
                         sedes: [...newClientData.sedes, { id: crypto.randomUUID(), nombre: newSedeNombre.trim(), direccion: newSedeDireccion.trim() }],
@@ -649,7 +652,7 @@ function NuevoReciboContent() {
               </button>
               <button
                 onClick={async () => {
-                  if (!newClientData.nombre || !newClientData.email) { alert("Nombre y Email son obligatorios."); return; }
+                  if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios.", "error"); return; }
                   try {
                     const docRef = await addDoc(collection(db, "usuarios"), {
                       ...newClientData,
@@ -661,7 +664,7 @@ function NuevoReciboContent() {
                     onSelectCliente(docRef.id);
                     setShowNewClientModal(false);
                     setNewClientData({ nombre: "", apellido: "", email: "", empresa: "", dniCuit: "", telefono: "", direccion: "", cargo: "", sedes: [] });
-                  } catch { alert("Error al crear cliente."); }
+                  } catch { showToast("Error al crear cliente. Intentá de nuevo.", "error"); }
                 }}
                 className="btn-red"
                 style={{ flex: 2, padding: "14px", borderRadius: "12px", fontWeight: 800, textTransform: "uppercase" }}
@@ -679,6 +682,7 @@ function NuevoReciboContent() {
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
         }
       `}</style>
+      <Toast {...toast} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, Suspense } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, updateDoc, serverTimestamp, addDoc } from "firebase/firestore";
@@ -58,6 +59,7 @@ function MatafuegosUnifiedContent() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string, type: "remito" | "ficha" | "inventario" } | null>(null);
   const [editInventory, setEditInventory] = useState<any | null>(null);
   const [savingInventory, setSavingInventory] = useState(false);
+  const { toast, showToast } = useToast();
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
@@ -202,7 +204,7 @@ function MatafuegosUnifiedContent() {
       
       setDeleteConfirm(null);
     } catch (e) {
-      alert("Error al eliminar.");
+      showToast("Error al eliminar. Intentá de nuevo.", "error");
     }
   };
 
@@ -218,10 +220,10 @@ function MatafuegosUnifiedContent() {
       });
       setMatafuegos(prev => prev.map(m => m.id === id ? editInventory : m));
       setEditInventory(null);
-      alert("Inventario actualizado.");
+      showToast("Inventario actualizado correctamente", "success");
     } catch (e) {
       console.error(e);
-      alert("Error al guardar cambios.");
+      showToast("Error al guardar cambios. Intentá de nuevo.", "error");
     } finally {
       setSavingInventory(false);
     }
@@ -267,7 +269,7 @@ function MatafuegosUnifiedContent() {
       }
     } catch (e) {
       console.error(e);
-      alert("Error al descargar el PDF.");
+      showToast("Error al descargar el PDF.", "error");
     } finally {
       setDownloadingId(null);
     }
@@ -707,7 +709,7 @@ function MatafuegosUnifiedContent() {
                           <button 
                             title="Enviar Alerta al Cliente" 
                             onClick={async () => {
-                              if (!m.clienteId) return alert("Este equipo no tiene un cliente asociado para enviar alertas.");
+                              if (!m.clienteId) { showToast("Este equipo no tiene un cliente asociado para enviar alertas.", "error"); return; }
                               const confirmSend = confirm(`¿Enviar notificación de vencimiento a ${m.clienteNombre}?`);
                               if (confirmSend) {
                                 try {
@@ -720,9 +722,9 @@ function MatafuegosUnifiedContent() {
                                     estado: "pendiente",
                                     creadaEn: serverTimestamp()
                                   });
-                                  alert("Alerta programada para envío.");
+                                  showToast("Alerta programada para envío", "success");
                                 } catch (e) {
-                                  alert("Error al programar alerta.");
+                                  showToast("Error al programar alerta. Intentá de nuevo.", "error");
                                 }
                               }
                             }} 
@@ -896,6 +898,7 @@ function MatafuegosUnifiedContent() {
           </div>
         </div>
       )}
+      <Toast {...toast} />
     </div>
   );
 }

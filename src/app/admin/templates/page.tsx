@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useToast, Toast } from "@/components/Toast";
 import { db } from "@/lib/firebase";
 import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
@@ -508,6 +509,7 @@ export default function TemplatesPage() {
   const [modal, setModal] = useState<"create" | "edit" | null>(null);
   const [editing, setEditing] = useState<Plantilla | null>(null);
   const [saving, setSaving] = useState(false);
+  const { toast, showToast } = useToast();
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   // Form state
@@ -541,7 +543,7 @@ export default function TemplatesPage() {
   const handleSeed = async () => {
     const existingCodigos = new Set(plantillas.map(p => p.codigo));
     const faltantes = SEED_PLANTILLAS.filter(p => !existingCodigos.has(p.codigo));
-    if (faltantes.length === 0) { alert("✅ Todas las plantillas base ya están cargadas."); return; }
+    if (faltantes.length === 0) { showToast("Todas las plantillas base ya están cargadas.", "info"); return; }
     if (!confirm(`¿Sincronizar ${faltantes.length} plantilla(s) faltante(s)?\n\n${faltantes.map(p => `• ${p.codigo} — ${p.nombre}`).join("\n")}`)) return;
     setSeeding(true);
     try {
@@ -549,8 +551,8 @@ export default function TemplatesPage() {
         await addDoc(collection(db, "plantillas_inspeccion"), { ...p, createdAt: serverTimestamp() });
       }
       await fetchPlantillas();
-      alert(`✅ ${faltantes.length} plantilla(s) cargada(s) correctamente.`);
-    } catch (e) { alert("Error al cargar plantillas: " + e); }
+      showToast(`${faltantes.length} plantilla(s) cargada(s) correctamente`, "success");
+    } catch (e) { showToast("Error al cargar plantillas. Intentá de nuevo.", "error"); }
     finally { setSeeding(false); }
   };
 
@@ -573,7 +575,7 @@ export default function TemplatesPage() {
   };
 
   const handleSave = async () => {
-    if (!form.codigo || !form.nombre) { alert("Código y nombre son obligatorios."); return; }
+    if (!form.codigo || !form.nombre) { showToast("Código y nombre son obligatorios.", "error"); return; }
     setSaving(true);
     try {
       const payload: any = {
@@ -602,7 +604,8 @@ export default function TemplatesPage() {
       }
       setModal(null);
       await fetchPlantillas();
-    } catch (e) { alert("Error al guardar: " + e); }
+      showToast("Plantilla guardada correctamente", "success");
+    } catch (e) { showToast("Error al guardar. Intentá de nuevo.", "error"); }
     finally { setSaving(false); }
   };
 
@@ -611,7 +614,7 @@ export default function TemplatesPage() {
       await deleteDoc(doc(db, "plantillas_inspeccion", id));
       setDeleteConfirm(null);
       await fetchPlantillas();
-    } catch (e) { alert("Error al eliminar: " + e); }
+    } catch (e) { showToast("Error al eliminar. Intentá de nuevo.", "error"); }
   };
 
   // Item helpers
@@ -871,6 +874,7 @@ export default function TemplatesPage() {
           </div>
         </div>
       )}
+      <Toast {...toast} />
     </div>
   );
 }
