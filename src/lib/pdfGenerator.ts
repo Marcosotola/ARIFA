@@ -265,15 +265,23 @@ export const generateRemitoPDF = async (remito: any) => {
         y = (pdf as any).lastAutoTable.finalY + 8;
 
         if (remito.descripcionGeneral?.trim()) {
-            if (y > 240) { pdf.addPage(); y = 20; }
+            const noteLines = pdf.splitTextToSize(remito.descripcionGeneral, TW) as string[];
+            const lineH = 4.5;
+            const pageBottom = 278;
+
+            if (y + 6 + lineH > pageBottom || y > 240) { pdf.addPage(); y = 20; }
+
             pdf.setFillColor(248, 249, 252); pdf.rect(ML, y, TW, 6, "F");
             pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.setTextColor(0, 34, 68);
             pdf.text("MOTIVO DE ENTREGA", ML + 3, y + 4);
             y += 8;
             pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(60, 60, 60);
-            const noteLines = pdf.splitTextToSize(remito.descripcionGeneral, TW);
-            pdf.text(noteLines, ML, y);
-            y += noteLines.length * 5 + 6;
+            for (const line of noteLines) {
+                if (y + lineH > pageBottom) { pdf.addPage(); y = 20; }
+                pdf.text(line, ML, y);
+                y += lineH;
+            }
+            y += 6;
         }
 
         if (y > 220) { pdf.addPage(); y = 20; }
@@ -576,14 +584,23 @@ export const generatePresupuestoPDF = async (pres: any) => {
 
     // ── Notas ──
     if (pres.notas?.trim()) {
-        if (y > 240) { pdf.addPage(); y = 20; }
+        const noteLines = pdf.splitTextToSize(pres.notas, TW) as string[];
+        const lineH = 4.5;
+        const pageBottom = 278; // safe margin before footer at y=287
+
+        if (y + 6 + lineH > pageBottom || y > 240) { pdf.addPage(); y = 20; }
+
         pdf.setFillColor(248, 249, 252); pdf.rect(ML, y, TW, 6, "F");
         pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.setTextColor(0, 34, 68);
         pdf.text("NOTAS / CONDICIONES", ML + 3, y + 4);
         y += 8;
+
         pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(60, 60, 60);
-        const noteLines = pdf.splitTextToSize(pres.notas, TW);
-        pdf.text(noteLines, ML, y);
+        for (const line of noteLines) {
+            if (y + lineH > pageBottom) { pdf.addPage(); y = 20; }
+            pdf.text(line, ML, y);
+            y += lineH;
+        }
     }
 
     // ── Pie de página en todas las páginas con paginación ──
@@ -897,14 +914,22 @@ export const generateEstadoCuentaPDF = async (estado: any) => {
 
     // ── Notas ──
     if (estado.notas?.trim()) {
-        if (y > 245) { pdf.addPage(); y = 20; }
+        const noteLines = pdf.splitTextToSize(estado.notas, TW) as string[];
+        const lineH = 4.5;
+        const pageBottom = 278;
+
+        if (y + 6 + lineH > pageBottom || y > 245) { pdf.addPage(); y = 20; }
+
         pdf.setFillColor(248, 249, 252); pdf.rect(ML, y, TW, 6, "F");
         pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.setTextColor(0, 34, 68);
         pdf.text("OBSERVACIONES ADICIONALES", ML + 3, y + 4);
         y += 11;
         pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5); pdf.setTextColor(60, 60, 60);
-        const noteLines = pdf.splitTextToSize(estado.notas, TW);
-        pdf.text(noteLines, ML, y);
+        for (const line of noteLines) {
+            if (y + lineH > pageBottom) { pdf.addPage(); y = 20; }
+            pdf.text(line, ML, y);
+            y += lineH;
+        }
     }
 
     // ── Pie ──
