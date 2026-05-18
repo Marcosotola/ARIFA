@@ -42,6 +42,166 @@ const labelSt: React.CSSProperties = { display: "block", fontSize: "0.78rem", fo
 const inputSt: React.CSSProperties = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none", boxSizing: "border-box" };
 const cardSt: React.CSSProperties = { background: "#fff", borderRadius: "12px", padding: "24px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", marginBottom: "20px" };
 
+// ─── PDF Helpers ─────────────────────────────────────────────────────────────
+const fetchImgBase64 = async (url: string): Promise<string | null> => {
+  try {
+    const resp = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const dataUrl = await new Promise<string>((res, rej) => {
+      const reader = new FileReader();
+      reader.onloadend = () => res(reader.result as string);
+      reader.onerror = rej;
+      reader.readAsDataURL(blob);
+    });
+    const img = new Image();
+    await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = dataUrl; });
+    if (!img.naturalWidth || !img.naturalHeight) return null;
+    const cnv = document.createElement("canvas");
+    const maxPx = 1400;
+    const ratio = Math.min(maxPx / img.naturalWidth, maxPx / img.naturalHeight, 1);
+    cnv.width = Math.round(img.naturalWidth * ratio);
+    cnv.height = Math.round(img.naturalHeight * ratio);
+    cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
+    return cnv.toDataURL("image/jpeg", 0.82);
+  } catch { return null; }
+};
+
+const appendOTPagesToDoc = async (pdf: any, autoTable: any, otId: string, logoPng: string | null, fireDb: any, firestoreDoc: any, firestoreGetDoc: any) => {
+  const snap = await firestoreGetDoc(firestoreDoc(fireDb, "ordenes_trabajo", otId));
+  if (!snap.exists()) return;
+  const data = snap.data() as any;
+
+  const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+  const otNum = String(data.numero || "").padStart(4, "0");
+  const fecStr = data.fecha ? new Date(data.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
+  const planillasEnOT: any[] = data.planillasSeleccionadas || [];
+  const fotosOT: string[] = data.fotos || [];
+  const tecnicosOT: any[] = data.tecnicosOT || (data.tecnicos || []).map((t: string) => ({ nombre: t }));
+  const nuevaObs: string = data.diagnostico || "";
+  const firmaTecnico: string | null = data.firmaTecnico || null;
+  const firmaCliente: string | null = data.firmaCliente || null;
+  const nombreFirmaTecnico: string = data.nombreFirmaTecnico || "";
+  const nombreFirmaCliente: string = data.nombreFirmaCliente || "";
+  const HEADER_H = 30; const top = 10;
+
+  const drawOTHeader = (pg: any) => {
+    pg.setDrawColor(0, 34, 68); pg.setLineWidth(0.5); pg.rect(ML, top, TW, HEADER_H);
+    if (logoPng) pg.addImage(logoPng, "PNG", ML + 2, top + 2, 28, 26);
+    pg.line(ML + 33, top, ML + 33, top + HEADER_H);
+    const rx = W - MR - 48; const cx = ML + 33 + (rx - ML - 33) / 2;
+    pg.setFont(undefined as any, "bold"); pg.setFontSize(11); pg.setTextColor(0, 34, 68);
+    pg.text("INSPECCIÓN TÉCNICA VINCULADA", cx, top + 9, { align: "center" });
+    pg.setFontSize(14); pg.setTextColor(163, 31, 29); pg.text(`IT-${otNum}`, cx, top + 23, { align: "center" });
+    pg.line(rx, top, rx, top + HEADER_H);
+    pg.setFontSize(7); pg.setTextColor(0); pg.setFont(undefined as any, "normal");
+    pg.text("Fecha:", rx + 2, top + 11); pg.text("Estado:", rx + 2, top + 18); pg.text("Planilla:", rx + 2, top + 25);
+    pg.text(fecStr, rx + 18, top + 11);
+    pg.text((data.estado || "").toUpperCase(), rx + 18, top + 18);
+    pg.text(planillasEnOT[0]?.codigo || "-", rx + 18, top + 25);
+  };
+
+  pdf.addPage();
+  drawOTHeader(pdf);
+  let y = top + HEADER_H + 8;
+
+  autoTable(pdf, {
+    startY: y, margin: { left: ML, right: MR },
+    body: [
+      [{ content: "CLIENTE / RAZÓN SOCIAL:", styles: { fontStyle: "bold", cellWidth: 45 } }, data.clienteNombre || "-"],
+      [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, (data.sedeRazonSocial || data.clienteEmpresa || "-") + (data.sedeNombre ? ` - SEDE: ${data.sedeNombre}` : "")],
+      [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, data.clienteDireccion || data.direccion || "-"],
+      [{ content: "TELÉFONO / CEL:", styles: { fontStyle: "bold" } }, data.clienteTelefono || "-"],
+    ],
+    styles: { fontSize: 9, cellPadding: 3 }, tableLineColor: [0, 34, 68], tableLineWidth: 0.1
+  });
+  y = (pdf as any).lastAutoTable.finalY + 8;
+
+  if (tecnicosOT.length > 0) {
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.setFont(undefined as any, "bold");
+    pdf.text("EQUIPO TÉCNICO ASIGNADO", ML + 3, y + 5);
+    y += 7.5;
+    autoTable(pdf, { startY: y, margin: { left: ML, right: MR }, body: tecnicosOT.map((t: any) => [t.nombre]), styles: { fontSize: 8.5, cellPadding: 3 } });
+    y = (pdf as any).lastAutoTable.finalY + 8;
+  }
+
+  const sevColors: Record<string, number[]> = { leve: [16, 185, 129], moderado: [245, 158, 11], critico: [239, 68, 68] };
+  const todasObs = [
+    nuevaObs.trim() ? { texto: `[GENERAL] ${nuevaObs}`, sev: "" } : null,
+    ...planillasEnOT.flatMap((p: any) => (p.filasChecklist || []).filter((f: any) => f.observacion?.trim()).map((f: any) => ({ texto: `[${p.nombre}] ${f.descripcion}: ${f.observacion}`, sev: f.severidad || "" }))),
+  ].filter(Boolean) as { texto: string; sev: string }[];
+
+  if (todasObs.length > 0) {
+    if (y > 240) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; }
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.setFont(undefined as any, "bold");
+    pdf.text("RESUMEN DE OBSERVACIONES TÉCNICAS", ML + 3, y + 5);
+    y += 7.5;
+    autoTable(pdf, {
+      startY: y, margin: { left: ML, right: MR },
+      body: todasObs.map((o: any) => [o.texto, o.sev ? o.sev.toUpperCase() : ""]),
+      styles: { fontSize: 8.5, cellPadding: 3 },
+      columnStyles: { 1: { cellWidth: 35, halign: "center", fontStyle: "bold" } },
+      willDrawCell: (cellData: any) => {
+        if (cellData.column.index === 1 && cellData.section === "body") {
+          const sev = todasObs[cellData.row.index]?.sev;
+          if (sev && sevColors[sev]) pdf.setTextColor(sevColors[sev][0], sevColors[sev][1], sevColors[sev][2]);
+        }
+      }
+    });
+    y = (pdf as any).lastAutoTable.finalY + 10;
+  }
+
+  if (fotosOT.length > 0) {
+    if (y > 220) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; }
+    pdf.setFillColor(240, 240, 240); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(0); pdf.setFont(undefined as any, "normal");
+    pdf.text("REGISTRO FOTOGRÁFICO", ML + 3, y + 5);
+    y += 10; let xPh = ML;
+    for (const fUrl of fotosOT) {
+      const b64 = await fetchImgBase64(fUrl);
+      if (b64) {
+        if (xPh + 45 > W - MR) { xPh = ML; y += 45; }
+        if (y > 240) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; xPh = ML; }
+        pdf.addImage(b64, "JPEG", xPh, y, 42, 42); xPh += 45;
+      }
+    }
+    y += 50;
+  }
+
+  for (const p of planillasEnOT) {
+    if (y > 240) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; }
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.setFont(undefined as any, "bold");
+    pdf.text(`PLANILLA: ${p.nombre}`, ML + 3, y + 5);
+    y += 9;
+    autoTable(pdf, {
+      startY: y, margin: { left: ML, right: MR },
+      head: p.tipo === "checklist" ? [["Ítem", "Res.", "Observación", "Prio."]] : [p.columnas],
+      body: p.tipo === "checklist"
+        ? (p.filasChecklist || []).filter((f: any) => !f.esGrupo).map((f: any) => [f.descripcion, f.valor?.toUpperCase() || "", f.observacion || "-", f.severidad?.toUpperCase() || "-"])
+        : (p.filasTabla || []).map((f: any) => (p.columnas || []).map((c: string) => f.celdas?.[c] || "-")),
+      styles: { fontSize: p.tipo === "tabla_piso" && (p.columnas || []).length > 8 ? 6.5 : 7.5, cellPadding: 2 },
+      headStyles: { fillColor: [80, 80, 80], overflow: "linebreak" }, theme: "grid"
+    });
+    y = (pdf as any).lastAutoTable.finalY + 10;
+  }
+
+  if (y > 230) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; }
+  pdf.setDrawColor(200); pdf.line(ML, y, W - MR, y); y += 5;
+  if (firmaTecnico) {
+    try { pdf.addImage(firmaTecnico, "PNG", ML + 10, y, 40, 20); } catch {}
+    pdf.setFontSize(8); pdf.setFont(undefined as any, "normal"); pdf.setTextColor(0);
+    pdf.text(`Firma Técnico: ${nombreFirmaTecnico}`, ML + 10, y + 25);
+  }
+  if (firmaCliente) {
+    try { pdf.addImage(firmaCliente, "PNG", W - MR - 50, y, 40, 20); } catch {}
+    pdf.setFontSize(8); pdf.setFont(undefined as any, "normal"); pdf.setTextColor(0);
+    pdf.text(`Firma Cliente: ${nombreFirmaCliente}`, W - MR - 50, y + 25);
+  }
+};
+
 function CertificadosEditor() {
   const params = useParams();
   const router = useRouter();
@@ -95,6 +255,14 @@ function CertificadosEditor() {
   const [firmaProfesional, setFirmaProfesional] = useState<string | null>(null);
   const [firmaCliente, setFirmaCliente] = useState<string | null>(null);
 
+  // Inspecciones vinculadas
+  const [inspeccionesVinculadas, setInspeccionesVinculadas] = useState<string[]>([]);
+  const [inspeccionesVinculadasData, setInspeccionesVinculadasData] = useState<any[]>([]);
+  const [busquedaIT, setBusquedaIT] = useState("");
+  const [otsFiltradas, setOtsFiltradas] = useState<any[]>([]);
+  const [buscandoIT, setBuscandoIT] = useState(false);
+  const [todasOTs, setTodasOTs] = useState<any[]>([]);
+
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [newClientData, setNewClientData] = useState({ 
     nombre: "", 
@@ -143,11 +311,17 @@ function CertificadosEditor() {
       const d = await getDoc(doc(db, "ordenes_trabajo", otId));
       if (!d.exists()) return;
       const data = d.data() as any;
-      
-      setClienteNombre(data.clienteNombre || data.cliente || "");
-      setClienteEmpresa(data.clienteEmpresa || data.cliente || "");
+
+      setInspeccionesVinculadas([otId]);
+      setInspeccionesVinculadasData([{ id: otId, ...data }]);
+
+      const nombre = data.clienteNombre || data.cliente || "";
+      const empresa = data.clienteEmpresa || data.cliente || "";
+      setClienteNombre(nombre);
+      setClienteEmpresa(empresa);
       setClienteCuit(data.clienteCuit || "");
-      setClienteDireccion(data.direccion || "");
+      setClienteDireccion(data.clienteDireccion || data.direccion || "");
+
       if (data.userId) {
         const uDoc = await getDoc(doc(db, "usuarios", data.userId));
         if (uDoc.exists()) {
@@ -158,14 +332,20 @@ function CertificadosEditor() {
             setSedeId(data.sedeId);
             setSedeNombre(data.sedeNombre || "");
             setSedeRazonSocial(data.sedeRazonSocial || "");
+            const sede = (uData.sedes || []).find((s: any) => s.id === data.sedeId);
+            if (sede?.direccion) setClienteDireccion(sede.direccion);
           }
+        } else {
+          setClienteSearch(nombre);
         }
+      } else {
+        setClienteSearch(nombre);
       }
-      
-      if (data.planillasSeleccionadas && data.planillasSeleccionadas.length > 0) {
-        setSistemaCertificado(data.planillasSeleccionadas.map((p:any) => p.nombre).join(", "));
+
+      if (data.fecha) setFechaInspeccion(data.fecha);
+      if (data.planillasSeleccionadas?.length > 0) {
+        setSistemaCertificado(data.planillasSeleccionadas.map((p: any) => p.nombre).join(", "));
       }
-      
       setMemoriaDescriptiva(`Inspección realizada en base a Inspección Técnica N° IT-${String(data.numero || "").padStart(4, "0")}.`);
       setFotos(data.fotos || []);
     } catch (e) { console.error("Error importing from OT:", e); }
@@ -258,6 +438,18 @@ function CertificadosEditor() {
       setFotos(data.fotos || []);
       setFirmaProfesional(data.firmaProfesional || null);
       setFirmaCliente(data.firmaCliente || null);
+
+      const ivIds: string[] = data.inspeccionesVinculadas || [];
+      setInspeccionesVinculadas(ivIds);
+      if (ivIds.length > 0) {
+        const ivData = await Promise.all(
+          ivIds.map(async (id: string) => {
+            const otSnap = await getDoc(doc(db, "ordenes_trabajo", id));
+            return otSnap.exists() ? { id: otSnap.id, ...otSnap.data() } : null;
+          })
+        );
+        setInspeccionesVinculadasData(ivData.filter(Boolean) as any[]);
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -265,44 +457,57 @@ function CertificadosEditor() {
     setSaving(true);
     try {
       const rubroFinal = rubro === "Otro" ? rubroCustom : rubro;
+      const cn = clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre || "";
+      const ce = sedeRazonSocial || clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa || "";
+      const cc = clienteSeleccionado?.cuit || clienteCuit || "";
+      const cd = clienteDireccion || clienteSeleccionado?.direccion || "";
       const payload: any = {
         numero: parseInt(numero) || nextNum,
-        fechaInspeccion, fechaVencimiento,
-        rubro: rubroFinal, revPlanos,
-        sistemaCertificado, responsableCertificado,
+        fechaInspeccion: fechaInspeccion || "",
+        fechaVencimiento: fechaVencimiento || "",
+        rubro: rubroFinal || "",
+        revPlanos: revPlanos || "",
+        sistemaCertificado: sistemaCertificado || "",
+        responsableCertificado: responsableCertificado || "",
         clienteId: clienteSeleccionado?.id || null,
-        clienteNombre: clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre,
-        clienteEmpresa: sedeRazonSocial || clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa,
-        clienteCuit: clienteSeleccionado?.cuit || clienteCuit,
-        clienteDireccion: clienteDireccion || clienteSeleccionado?.direccion || "",
+        clienteNombre: cn,
+        clienteEmpresa: ce,
+        clienteCuit: cc,
+        clienteDireccion: cd,
         sedeId: sedeId || null,
         sedeNombre: sedeNombre || "",
         sedeRazonSocial: sedeRazonSocial || "",
-        memoriaDescriptiva,
-        fotos, firmaProfesional, firmaCliente,
+        memoriaDescriptiva: memoriaDescriptiva || "",
+        fotos: fotos || [],
+        firmaProfesional: firmaProfesional || null,
+        firmaCliente: firmaCliente || null,
+        inspeccionesVinculadas: inspeccionesVinculadas || [],
         estado: estadoOverride || estado,
         updatedAt: serverTimestamp(),
       };
       if (isNuevo) {
         await addDoc(collection(db, "certificados"), { ...payload, createdAt: serverTimestamp() });
-        await setDoc(doc(db, "configuracion", "certificados"), { proximoNumero: (parseInt(numero) || nextNum) + 1 }, { merge: true });
+        setDoc(doc(db, "configuracion", "certificados"), { proximoNumero: (parseInt(numero) || nextNum) + 1 }, { merge: true })
+          .catch(err => console.warn("No se pudo actualizar el contador:", err));
       } else {
         await updateDoc(doc(db, "certificados", params.id as string), payload);
       }
 
       if (clienteSeleccionado?.id) {
-        await updateDoc(doc(db, "usuarios", clienteSeleccionado.id), {
-          nombre: clienteNombre || clienteSeleccionado.nombre || null,
-          empresa: clienteEmpresa || clienteSeleccionado.empresa || null,
-          cuit: clienteCuit || clienteSeleccionado.cuit || null,
-          direccion: clienteDireccion || clienteSeleccionado.direccion || null,
-          updatedAt: serverTimestamp()
-        }).catch(err => console.error("Error updating client profile:", err));
+        try {
+          await updateDoc(doc(db, "usuarios", clienteSeleccionado.id), {
+            nombre: cn || clienteSeleccionado.nombre || null,
+            empresa: ce || clienteSeleccionado.empresa || null,
+            cuit: cc || clienteSeleccionado.cuit || null,
+            direccion: cd || clienteSeleccionado.direccion || null,
+            updatedAt: serverTimestamp()
+          });
+        } catch (err) { console.warn("No se pudo actualizar el perfil del cliente:", err); }
       }
 
       showToast("Certificado guardado correctamente", "success");
       setTimeout(() => router.push("/admin/certificados"), 1200);
-    } catch (e) { showToast("Error al guardar. Intentá de nuevo.", "error"); }
+    } catch (e: any) { console.error("handleSave error:", e); showToast(`Error al guardar: ${e?.message || String(e)}`, "error"); }
     finally { setSaving(false); }
   };
 
@@ -320,6 +525,45 @@ function CertificadosEditor() {
       setFotos(prev => [...prev, ...urls]);
     } catch { showToast("Error al subir la foto. Intentá de nuevo.", "error"); }
     finally { setUploadingFoto(false); if (fileInputRef.current) fileInputRef.current.value = ""; }
+  };
+
+  // ── Inspecciones vinculadas ────────────────────────────────────────────────
+  const searchOTs = async (text: string) => {
+    if (text.length < 2) { setOtsFiltradas([]); return; }
+    setBuscandoIT(true);
+    try {
+      let lista = todasOTs;
+      if (lista.length === 0) {
+        const snap = await getDocs(query(collection(db, "ordenes_trabajo"), orderBy("createdAt", "desc")));
+        lista = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setTodasOTs(lista);
+      }
+      const q = text.toLowerCase();
+      setOtsFiltradas(
+        lista
+          .filter((d: any) =>
+            String(d.numero || "").includes(q) ||
+            (d.clienteNombre || "").toLowerCase().includes(q) ||
+            (d.clienteEmpresa || "").toLowerCase().includes(q)
+          )
+          .filter((d: any) => !inspeccionesVinculadas.includes(d.id))
+          .slice(0, 6)
+      );
+    } catch {}
+    finally { setBuscandoIT(false); }
+  };
+
+  const agregarInspeccion = (ot: any) => {
+    if (inspeccionesVinculadas.includes(ot.id)) return;
+    setInspeccionesVinculadas(prev => [...prev, ot.id]);
+    setInspeccionesVinculadasData(prev => [...prev, ot]);
+    setBusquedaIT("");
+    setOtsFiltradas([]);
+  };
+
+  const quitarInspeccion = (id: string) => {
+    setInspeccionesVinculadas(prev => prev.filter(x => x !== id));
+    setInspeccionesVinculadasData(prev => prev.filter((x: any) => x.id !== id));
   };
 
   // ── PDF ────────────────────────────────────────────────────────────────────
@@ -487,13 +731,12 @@ function CertificadosEditor() {
           cnv.height = Math.round((img.naturalHeight || maxPx) * ratio);
           cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
           const jpegUrl = cnv.toDataURL("image/jpeg", 0.82);
-
           if (y + imgH > PAGE_BOTTOM) { pdf.addPage(); y = drawPageHeader(pdf) + 5; col = 0; }
           const x = ML + col * (imgW + 5);
           pdf.addImage(jpegUrl, "JPEG", x, y, imgW, imgH);
           col++;
           if (col === 2) { col = 0; y += imgH + 5; }
-        } catch { /* skip image */ }
+        } catch (imgErr) { console.warn("Error cargando foto en PDF:", imgErr); }
       }
       if (col > 0) y += imgH + 5;
       y += 6;
@@ -522,6 +765,13 @@ function CertificadosEditor() {
     pdf.text("Firma Propietario/Responsable del Inmueble", ML + bw + 12, y + 4);
     if (firmaProfesional) try { pdf.addImage(firmaProfesional, "PNG", ML + 5, y + 6, bw - 10, 18); } catch { /* skip */ }
     if (firmaCliente) try { pdf.addImage(firmaCliente, "PNG", ML + bw + 15, y + 6, bw - 10, 18); } catch { /* skip */ }
+
+    // ── Inspecciones Vinculadas ───────────────────────────────────────────────
+    for (const otId of inspeccionesVinculadas) {
+      try {
+        await appendOTPagesToDoc(pdf, autoTable, otId, logoDataUrl, db, doc, getDoc);
+      } catch (otErr) { console.warn("Error adjuntando IT al PDF:", otErr); }
+    }
 
     // ── Pie de página en todas las hojas ─────────────────────────────────────
     const total = pdf.getNumberOfPages();
@@ -595,6 +845,23 @@ function CertificadosEditor() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
                 {fotos.map((url, i) => (
                   <img key={i} src={url} alt="Evidencia" style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: '8px' }} />
+                ))}
+              </div>
+            </div>
+          )}
+          {inspeccionesVinculadasData.length > 0 && (
+            <div style={cardSt}>
+              <h3 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "14px" }}>Inspecciones Técnicas Vinculadas</h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {inspeccionesVinculadasData.map((ot: any) => (
+                  <div key={ot.id} style={{ background: "#f0f4ff", border: "1px solid #c7d7ff", borderRadius: "8px", padding: "10px 14px" }}>
+                    <span style={{ fontWeight: 800, color: "var(--primary-blue)" }}>IT-{String(ot.numero || "?").padStart(4, "0")}</span>
+                    <span style={{ marginLeft: "10px", fontSize: "0.88rem" }}>{ot.clienteNombre || "-"}</span>
+                    <div style={{ fontSize: "0.75rem", color: "#888", marginTop: "2px" }}>
+                      {ot.fecha ? new Date(ot.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}
+                      {ot.planillasSeleccionadas?.length > 0 && ` · ${ot.planillasSeleccionadas.map((p: any) => p.nombre).join(", ")}`}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -751,6 +1018,59 @@ function CertificadosEditor() {
               )}
             </div>
           </div>
+          <div style={cardSt}>
+            <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "6px", fontSize: "1rem" }}>Inspecciones Técnicas Vinculadas</h2>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginBottom: "14px" }}>
+              Las inspecciones vinculadas se adjuntan como páginas adicionales al PDF del certificado.
+            </p>
+            <div style={{ position: "relative", marginBottom: "12px" }}>
+              <input style={inputSt}
+                value={busquedaIT}
+                onChange={e => { setBusquedaIT(e.target.value); searchOTs(e.target.value); }}
+                placeholder={buscandoIT ? "Buscando..." : "Buscar por N° IT, cliente o empresa (mín. 2 letras)..."}
+              />
+              {otsFiltradas.length > 0 && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", maxHeight: "220px", overflowY: "auto" }}>
+                  {otsFiltradas.map((ot: any) => (
+                    <div key={ot.id} onClick={() => agregarInspeccion(ot)}
+                      style={{ padding: "10px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = "#f5f7ff"; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = "#fff"; }}>
+                      <div style={{ fontWeight: 700 }}>IT-{String(ot.numero || "?").padStart(4, "0")} — {ot.clienteNombre || "-"}</div>
+                      <div style={{ fontSize: "0.75rem", color: "#888" }}>
+                        {ot.fecha ? new Date(ot.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}
+                        {ot.planillasSeleccionadas?.length > 0 && ` · ${ot.planillasSeleccionadas.map((p: any) => p.nombre).join(", ")}`}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {inspeccionesVinculadasData.length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {inspeccionesVinculadasData.map((ot: any) => (
+                  <div key={ot.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#f0f4ff", border: "1px solid #c7d7ff", borderRadius: "8px", padding: "10px 14px" }}>
+                    <div>
+                      <span style={{ fontWeight: 800, color: "var(--primary-blue)" }}>IT-{String(ot.numero || "?").padStart(4, "0")}</span>
+                      <span style={{ marginLeft: "10px", fontSize: "0.88rem" }}>{ot.clienteNombre || "-"}</span>
+                      {ot.sedeNombre && <span style={{ marginLeft: "6px", fontSize: "0.78rem", color: "#666" }}>· {ot.sedeNombre}</span>}
+                      <div style={{ fontSize: "0.75rem", color: "#888", marginTop: "2px" }}>
+                        {ot.fecha ? new Date(ot.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}
+                        {ot.planillasSeleccionadas?.length > 0 && ` · ${ot.planillasSeleccionadas.map((p: any) => p.nombre).join(", ")}`}
+                      </div>
+                    </div>
+                    <button onClick={() => quitarInspeccion(ot.id)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#aaa", fontSize: "1.1rem", lineHeight: 1 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "18px", color: "#bbb", fontSize: "0.85rem", background: "#fafafa", borderRadius: "8px", border: "1px dashed #ddd" }}>
+                Sin inspecciones vinculadas
+              </div>
+            )}
+          </div>
+
           <div style={{ textAlign: "right" }}>
             <button onClick={() => setPaso(1)} className="btn-blue" style={{ padding: "12px 28px" }}>Siguiente → Memoria</button>
           </div>
@@ -921,7 +1241,7 @@ function CertificadosEditor() {
                 <label style={{ ...labelSt, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   Sedes / Ubicaciones
                   <button type="button" onClick={() => {
-                    const id = Math.random().toString(36).substr(2, 9);
+                    const id = Math.random().toString(36).slice(2, 11);
                     setNewClientData({ ...newClientData, sedes: [...newClientData.sedes, { id, nombre: "", direccion: "" }] });
                   }} style={{ background: "var(--primary-blue)", color: "#fff", border: "none", borderRadius: "4px", padding: "4px 8px", fontSize: "0.7rem", cursor: "pointer" }}>
                     + AGREGAR SEDE

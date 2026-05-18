@@ -309,6 +309,32 @@ function OTFormContent() {
     }
   };
 
+  const repararURLsFotos = async () => {
+    if (!fotos.length) return;
+    showToast("Actualizando URLs...", "info");
+    let changed = 0;
+    const refreshed: string[] = [];
+    for (const url of fotos) {
+      try {
+        const pathMatch = url.match(/\/o\/(.+?)\?/);
+        if (!pathMatch) { refreshed.push(url); continue; }
+        const storagePath = decodeURIComponent(pathMatch[1]);
+        const freshUrl = await getDownloadURL(ref(storage, storagePath));
+        refreshed.push(freshUrl);
+        if (freshUrl !== url) changed++;
+      } catch {
+        refreshed.push(url);
+      }
+    }
+    setFotos(refreshed);
+    if (!isNueva) {
+      try {
+        await updateDoc(doc(db, "ordenes_trabajo", params.id as string), { fotos: refreshed });
+        showToast(`${changed} URL${changed !== 1 ? "s" : ""} actualizadas y guardadas`, "success");
+      } catch { showToast("URLs actualizadas en pantalla (no se pudo guardar en Firestore)", "info"); }
+    }
+  };
+
   const handleSave = async (estadoOverride?: string) => {
     setSaving(true);
     try {
@@ -882,7 +908,14 @@ function OTFormContent() {
 
       {paso === 4 && (
         <div style={cardSt}>
-          <h2 style={{ fontWeight: 800, marginBottom: "20px" }}>Registro Fotográfico</h2>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <h2 style={{ fontWeight: 800 }}>Registro Fotográfico</h2>
+            {fotos.length > 0 && (
+              <button onClick={repararURLsFotos} style={{ background: "none", border: "1px solid #f59e0b", color: "#b45309", borderRadius: "6px", padding: "5px 12px", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer" }}>
+                Reparar URLs de fotos
+              </button>
+            )}
+          </div>
           <input type="file" multiple onChange={handleFotoUpload} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginTop: '15px' }}>
             {fotos.map((f, i) => (
