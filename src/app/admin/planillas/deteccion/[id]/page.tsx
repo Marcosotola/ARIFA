@@ -10,9 +10,9 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import dynamic from "next/dynamic";
-import { 
-  ClipboardList, Search, BarChart, FileText, Camera, PenTool, 
-  ArrowLeft, Check, Save, Plus, X, Shield, Flame, ChevronRight, ChevronLeft, Download
+import {
+  ClipboardList, Search, BarChart, FileText, Camera, PenTool,
+  ArrowLeft, Check, Save, Plus, X, Shield, Flame, ChevronRight, ChevronLeft, Download, BookMarked
 } from "lucide-react";
 import type SignatureCanvasType from "react-signature-canvas";
 
@@ -94,6 +94,10 @@ function OTFormContent() {
   const isReadOnly = role?.toLowerCase() === "cliente" || searchParams.get("view") === "true";
   const isAdmin = ["admin", "superadmin"].includes(role?.toLowerCase() || "");
   const isAutoDownload = searchParams.get("download") === "true";
+  const isTemplateMode = searchParams.get("template") === "true";
+  const templateId = searchParams.get("templateId") || null;
+
+  const [nombrePlantilla, setNombrePlantilla] = useState("");
 
   const [plantillas, setPlantillas] = useState<Plantilla[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -127,6 +131,12 @@ function OTFormContent() {
   const [sedeNombre, setSedeNombre] = useState("");
   const [sedeRazonSocial, setSedeRazonSocial] = useState("");
   const [clienteSearch, setClienteSearch] = useState("");
+  // Plantillas de cliente
+  const [plantillasClienteDisp, setPlantillasClienteDisp] = useState<any[]>([]);
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [nombreNuevaPlantilla, setNombreNuevaPlantilla] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [newClientData, setNewClientData] = useState({ 
     nombre: "", 
@@ -145,7 +155,8 @@ function OTFormContent() {
       const userDoc = await getDoc(doc(db, "usuarios", u.uid));
       setRole(userDoc.exists() ? userDoc.data().rol : "cliente");
       const [,,allCli] = await Promise.all([loadPlantillas(), loadTecnicos(), loadClientes(), loadNextNum()]);
-      if (!isNueva) await loadOT(allCli);
+      if (isTemplateMode && templateId) await loadTemplate(templateId, allCli);
+      else if (!isNueva) await loadOT(allCli);
       setLoading(false);
     });
     return () => unsub();
@@ -231,6 +242,62 @@ function OTFormContent() {
     setFirmaCliente(data.firmaCliente || null);
     setNombreFirmaTecnico(data.nombreFirmaTecnico || "");
     setNombreFirmaCliente(data.nombreFirmaCliente || "");
+  };
+
+  const loadTemplate = async (tid: string, allCli?: Cliente[]) => {
+    const snap = await getDoc(doc(db, "plantillas_cliente", tid));
+    if (!snap.exists()) return;
+    const data = snap.data() as any;
+    setNombrePlantilla(data.nombre || "");
+    setClienteNombre(data.clienteNombre || "");
+    setClienteEmpresa(data.clienteEmpresa || "");
+    setSedeId(data.sedeId || "");
+    setSedeNombre(data.sedeNombre || "");
+    setSedeRazonSocial(data.sedeRazonSocial || "");
+    setPlanillasEnOT(data.planillas || []);
+    if (data.clienteId) {
+      const list = allCli || clientes;
+      const found = list.find(c => c.id === data.clienteId);
+      if (found) {
+        setClienteSeleccionado(found);
+        setFilteredSedes((found as any).sedes || []);
+      } else {
+        const uSnap = await getDoc(doc(db, "usuarios", data.clienteId));
+        if (uSnap.exists()) {
+          const u = { id: uSnap.id, ...uSnap.data() } as any;
+          setClienteSeleccionado(u);
+          setFilteredSedes(u.sedes || []);
+        }
+      }
+    }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!nombrePlantilla.trim()) { showToast("Ingresá un nombre para la plantilla", "error"); return; }
+    if (!planillasEnOT.length) { showToast("Agregá al menos una planilla antes de guardar", "error"); return; }
+    setSaving(true);
+    try {
+      const payload: any = {
+        nombre: nombrePlantilla.trim(),
+        clienteId: clienteSeleccionado?.id || null,
+        clienteNombre: clienteSeleccionado?.nombre || (clienteSeleccionado as any)?.razonSocial || clienteNombre || "",
+        clienteEmpresa: (clienteSeleccionado as any)?.empresa || clienteEmpresa || "",
+        sedeId: sedeId || null,
+        sedeNombre: sedeNombre || "",
+        planillas: planillasEnOT,
+        updatedAt: serverTimestamp(),
+      };
+      if (templateId) {
+        await updateDoc(doc(db, "plantillas_cliente", templateId), payload);
+        showToast("Plantilla actualizada correctamente", "success");
+      } else {
+        await addDoc(collection(db, "plantillas_cliente"), { ...payload, createdAt: serverTimestamp() });
+        showToast("Plantilla guardada correctamente", "success");
+      }
+      setTimeout(() => router.push("/admin/planillas"), 1000);
+    } catch (e: any) {
+      showToast(`Error al guardar: ${e?.message}`, "error");
+    } finally { setSaving(false); }
   };
 
   useEffect(() => {
@@ -333,6 +400,56 @@ function OTFormContent() {
         showToast(`${changed} URL${changed !== 1 ? "s" : ""} actualizadas y guardadas`, "success");
       } catch { showToast("URLs actualizadas en pantalla (no se pudo guardar en Firestore)", "info"); }
     }
+  };
+
+  useEffect(() => {
+    if (clienteSeleccionado?.id) {
+      getDocs(query(collection(db, "plantillas_cliente"), where("clienteId", "==", clienteSeleccionado.id)))
+        .then(snap => setPlantillasClienteDisp(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
+        .catch(() => {});
+    } else {
+      setPlantillasClienteDisp([]);
+    }
+  }, [clienteSeleccionado]);
+
+  const cargarPlantillaCliente = (pt: any) => {
+    if (!pt?.planillas?.length) return;
+    setPlanillasEnOT(pt.planillas);
+    setPaso(2);
+    showToast(`Plantilla "${pt.nombre}" cargada`, "success");
+  };
+
+  const guardarComoPlantilla = async () => {
+    if (!planillasEnOT.length) { showToast("No hay planillas configuradas para guardar", "error"); return; }
+    const clienteNombrePC = clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre || "";
+    if (!clienteNombrePC) { showToast("Seleccioná un cliente antes de guardar la plantilla", "error"); return; }
+    if (!nombreNuevaPlantilla.trim()) { showToast("Ingresá un nombre para la plantilla", "error"); return; }
+    setSavingTemplate(true);
+    try {
+      const existing = plantillasClienteDisp.find(p => p.nombre === nombreNuevaPlantilla.trim());
+      const payload: any = {
+        nombre: nombreNuevaPlantilla.trim(),
+        clienteId: clienteSeleccionado?.id || null,
+        clienteNombre: clienteNombrePC,
+        clienteEmpresa: clienteSeleccionado?.empresa || clienteEmpresa || "",
+        sedeId: sedeId || null,
+        sedeNombre: sedeNombre || "",
+        planillas: planillasEnOT,
+        updatedAt: serverTimestamp(),
+      };
+      if (existing) {
+        await updateDoc(doc(db, "plantillas_cliente", existing.id), payload);
+        showToast("Plantilla actualizada correctamente", "success");
+      } else {
+        await addDoc(collection(db, "plantillas_cliente"), { ...payload, createdAt: serverTimestamp() });
+        showToast("Plantilla guardada correctamente", "success");
+      }
+      const snap = await getDocs(query(collection(db, "plantillas_cliente"), where("clienteId", "==", clienteSeleccionado?.id)));
+      setPlantillasClienteDisp(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setShowSaveTemplateModal(false);
+      setNombreNuevaPlantilla("");
+    } catch (e: any) { showToast(`Error: ${e?.message}`, "error"); }
+    finally { setSavingTemplate(false); }
   };
 
   const handleSave = async (estadoOverride?: string) => {
@@ -521,15 +638,24 @@ function OTFormContent() {
             <button onClick={() => router.back()} style={{ display: "flex", alignItems: "center", gap: "8px", background: "none", border: "none", color: "#666", fontWeight: 700, cursor: "pointer", marginBottom: "15px" }}>
             <ArrowLeft size={18} /> Volver
           </button>
-            <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>{isNueva ? "Nueva IT" : `IT-${numero}`}</h1>
+            {isTemplateMode
+              ? <><div style={{ fontSize: "0.7rem", fontWeight: 800, color: "#0891b2", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>Modo Plantilla de Cliente</div>
+                  <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>{nombrePlantilla || (templateId ? "Editar plantilla" : "Nueva plantilla")}</h1></>
+              : <h1 style={{ fontSize: "1.6rem", fontWeight: 800, color: "var(--primary-blue)" }}>{isNueva ? "Nueva IT" : `IT-${numero}`}</h1>
+            }
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-            {!isNueva && <button onClick={handlePDF} className="btn-blue" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {!isTemplateMode && !isNueva && <button onClick={handlePDF} className="btn-blue" style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
               📄 Descargar PDF
             </button>}
-            {!isReadOnly && <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              {saving ? "Guardando..." : <><Check size={18} /> Finalizar</>}
-            </button>}
+            {isTemplateMode
+              ? <button onClick={handleSaveTemplate} disabled={saving} style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', background: '#0891b2', color: '#fff', border: 'none' }}>
+                  {saving ? "Guardando..." : <><BookMarked size={18} /> Guardar plantilla</>}
+                </button>
+              : !isReadOnly && <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  {saving ? "Guardando..." : <><Check size={18} /> Finalizar</>}
+                </button>
+            }
         </div>
       </header>
 
@@ -640,10 +766,17 @@ function OTFormContent() {
 
       {paso === 0 && (
         <div style={cardSt}>
-          <h2 style={{ fontWeight: 800, marginBottom: "20px" }}>Encabezado del Servicio</h2>
+          <h2 style={{ fontWeight: 800, marginBottom: "20px" }}>{isTemplateMode ? "Datos de la Plantilla" : "Encabezado del Servicio"}</h2>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-            <div><label style={labelSt}>N° OT</label><input style={inputSt} value={numero} onChange={e => setNumero(e.target.value)} /></div>
-            <div><label style={labelSt}>Fecha</label><input style={inputSt} type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div>
+            {isTemplateMode ? (
+              <div style={{ gridColumn: "span 2" }}>
+                <label style={labelSt}>Nombre de la plantilla *</label>
+                <input style={inputSt} value={nombrePlantilla} onChange={e => setNombrePlantilla(e.target.value)} placeholder="Ej: Torre A — Central + Test detectores" />
+              </div>
+            ) : (
+              <><div><label style={labelSt}>N° OT</label><input style={inputSt} value={numero} onChange={e => setNumero(e.target.value)} /></div>
+                <div><label style={labelSt}>Fecha</label><input style={inputSt} type="date" value={fecha} onChange={e => setFecha(e.target.value)} /></div></>
+            )}
             
             <div style={{ gridColumn: 'span 2' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', alignItems: 'center' }}>
@@ -725,6 +858,31 @@ function OTFormContent() {
                   <option value="">{filteredSedes.length === 0 ? "Sin sedes registradas" : "Seleccionar Sede (Opcional)"}</option>
                   {filteredSedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>)}
                 </select>
+              </div>
+            )}
+
+            {plantillasClienteDisp.length > 0 && (
+              <div style={{ gridColumn: 'span 2' }}>
+                <label style={labelSt}>Cargar plantilla guardada del cliente</label>
+                <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "10px", padding: "14px" }}>
+                  <p style={{ fontSize: "0.78rem", color: "#166534", marginBottom: "10px", fontWeight: 600 }}>
+                    <BookMarked size={13} style={{ display: "inline", marginRight: "5px" }} />
+                    {plantillasClienteDisp.length} plantilla{plantillasClienteDisp.length !== 1 ? "s" : ""} guardada{plantillasClienteDisp.length !== 1 ? "s" : ""} para este cliente
+                  </p>
+                  <div style={{ display: "grid", gap: "6px" }}>
+                    {plantillasClienteDisp.map((pt: any) => (
+                      <div key={pt.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#fff", border: "1px solid #d1fae5", borderRadius: "8px", padding: "10px 14px" }}>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: "0.88rem", color: "#065f46" }}>{pt.nombre}</div>
+                          <div style={{ fontSize: "0.72rem", color: "#888", marginTop: "2px" }}>{(pt.planillas || []).map((p: any) => p.nombre).join(" · ")}</div>
+                        </div>
+                        <button onClick={() => cargarPlantillaCliente(pt)} style={{ background: "#059669", color: "#fff", border: "none", borderRadius: "7px", padding: "7px 14px", fontSize: "0.78rem", fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>
+                          Cargar
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
 
@@ -948,9 +1106,59 @@ function OTFormContent() {
                </div>
              </div>
            </div>
-           <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ width: "100%", padding: "20px", fontSize: "1.2rem", borderRadius: '15px', fontWeight: 900 }}>GUARDAR Y FINALIZAR</button>
+           {isTemplateMode ? (
+             <button onClick={handleSaveTemplate} disabled={saving} style={{ width: "100%", padding: "20px", fontSize: "1.2rem", borderRadius: "15px", fontWeight: 900, background: "#0891b2", color: "#fff", border: "none", cursor: "pointer" }}>
+               {saving ? "Guardando..." : "GUARDAR PLANTILLA"}
+             </button>
+           ) : (
+             <button onClick={() => handleSave("completada")} disabled={saving} className="btn-red" style={{ width: "100%", padding: "20px", fontSize: "1.2rem", borderRadius: '15px', fontWeight: 900 }}>GUARDAR Y FINALIZAR</button>
+           )}
+
+           {!isTemplateMode && planillasEnOT.length > 0 && (clienteSeleccionado || clienteNombre) && (
+             <button onClick={() => { setNombreNuevaPlantilla(plantillasClienteDisp.length > 0 ? "" : `${clienteSeleccionado?.nombre || clienteNombre}${sedeNombre ? ` — ${sedeNombre}` : ""}`); setShowSaveTemplateModal(true); }}
+               style={{ width: "100%", marginTop: "12px", padding: "12px", background: "none", border: "2px dashed #0891b2", color: "#0891b2", borderRadius: "10px", cursor: "pointer", fontWeight: 700, fontSize: "0.88rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+               <BookMarked size={16} /> Guardar configuración como plantilla del cliente
+             </button>
+           )}
         </div>
       )}
+    </div>
+  )}
+
+  {/* MODAL GUARDAR PLANTILLA */}
+  {showSaveTemplateModal && (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "#fff", borderRadius: "12px", padding: "28px", maxWidth: "440px", width: "100%" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
+          <h3 style={{ fontWeight: 800, color: "var(--primary-blue)" }}>Guardar como plantilla</h3>
+          <button onClick={() => setShowSaveTemplateModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#999" }}><X size={20} /></button>
+        </div>
+        <p style={{ fontSize: "0.83rem", color: "#666", marginBottom: "16px" }}>
+          Se guardarán las planillas con su configuración actual (pisos, valores, observaciones) como plantilla reutilizable para este cliente.
+        </p>
+        {plantillasClienteDisp.length > 0 && (
+          <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "8px", padding: "10px 12px", marginBottom: "14px", fontSize: "0.78rem", color: "#92400e" }}>
+            <strong>Plantillas existentes para este cliente:</strong>
+            <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
+              {plantillasClienteDisp.map((p: any) => <li key={p.id}>{p.nombre}</li>)}
+            </ul>
+            <div style={{ marginTop: "6px" }}>Si usás el mismo nombre, se actualizará la plantilla existente.</div>
+          </div>
+        )}
+        <label style={{ display: "block", fontSize: "0.75rem", fontWeight: 800, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Nombre de la plantilla *</label>
+        <input
+          value={nombreNuevaPlantilla}
+          onChange={e => setNombreNuevaPlantilla(e.target.value)}
+          placeholder="Ej: Torre A — Central + Detectores"
+          style={{ width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", outline: "none", boxSizing: "border-box", marginBottom: "18px" }}
+        />
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button onClick={() => setShowSaveTemplateModal(false)} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+          <button onClick={guardarComoPlantilla} disabled={savingTemplate} style={{ flex: 2, padding: "12px", borderRadius: "8px", background: "#0891b2", color: "#fff", border: "none", cursor: "pointer", fontWeight: 800 }}>
+            {savingTemplate ? "Guardando..." : "Guardar plantilla"}
+          </button>
+        </div>
+      </div>
     </div>
   )}
 
