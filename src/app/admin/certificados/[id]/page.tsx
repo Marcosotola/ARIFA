@@ -808,8 +808,8 @@ function CertificadosEditor() {
           </h1>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          {!isNuevo && (
-            <button onClick={handlePDF} 
+          {(!isNuevo || !!fromOt) && (
+            <button onClick={handlePDF}
               style={{ background: '#f1f5f9', color: '#0f172a', border: '1px solid #ddd', padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Download size={18} /> Descargar PDF
             </button>

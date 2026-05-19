@@ -29,6 +29,165 @@ interface TextoMemoria {
   contenido: string;
 }
 
+const fetchImgBase64 = async (url: string): Promise<string | null> => {
+  try {
+    const resp = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const dataUrl = await new Promise<string>((res, rej) => {
+      const reader = new FileReader();
+      reader.onloadend = () => res(reader.result as string);
+      reader.onerror = rej;
+      reader.readAsDataURL(blob);
+    });
+    const img = new Image();
+    await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = dataUrl; });
+    if (!img.naturalWidth || !img.naturalHeight) return null;
+    const cnv = document.createElement("canvas");
+    const maxPx = 1400;
+    const ratio = Math.min(maxPx / img.naturalWidth, maxPx / img.naturalHeight, 1);
+    cnv.width = Math.round(img.naturalWidth * ratio);
+    cnv.height = Math.round(img.naturalHeight * ratio);
+    cnv.getContext("2d")!.drawImage(img, 0, 0, cnv.width, cnv.height);
+    return cnv.toDataURL("image/jpeg", 0.82);
+  } catch { return null; }
+};
+
+const appendOTPagesToDoc = async (pdf: any, autoTable: any, otId: string, logoPng: string | null) => {
+  const snap = await getDoc(doc(db, "ordenes_trabajo", otId));
+  if (!snap.exists()) return;
+  const data = snap.data() as any;
+
+  const W = 210; const ML = 14; const MR = 14; const TW = W - ML - MR;
+  const otNum = String(data.numero || "").padStart(4, "0");
+  const fecStr = data.fecha ? new Date(data.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-";
+  const planillasEnOT: any[] = data.planillasSeleccionadas || [];
+  const fotosOT: string[] = data.fotos || [];
+  const tecnicosOT: any[] = data.tecnicosOT || (data.tecnicos || []).map((t: string) => ({ nombre: t }));
+  const nuevaObs: string = data.diagnostico || "";
+  const firmaTecnico: string | null = data.firmaTecnico || null;
+  const firmaCliente: string | null = data.firmaCliente || null;
+  const nombreFirmaTecnico: string = data.nombreFirmaTecnico || "";
+  const nombreFirmaCliente: string = data.nombreFirmaCliente || "";
+  const HEADER_H = 30; const top = 10;
+
+  const drawOTHeader = (pg: any) => {
+    pg.setDrawColor(0, 34, 68); pg.setLineWidth(0.5); pg.rect(ML, top, TW, HEADER_H);
+    if (logoPng) pg.addImage(logoPng, "PNG", ML + 2, top + 2, 28, 26);
+    pg.line(ML + 33, top, ML + 33, top + HEADER_H);
+    const rx = W - MR - 48; const cx = ML + 33 + (rx - ML - 33) / 2;
+    pg.setFont(undefined as any, "bold"); pg.setFontSize(11); pg.setTextColor(0, 34, 68);
+    pg.text("INSPECCIÓN TÉCNICA VINCULADA", cx, top + 9, { align: "center" });
+    pg.setFontSize(14); pg.setTextColor(163, 31, 29); pg.text(`IT-${otNum}`, cx, top + 23, { align: "center" });
+    pg.line(rx, top, rx, top + HEADER_H);
+    pg.setFontSize(7); pg.setTextColor(0); pg.setFont(undefined as any, "normal");
+    pg.text("Fecha:", rx + 2, top + 11); pg.text("Estado:", rx + 2, top + 18); pg.text("Planilla:", rx + 2, top + 25);
+    pg.text(fecStr, rx + 18, top + 11);
+    pg.text((data.estado || "").toUpperCase(), rx + 18, top + 18);
+    pg.text(planillasEnOT[0]?.codigo || "-", rx + 18, top + 25);
+  };
+
+  pdf.addPage();
+  drawOTHeader(pdf);
+  let y = top + HEADER_H + 8;
+
+  autoTable(pdf, {
+    startY: y, margin: { left: ML, right: MR },
+    body: [
+      [{ content: "CLIENTE / RAZÓN SOCIAL:", styles: { fontStyle: "bold", cellWidth: 45 } }, data.clienteNombre || "-"],
+      [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, (data.sedeRazonSocial || data.clienteEmpresa || "-") + (data.sedeNombre ? ` - SEDE: ${data.sedeNombre}` : "")],
+      [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, data.clienteDireccion || data.direccion || "-"],
+      [{ content: "TELÉFONO / CEL:", styles: { fontStyle: "bold" } }, data.clienteTelefono || "-"],
+    ],
+    styles: { fontSize: 9, cellPadding: 3 }, tableLineColor: [0, 34, 68], tableLineWidth: 0.1
+  });
+  y = (pdf as any).lastAutoTable.finalY + 8;
+
+  if (tecnicosOT.length > 0) {
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.setFont(undefined as any, "bold");
+    pdf.text("EQUIPO TÉCNICO ASIGNADO", ML + 3, y + 5);
+    y += 7.5;
+    autoTable(pdf, { startY: y, margin: { left: ML, right: MR }, body: tecnicosOT.map((t: any) => [t.nombre]), styles: { fontSize: 8.5, cellPadding: 3 } });
+    y = (pdf as any).lastAutoTable.finalY + 8;
+  }
+
+  const sevColors: Record<string, number[]> = { leve: [16, 185, 129], moderado: [245, 158, 11], critico: [239, 68, 68] };
+  const todasObs = [
+    nuevaObs.trim() ? { texto: `[GENERAL] ${nuevaObs}`, sev: "" } : null,
+    ...planillasEnOT.flatMap((p: any) => (p.filasChecklist || []).filter((f: any) => f.observacion?.trim()).map((f: any) => ({ texto: `[${p.nombre}] ${f.descripcion}: ${f.observacion}`, sev: f.severidad || "" }))),
+  ].filter(Boolean) as { texto: string; sev: string }[];
+
+  if (todasObs.length > 0) {
+    if (y > 240) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; }
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.setFont(undefined as any, "bold");
+    pdf.text("RESUMEN DE OBSERVACIONES TÉCNICAS", ML + 3, y + 5);
+    y += 7.5;
+    autoTable(pdf, {
+      startY: y, margin: { left: ML, right: MR },
+      body: todasObs.map((o: any) => [o.texto, o.sev ? o.sev.toUpperCase() : ""]),
+      styles: { fontSize: 8.5, cellPadding: 3 },
+      columnStyles: { 1: { cellWidth: 35, halign: "center", fontStyle: "bold" } },
+      willDrawCell: (cellData: any) => {
+        if (cellData.column.index === 1 && cellData.section === "body") {
+          const sev = todasObs[cellData.row.index]?.sev;
+          if (sev && sevColors[sev]) pdf.setTextColor(sevColors[sev][0], sevColors[sev][1], sevColors[sev][2]);
+        }
+      }
+    });
+    y = (pdf as any).lastAutoTable.finalY + 10;
+  }
+
+  if (fotosOT.length > 0) {
+    if (y > 220) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; }
+    pdf.setFillColor(240, 240, 240); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(0); pdf.setFont(undefined as any, "normal");
+    pdf.text("REGISTRO FOTOGRÁFICO", ML + 3, y + 5);
+    y += 10; let xPh = ML;
+    for (const fUrl of fotosOT) {
+      const b64 = await fetchImgBase64(fUrl);
+      if (b64) {
+        if (xPh + 45 > W - MR) { xPh = ML; y += 45; }
+        if (y > 240) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; xPh = ML; }
+        pdf.addImage(b64, "JPEG", xPh, y, 42, 42); xPh += 45;
+      }
+    }
+    y += 50;
+  }
+
+  for (const p of planillasEnOT) {
+    if (y > 240) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; }
+    pdf.setFillColor(0, 34, 68); pdf.rect(ML, y, TW, 7, "F");
+    pdf.setFontSize(8.5); pdf.setTextColor(255); pdf.setFont(undefined as any, "bold");
+    pdf.text(`PLANILLA: ${p.nombre}`, ML + 3, y + 5);
+    y += 9;
+    autoTable(pdf, {
+      startY: y, margin: { left: ML, right: MR },
+      head: p.tipo === "checklist" ? [["Ítem", "Res.", "Observación", "Prio."]] : [p.columnas],
+      body: p.tipo === "checklist"
+        ? (p.filasChecklist || []).filter((f: any) => !f.esGrupo).map((f: any) => [f.descripcion, f.valor?.toUpperCase() || "", f.observacion || "-", f.severidad?.toUpperCase() || "-"])
+        : (p.filasTabla || []).map((f: any) => (p.columnas || []).map((c: string) => f.celdas?.[c] || "-")),
+      styles: { fontSize: p.tipo === "tabla_piso" && (p.columnas || []).length > 8 ? 6.5 : 7.5, cellPadding: 2 },
+      headStyles: { fillColor: [80, 80, 80], overflow: "linebreak" }, theme: "grid"
+    });
+    y = (pdf as any).lastAutoTable.finalY + 10;
+  }
+
+  if (y > 230) { pdf.addPage(); drawOTHeader(pdf); y = top + HEADER_H + 10; }
+  pdf.setDrawColor(200); pdf.line(ML, y, W - MR, y); y += 5;
+  if (firmaTecnico) {
+    try { pdf.addImage(firmaTecnico, "PNG", ML + 10, y, 40, 20); } catch {}
+    pdf.setFontSize(8); pdf.setFont(undefined as any, "normal"); pdf.setTextColor(0);
+    pdf.text(`Firma Técnico: ${nombreFirmaTecnico}`, ML + 10, y + 25);
+  }
+  if (firmaCliente) {
+    try { pdf.addImage(firmaCliente, "PNG", W - MR - 50, y, 40, 20); } catch {}
+    pdf.setFontSize(8); pdf.setFont(undefined as any, "normal"); pdf.setTextColor(0);
+    pdf.text(`Firma Cliente: ${nombreFirmaCliente}`, W - MR - 50, y + 25);
+  }
+};
+
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
   borrador: { bg: "#f5f5f5", color: "#666" },
   emitido:  { bg: "#e8f5e9", color: "#2e7d32" },
@@ -329,6 +488,14 @@ export default function CertificadosPage() {
       pdf.text("Firma Propietario/Responsable del Inmueble", ML + bw + 12, y + 4);
       if (data.firmaProfesional) try { pdf.addImage(data.firmaProfesional, "PNG", ML + 5, y + 6, bw - 10, 18); } catch {}
       if (data.firmaCliente) try { pdf.addImage(data.firmaCliente, "PNG", ML + bw + 15, y + 6, bw - 10, 18); } catch {}
+
+      // ── Inspecciones Vinculadas ────────────────────────────────────────────
+      const ivIds: string[] = data.inspeccionesVinculadas || [];
+      for (const otId of ivIds) {
+        try {
+          await appendOTPagesToDoc(pdf, autoTable, otId, logoDataUrl);
+        } catch (otErr) { console.warn("Error adjuntando IT al PDF:", otErr); }
+      }
 
       // ── Pie de página ──────────────────────────────────────────────────────
       const total = pdf.getNumberOfPages();
