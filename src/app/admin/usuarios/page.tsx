@@ -4,26 +4,29 @@ import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy, addDoc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { 
-  UserPlus, 
-  Edit, 
-  Trash2, 
-  Search, 
-  Plus, 
-  X, 
-  Building2, 
-  MapPin, 
-  Phone, 
-  Briefcase, 
-  Shield, 
-  CheckCircle2, 
+import {
+  UserPlus,
+  Edit,
+  Trash2,
+  Search,
+  Plus,
+  X,
+  Building2,
+  MapPin,
+  Phone,
+  Briefcase,
+  Shield,
+  CheckCircle2,
   AlertCircle,
   Mail,
   User,
   ShieldCheck,
   UserCheck,
   MessageCircle,
-  Eye
+  Eye,
+  QrCode,
+  Download,
+  ExternalLink
 } from "lucide-react";
 
 const CARGOS = ["Propietario", "Gerente", "Responsable de Seguridad", "Encargado", "Administrativo", "Técnico", "Otro"];
@@ -42,6 +45,8 @@ export default function UsuariosPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const { toast, showToast } = useToast();
   const [search, setSearch] = useState("");
+  const [qrModal, setQrModal] = useState<{ sedeId: string; sedeNombre: string; clienteNombre: string } | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -195,6 +200,23 @@ export default function UsuariosPage() {
       ...editingUser,
       sedes: editingUser.sedes.filter((s: any) => s.id !== id)
     });
+  };
+
+  const openQrModal = async (sede: any, clienteNombre: string) => {
+    setQrDataUrl(null);
+    setQrModal({ sedeId: sede.id, sedeNombre: sede.nombre, clienteNombre });
+    const url = `https://arifa.com.ar/verificar/${sede.id}`;
+    const QRCode = (await import("qrcode")).default;
+    const dataUrl = await QRCode.toDataURL(url, { width: 280, margin: 2, color: { dark: "#002244", light: "#ffffff" } });
+    setQrDataUrl(dataUrl);
+  };
+
+  const downloadQr = () => {
+    if (!qrDataUrl || !qrModal) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `QR-${qrModal.sedeNombre.replace(/\s+/g, "-")}.png`;
+    a.click();
   };
 
   return (
@@ -448,10 +470,16 @@ export default function UsuariosPage() {
                         <div style={{ fontWeight: 700, fontSize: "0.85rem", color: "var(--primary-blue)" }}>{s.nombre}</div>
                         <div style={{ fontSize: "0.78rem", color: "#666" }}>{s.direccion}</div>
                         {s.razonSocial && <div style={{ fontSize: "0.7rem", color: "#999", fontStyle: "italic", marginTop: "2px" }}>RS: {s.razonSocial}</div>}
-                        <button type="button" onClick={() => removeSede(s.id)} 
-                          style={{ position: "absolute", top: "10px", right: "10px", background: "#fee2e2", border: "none", color: "#ef4444", borderRadius: "6px", padding: "4px 8px", fontSize: "0.65rem", fontWeight: 800, cursor: "pointer" }}>
-                          Eliminar
-                        </button>
+                        <div style={{ position: "absolute", top: "10px", right: "10px", display: "flex", gap: "6px" }}>
+                          <button type="button" onClick={() => openQrModal(s, editingUser.empresa || [editingUser.nombre, editingUser.apellido].filter(Boolean).join(" "))}
+                            style={{ background: "#eff6ff", border: "none", color: "var(--primary-blue)", borderRadius: "6px", padding: "4px 8px", fontSize: "0.65rem", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
+                            <QrCode size={12} /> QR
+                          </button>
+                          <button type="button" onClick={() => removeSede(s.id)}
+                            style={{ background: "#fee2e2", border: "none", color: "#ef4444", borderRadius: "6px", padding: "4px 8px", fontSize: "0.65rem", fontWeight: 800, cursor: "pointer" }}>
+                            Eliminar
+                          </button>
+                        </div>
                       </div>
                     ))}
                     {(!editingUser.sedes || editingUser.sedes.length === 0) && (
@@ -529,11 +557,18 @@ export default function UsuariosPage() {
                         <div style={{ background: '#eff6ff', color: 'var(--primary-blue)', padding: '8px', borderRadius: '8px' }}>
                           <MapPin size={16} />
                         </div>
-                        <div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#1e293b' }}>{s.nombre}</div>
                           <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{s.direccion || "Sin dirección"}</div>
                           {s.razonSocial && <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic' }}>RS: {s.razonSocial}</div>}
                         </div>
+                        <button
+                          onClick={() => openQrModal(s, viewingUser.empresa || [viewingUser.nombre, viewingUser.apellido].filter(Boolean).join(" "))}
+                          style={{ background: '#eff6ff', border: 'none', color: 'var(--primary-blue)', borderRadius: '8px', padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 700, flexShrink: 0 }}
+                          title="Ver QR de esta sede"
+                        >
+                          <QrCode size={16} /> QR
+                        </button>
                       </div>
                     ))
                   ) : (
@@ -551,6 +586,61 @@ export default function UsuariosPage() {
           </div>
         </div>
       )}
+      {/* ── Modal QR ── */}
+      {qrModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1200, padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "16px", width: "100%", maxWidth: "380px", overflow: "hidden", boxShadow: "0 25px 60px rgba(0,0,0,0.3)" }}>
+            <div style={{ background: "var(--primary-blue)", padding: "20px 24px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <QrCode size={22} color="#fff" />
+                <div>
+                  <div style={{ color: "#fff", fontWeight: 800, fontSize: "1rem" }}>Código QR</div>
+                  <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.75rem" }}>Verificación pública</div>
+                </div>
+              </div>
+              <button onClick={() => setQrModal(null)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: "1.3rem" }}>✕</button>
+            </div>
+
+            <div style={{ padding: "24px", textAlign: "center" }}>
+              <div style={{ fontWeight: 800, fontSize: "1rem", color: "var(--primary-blue)", marginBottom: "4px" }}>{qrModal.sedeNombre}</div>
+              <div style={{ fontSize: "0.82rem", color: "#64748b", marginBottom: "20px" }}>{qrModal.clienteNombre}</div>
+
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "290px", background: "#f8fafc", borderRadius: "12px", border: "2px dashed #e2e8f0", marginBottom: "16px" }}>
+                {qrDataUrl ? (
+                  <img src={qrDataUrl} alt="QR Code" style={{ width: "260px", height: "260px" }} />
+                ) : (
+                  <div style={{ color: "#94a3b8", fontSize: "0.85rem" }}>Generando QR...</div>
+                )}
+              </div>
+
+              <div style={{ background: "#f1f5f9", borderRadius: "8px", padding: "10px 14px", marginBottom: "20px", fontSize: "0.72rem", color: "#64748b", wordBreak: "break-all", fontFamily: "monospace" }}>
+                arifa.com.ar/verificar/{qrModal.sedeId}
+              </div>
+
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={downloadQr}
+                  disabled={!qrDataUrl}
+                  className="btn-blue"
+                  style={{ flex: 1, padding: "12px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontWeight: 700, opacity: qrDataUrl ? 1 : 0.5 }}
+                >
+                  <Download size={18} /> Descargar PNG
+                </button>
+                <a
+                  href={`https://arifa.com.ar/verificar/${qrModal.sedeId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ padding: "12px 16px", borderRadius: "8px", background: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+                  title="Abrir página de verificación"
+                >
+                  <ExternalLink size={18} />
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toast {...toast} />
     </div>
   );

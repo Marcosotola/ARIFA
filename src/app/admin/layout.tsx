@@ -25,7 +25,8 @@ import {
   ChevronRight,
   Menu,
   X as CloseIcon,
-  FolderOpen
+  FolderOpen,
+  Building2
 } from "lucide-react";
 import PWAInstallButton from "@/components/PWAInstallButton";
 
@@ -234,6 +235,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Usuarios — admin y secretaria
   if (isAdmin || isSecretaria) {
     sidebarLinks.push({ label: "Usuarios", href: "/admin/usuarios", icon: <Users size={20} />, color: "#7c3aed" });
+  }
+
+  // Instalaciones — admin y secretaria
+  if (isAdmin || isSecretaria) {
+    sidebarLinks.push({ label: "Instalaciones", href: "/admin/instalaciones", icon: <Building2 size={20} />, color: "#0d9488" });
   }
 
   // Notificaciones — admin y secretaria

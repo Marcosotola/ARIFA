@@ -20,7 +20,8 @@ import {
   ChevronRight,
   Sparkles,
   ShieldCheck,
-  FolderOpen
+  FolderOpen,
+  Building2
 } from "lucide-react";
 
 // ─── Module definitions ───────────────────────────────────────────────────────
@@ -97,6 +98,14 @@ const MODULES = [
     description: "Alta, edición y roles de acceso de usuarios.",
     href: "/admin/usuarios",
     color: "#7c3aed",
+    roles: ["admin", "superadmin", "secretaria"],
+  },
+  {
+    icon: <Building2 size={24} />,
+    label: "Instalaciones",
+    description: "Estado operativo y QR de verificación pública por sede.",
+    href: "/admin/instalaciones",
+    color: "#0d9488",
     roles: ["admin", "superadmin", "secretaria"],
   },
   {
