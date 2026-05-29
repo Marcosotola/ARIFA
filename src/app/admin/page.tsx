@@ -42,7 +42,7 @@ const MODULES = [
     description: "Inspecciones en campo, checklists de detección, extinción y registros fotográficos.",
     href: "/admin/planillas",
     color: "#2b6cb0",
-    roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente"],
+    roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente", "supervisor"],
     clientLabel: "Mis Inspecciones",
     clientDescription: "Inspecciones técnicas de tus instalaciones.",
   },
@@ -52,7 +52,7 @@ const MODULES = [
     description: "Gestión de remitos de logística y fichas técnicas de taller.",
     href: "/admin/planillas/matafuegos",
     color: "#c2410c",
-    roles: ["admin", "tecnico", "superadmin", "cliente", "secretaria"],
+    roles: ["admin", "tecnico", "superadmin", "cliente", "secretaria", "supervisor"],
     clientLabel: "Mis Matafuegos",
     clientDescription: "Estado de mantenimiento y remitos de tus extintores.",
   },
@@ -62,7 +62,7 @@ const MODULES = [
     description: "Emisión y gestión de certificados de instalación.",
     href: "/admin/certificados",
     color: "#0369a1",
-    roles: ["admin", "superadmin", "cliente"],
+    roles: ["admin", "superadmin", "cliente", "supervisor"],
     clientLabel: "Mis Certificados",
     clientDescription: "Certificados de tus instalaciones.",
   },
@@ -82,7 +82,7 @@ const MODULES = [
     description: "Visitas, capacitaciones, ATS y programas de seguridad.",
     href: "/admin/hys",
     color: "#15803d",
-    roles: ["admin", "superadmin", "cliente", "tecnichys"],
+    roles: ["admin", "superadmin", "cliente", "tecnichys", "supervisor"],
   },
   {
     icon: <ShoppingCart size={24} />,
@@ -197,6 +197,8 @@ export default function AdminDashboard() {
               ? "Panel de Técnico · Gestión de OT y Matafuegos"
               : role?.toLowerCase() === "tecnichys"
               ? "Panel de Técnico HyS · Higiene y Seguridad"
+              : role?.toLowerCase() === "supervisor"
+              ? "Panel de Supervisor · IT, Matafuegos, Certificados y HyS"
               : isStaff
               ? "Panel de Gestión y Operaciones · ARIFA Seguridad"
               : "Acceso al sistema."}

@@ -316,7 +316,7 @@ export default function OTUnifiedPage() {
 
   const router = useRouter();
 
-  const isStaffRole = (r: string) => ["admin", "tecnico", "superadmin", "secretaria"].includes(r);
+  const isStaffRole = (r: string) => ["admin", "tecnico", "superadmin", "secretaria", "supervisor"].includes(r);
 
   const fetchOTs = useCallback(async (r: string, uid: string) => {
     setLoading(true);
@@ -566,7 +566,7 @@ export default function OTUnifiedPage() {
   });
 
   const isStaff = isStaffRole(role ?? "");
-  const isAdmin = role === "admin" || role === "superadmin";
+  const isAdmin = role === "admin" || role === "superadmin" || role === "supervisor";
   const isClient = role === "cliente";
   const isReadOnly = isClient; // clientes solo pueden ver
 

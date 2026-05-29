@@ -253,8 +253,8 @@ function MatafuegosUnifiedContent() {
     return matchesSearch && matchesDate && matchesSede;
   });
 
-  const isStaff = role === "admin" || role === "tecnico" || role === "superadmin";
-  const isAdmin = role === "admin" || role === "superadmin";
+  const isStaff = role === "admin" || role === "tecnico" || role === "superadmin" || role === "supervisor";
+  const isAdmin = role === "admin" || role === "superadmin" || role === "supervisor";
   const isReadOnly = role === "cliente";
 
   const handleDownload = async (id: string, type: "remito" | "ficha") => {

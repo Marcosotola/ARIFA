@@ -514,8 +514,8 @@ export default function CertificadosPage() {
     finally { setDownloadingId(null); }
   };
 
-  const isStaff = role === "admin" || role === "tecnico" || role === "superadmin";
-  const isAdmin = role === "admin" || role === "superadmin";
+  const isStaff = role === "admin" || role === "tecnico" || role === "superadmin" || role === "supervisor";
+  const isAdmin = role === "admin" || role === "superadmin" || role === "supervisor";
   const isReadOnly = role === "cliente";
 
   const filteredCerts = certs.filter(c => {

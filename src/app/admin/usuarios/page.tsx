@@ -453,6 +453,7 @@ export default function UsuariosPage() {
                     <option value="cliente">Cliente</option>
                     <option value="tecnico">Técnico</option>
                     <option value="tecnicoHyS">Técnico HyS</option>
+                    <option value="supervisor">Supervisor</option>
                     <option value="secretaria">Secretaria</option>
                     <option value="admin">Administrador</option>
                     {currentUserRole?.toLowerCase() === "superadmin" && <option value="superadmin">Superadmin</option>}

@@ -92,7 +92,7 @@ function OTFormContent() {
 
   const searchParams = useSearchParams();
   const isReadOnly = role?.toLowerCase() === "cliente" || searchParams.get("view") === "true";
-  const isAdmin = ["admin", "superadmin"].includes(role?.toLowerCase() || "");
+  const isAdmin = ["admin", "superadmin", "supervisor"].includes(role?.toLowerCase() || "");
   const isAutoDownload = searchParams.get("download") === "true";
   const isTemplateMode = searchParams.get("template") === "true";
   const templateId = searchParams.get("templateId") || null;

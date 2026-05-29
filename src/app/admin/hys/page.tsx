@@ -190,7 +190,7 @@ export default function HySPage() {
   const fetchDocs = async (r?: string, userData?: any, uid: string = "") => {
     setLoading(true);
     try {
-      const isStaff = ["admin", "superadmin", "tecnico", "tecnicoHyS"].includes(r || "");
+      const isStaff = ["admin", "superadmin", "tecnico", "tecnicoHyS", "supervisor"].includes(r || "");
       const q = isStaff
         ? query(collection(db, "hys_documentos"), orderBy("createdAt", "desc"))
         : query(collection(db, "hys_documentos"), where("clienteId", "==", uid), orderBy("createdAt", "desc"));
@@ -386,7 +386,7 @@ export default function HySPage() {
   };
 
   const isReadOnly = role === "cliente";
-  const isAdmin = role === "admin" || role === "superadmin" || role === "tecnicoHyS";
+  const isAdmin = role === "admin" || role === "superadmin" || role === "tecnicoHyS" || role === "supervisor";
   const sedesDisponibles = (isReadOnly && currentUser?.sedes
     ? currentUser.sedes.map((s: any) => s.nombre)
     : Array.from(new Set(docs.map(d => d.sedeNombre).filter(Boolean)))) as string[];

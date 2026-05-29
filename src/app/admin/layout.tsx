@@ -96,6 +96,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isClient = r === "cliente";
   const isSecretaria = r === "secretaria";
   const isTecnicoHyS = r === "tecnichys";
+  const isSupervisor = r === "supervisor";
   const isStaff = ["admin", "superadmin", "tecnico", "secretaria"].includes(r || "");
 
   // Subscription logic
@@ -184,13 +185,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // Matafuegos — admin, tecnico, secretaria (gestionan) y cliente (consulta)
-  if (isAdmin || isTecnico || isSecretaria || isClient) {
+  // Matafuegos — admin, tecnico, secretaria, supervisor (gestionan) y cliente (consulta)
+  if (isAdmin || isTecnico || isSecretaria || isClient || isSupervisor) {
     sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: <Flame size={20} />, color: "#c2410c" });
   }
 
-  // Certificados — admin y cliente (cliente: solo lectura)
-  if (isAdmin || isClient) {
+  // Certificados — admin, supervisor y cliente (cliente: solo lectura)
+  if (isAdmin || isClient || isSupervisor) {
     sidebarLinks.push({
       label: "Certificados",
       href: "/admin/certificados",
@@ -209,8 +210,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // HyS — admin, cliente (solo lectura) y tecnicoHyS (gestión completa)
-  if (isAdmin || isClient || isTecnicoHyS) {
+  // HyS — admin, cliente (solo lectura), tecnicoHyS y supervisor (gestión completa)
+  if (isAdmin || isClient || isTecnicoHyS || isSupervisor) {
     sidebarLinks.push({
       label: "HyS",
       href: "/admin/hys",
@@ -277,7 +278,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img src="/logos/logoFondoTransparente.svg" alt="ARIFA" style={{ height: '60px' }} />
           <span style={{ fontSize: '0.6rem', fontWeight: 400, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : "PANEL"}
+            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : isSupervisor ? "SUPERVISOR" : "PANEL"}
           </span>
         </div>
         <div style={{ width: '40px' }}></div>
@@ -317,7 +318,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div style={{ marginBottom: "40px", textAlign: "center", display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
           <img src="/logos/logoFondoTransparente.svg" alt="ARIFA Logo" style={{ height: '90px' }} />
           <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.7, letterSpacing: '2px', textTransform: 'uppercase' }}>
-            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : "PANEL"}
+            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : isSupervisor ? "SUPERVISOR" : "PANEL"}
           </span>
         </div>
         
@@ -406,8 +407,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </li>
             )}
 
-            {/* Configuración - Solo para staff (no tecnicoHyS) */}
-            {!isClient && !isTecnicoHyS && (
+            {/* Configuración - Solo para staff (no tecnicoHyS ni supervisor) */}
+            {!isClient && !isTecnicoHyS && !isSupervisor && (
               <li style={{ marginBottom: "8px" }}>
                 <Link 
                   href={configLink.href} 
