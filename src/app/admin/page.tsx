@@ -82,7 +82,7 @@ const MODULES = [
     description: "Visitas, capacitaciones, ATS y programas de seguridad.",
     href: "/admin/hys",
     color: "#15803d",
-    roles: ["admin", "superadmin", "cliente"],
+    roles: ["admin", "superadmin", "cliente", "tecnichys"],
   },
   {
     icon: <ShoppingCart size={24} />,
@@ -195,6 +195,8 @@ export default function AdminDashboard() {
               ? "Panel de Cliente · ARIFA Seguridad"
               : role?.toLowerCase() === "tecnico"
               ? "Panel de Técnico · Gestión de OT y Matafuegos"
+              : role?.toLowerCase() === "tecnichys"
+              ? "Panel de Técnico HyS · Higiene y Seguridad"
               : isStaff
               ? "Panel de Gestión y Operaciones · ARIFA Seguridad"
               : "Acceso al sistema."}

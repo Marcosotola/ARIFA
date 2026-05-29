@@ -452,6 +452,7 @@ export default function UsuariosPage() {
                   <select style={{ ...inputSt, paddingLeft: '38px', background: "#fff" }} value={editingUser.rol} onChange={e => setEditingUser({ ...editingUser, rol: e.target.value })}>
                     <option value="cliente">Cliente</option>
                     <option value="tecnico">Técnico</option>
+                    <option value="tecnicoHyS">Técnico HyS</option>
                     <option value="secretaria">Secretaria</option>
                     <option value="admin">Administrador</option>
                     {currentUserRole?.toLowerCase() === "superadmin" && <option value="superadmin">Superadmin</option>}

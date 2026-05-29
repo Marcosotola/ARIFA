@@ -95,6 +95,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isTecnico = r === "tecnico";
   const isClient = r === "cliente";
   const isSecretaria = r === "secretaria";
+  const isTecnicoHyS = r === "tecnichys";
   const isStaff = ["admin", "superadmin", "tecnico", "secretaria"].includes(r || "");
 
   // Subscription logic
@@ -173,13 +174,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // Inspección Técnica — todos los roles
-  sidebarLinks.push({
-    label: "Insp. Técnica",
-    href: "/admin/planillas",
-    icon: <ClipboardList size={20} />,
-    color: "#2b6cb0",
-  });
+  // Inspección Técnica — todos los roles excepto tecnicoHyS
+  if (!isTecnicoHyS) {
+    sidebarLinks.push({
+      label: "Insp. Técnica",
+      href: "/admin/planillas",
+      icon: <ClipboardList size={20} />,
+      color: "#2b6cb0",
+    });
+  }
 
   // Matafuegos — admin, tecnico, secretaria (gestionan) y cliente (consulta)
   if (isAdmin || isTecnico || isSecretaria || isClient) {
@@ -206,8 +209,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // HyS — admin y cliente (cliente: solo lectura)
-  if (isAdmin || isClient) {
+  // HyS — admin, cliente (solo lectura) y tecnicoHyS (gestión completa)
+  if (isAdmin || isClient || isTecnicoHyS) {
     sidebarLinks.push({
       label: "HyS",
       href: "/admin/hys",
@@ -274,7 +277,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img src="/logos/logoFondoTransparente.svg" alt="ARIFA" style={{ height: '60px' }} />
           <span style={{ fontSize: '0.6rem', fontWeight: 400, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : "PANEL"}
+            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : "PANEL"}
           </span>
         </div>
         <div style={{ width: '40px' }}></div>
@@ -314,7 +317,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div style={{ marginBottom: "40px", textAlign: "center", display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
           <img src="/logos/logoFondoTransparente.svg" alt="ARIFA Logo" style={{ height: '90px' }} />
           <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.7, letterSpacing: '2px', textTransform: 'uppercase' }}>
-            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : "PANEL"}
+            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : "PANEL"}
           </span>
         </div>
         
@@ -403,8 +406,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </li>
             )}
 
-            {/* Configuración - Solo para staff */}
-            {!isClient && (
+            {/* Configuración - Solo para staff (no tecnicoHyS) */}
+            {!isClient && !isTecnicoHyS && (
               <li style={{ marginBottom: "8px" }}>
                 <Link 
                   href={configLink.href} 
