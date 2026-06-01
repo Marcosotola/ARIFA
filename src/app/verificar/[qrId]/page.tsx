@@ -1,5 +1,6 @@
 import { adminDb } from "@/lib/firebase-admin";
 import { CheckCircle, AlertTriangle, XCircle, Clock, MapPin, Building2, Calendar, Award, User, Shield, FileCheck } from "lucide-react";
+import DownloadCertButton from "./DownloadCertButton";
 
 type Estado = "vigente" | "con_observaciones" | "fuera_servicio" | "vencido" | "sin_certificacion";
 
@@ -256,6 +257,24 @@ export default async function VerificarPage({ params }: { params: Promise<{ qrId
             <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#475569" }}>{updatedStr}</div>
           </div>
         </div>
+
+        {/* Descargar PDF */}
+        {cert && (
+          <DownloadCertButton
+            estado={data.estado}
+            estadoLabel={cfg.label}
+            estadoDesc={cfg.desc}
+            clienteNombre={data.clienteNombre}
+            sedeNombre={data.sedeNombre}
+            sedeDireccion={data.sedeDireccion}
+            certNumero={formatCertNumber(cert.numero, cert.fechaInspeccion)}
+            fechaInspeccion={formatDate(cert.fechaInspeccion)}
+            fechaVencimiento={formatDate(cert.fechaVencimiento)}
+            tecnico={cert.responsableCertificado || "—"}
+            alcance={cert.sistemaCertificado || "—"}
+            qrId={qrId}
+          />
+        )}
 
         {/* Footer sitio */}
         <div style={{ background: "#002244", borderRadius: "12px", padding: "16px 20px", display: "flex", flexDirection: "column", alignItems: "center", gap: "6px", textAlign: "center" }}>

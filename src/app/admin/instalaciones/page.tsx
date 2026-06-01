@@ -131,14 +131,135 @@ export default function InstalacionesPage() {
     setQrModal({ sedeId: inst.sedeId, sedeNombre: inst.sedeNombre, clienteNombre: inst.clienteNombre });
     const url = `https://arifa.com.ar/verificar/${inst.sedeId}`;
     const QRCode = (await import("qrcode")).default;
-    const dataUrl = await QRCode.toDataURL(url, { width: 280, margin: 2, color: { dark: "#002244", light: "#ffffff" } });
+    const dataUrl = await QRCode.toDataURL(url, { width: 300, margin: 2, errorCorrectionLevel: "H", color: { dark: "#002244", light: "#ffffff" } });
     setQrDataUrl(dataUrl);
   };
 
-  const downloadQr = () => {
+  const downloadQr = async () => {
     if (!qrDataUrl || !qrModal) return;
+
+    const W = 400;
+    const H_HEADER = 70;
+    const H_INFO = 84;
+    const QR_SIZE = 258;
+    const H_QR_AREA = QR_SIZE + 28;
+    const H_URL = 30;
+    const H_FOOTER = 46;
+    const H = H_HEADER + H_INFO + H_QR_AREA + H_URL + H_FOOTER;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d")!;
+
+    const loadImg = (src: string): Promise<HTMLImageElement> =>
+      new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(img);
+        img.src = src;
+      });
+
+    // White background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, W, H);
+
+    // Header
+    ctx.fillStyle = "#002244";
+    ctx.fillRect(0, 0, W, H_HEADER);
+
+    const logo = await loadImg("/logos/logoFondoTransparente.svg");
+    ctx.drawImage(logo, 18, 11, 48, 48);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "alphabetic";
+    ctx.font = "bold 18px Arial, sans-serif";
+    ctx.textAlign = "left";
+    ctx.fillText("ARIFA", 76, 34);
+
+    ctx.fillStyle = "rgba(255,255,255,0.6)";
+    ctx.font = "9.5px Arial, sans-serif";
+    ctx.fillText("Ingeniería en Seguridad Contra Incendios", 76, 52);
+
+    // Info area
+    let y = H_HEADER;
+    ctx.fillStyle = "#f1f5f9";
+    ctx.fillRect(0, y, W, H_INFO);
+    ctx.fillStyle = "#002244";
+    ctx.fillRect(0, y, 4, H_INFO);
+
+    ctx.fillStyle = "#002244";
+    ctx.font = "bold 11.5px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("VERIFICACIÓN DE CERTIFICACIÓN", W / 2, y + 24);
+
+    const truncate = (text: string, maxW: number) => {
+      if (ctx.measureText(text).width <= maxW) return text;
+      let t = text;
+      while (t.length > 0 && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+      return t + "…";
+    };
+
+    ctx.fillStyle = "#1e293b";
+    ctx.font = "bold 15px Arial, sans-serif";
+    ctx.fillText(truncate(qrModal.sedeNombre, W - 48), W / 2, y + 48);
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = "12px Arial, sans-serif";
+    ctx.fillText(truncate(qrModal.clienteNombre, W - 48), W / 2, y + 68);
+
+    // QR area
+    y += H_INFO;
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, y, W, H_QR_AREA);
+
+    const qrImg = await loadImg(qrDataUrl);
+    const qrX = (W - QR_SIZE) / 2;
+    const qrY = y + 14;
+    ctx.drawImage(qrImg, qrX, qrY, QR_SIZE, QR_SIZE);
+
+    // Logo centered on QR
+    const cx = W / 2;
+    const cy = qrY + QR_SIZE / 2;
+    const logoR = 28;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(cx, cy, logoR + 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(logo, cx - logoR, cy - logoR, logoR * 2, logoR * 2);
+
+    // URL bar
+    y += H_QR_AREA;
+    ctx.fillStyle = "#f8fafc";
+    ctx.fillRect(0, y, W, H_URL);
+    ctx.strokeStyle = "#e2e8f0";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(W, y);
+    ctx.stroke();
+
+    ctx.fillStyle = "#94a3b8";
+    ctx.font = "10px monospace, Arial";
+    ctx.textAlign = "center";
+    ctx.fillText(`arifa.com.ar/verificar/${qrModal.sedeId}`, W / 2, y + 18);
+
+    // Footer
+    y += H_URL;
+    ctx.fillStyle = "#002244";
+    ctx.fillRect(0, y, W, H_FOOTER);
+
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = "bold 11px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("www.arifa.com.ar", W / 2, y + 17);
+
+    ctx.fillStyle = "rgba(255,255,255,0.5)";
+    ctx.font = "9px Arial, sans-serif";
+    ctx.fillText("Escanee el código para verificar la certificación online", W / 2, y + 33);
+
     const a = document.createElement("a");
-    a.href = qrDataUrl;
+    a.href = canvas.toDataURL("image/png");
     a.download = `QR-${qrModal.sedeNombre.replace(/\s+/g, "-")}.png`;
     a.click();
   };
