@@ -15,7 +15,7 @@ service cloud.firestore {
     }
     
     function isStaffMember() {
-      return request.auth != null && getRole() in ['admin', 'superadmin', 'tecnico', 'secretaria'];
+      return request.auth != null && getRole() in ['admin', 'superadmin', 'tecnico', 'secretaria', 'supervisor', 'tecnicoHyS'];
     }
 
     // --- REGLAS DE COLECCIONES ---
@@ -71,7 +71,7 @@ service cloud.firestore {
     // Higiene y Seguridad (HyS)
     match /hys_documentos/{id} {
       allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
-      allow write: if request.auth != null && (isAdmin() || getRole() == 'tecnico');
+      allow write: if request.auth != null && (isAdmin() || getRole() in ['tecnico', 'supervisor', 'tecnicoHyS']);
     }
 
     // Plan de Acción
@@ -83,7 +83,7 @@ service cloud.firestore {
     // Certificados
     match /certificados/{id} {
       allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
-      allow write: if isAdmin();
+      allow write: if isAdmin() || getRole() == 'supervisor';
     }
 
     // Textos de Memoria Descriptiva
