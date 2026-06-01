@@ -141,6 +141,7 @@ async function getVerificationData(qrId: string) {
     sedeNombre: cert.sedeNombre || "",
     sedeDireccion: cert.clienteDireccion || "",
     cert,
+    certId: sorted[0].id,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -259,21 +260,8 @@ export default async function VerificarPage({ params }: { params: Promise<{ qrId
         </div>
 
         {/* Descargar PDF */}
-        {cert && (
-          <DownloadCertButton
-            estado={data.estado}
-            estadoLabel={cfg.label}
-            estadoDesc={cfg.desc}
-            clienteNombre={data.clienteNombre}
-            sedeNombre={data.sedeNombre}
-            sedeDireccion={data.sedeDireccion}
-            certNumero={formatCertNumber(cert.numero, cert.fechaInspeccion)}
-            fechaInspeccion={formatDate(cert.fechaInspeccion)}
-            fechaVencimiento={formatDate(cert.fechaVencimiento)}
-            tecnico={cert.responsableCertificado || "—"}
-            alcance={cert.sistemaCertificado || "—"}
-            qrId={qrId}
-          />
+        {cert && data.certId && (
+          <DownloadCertButton certId={data.certId} />
         )}
 
         {/* Footer sitio */}
