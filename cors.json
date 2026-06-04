@@ -1,7 +1,8 @@
 [
   {
     "origin": ["http://localhost:3000", "https://arifa-b5c14.web.app", "https://arifa-b5c14.firebaseapp.com"],
-    "method": ["GET"],
+    "method": ["GET", "HEAD"],
+    "responseHeader": ["Content-Type", "Content-Disposition"],
     "maxAgeSeconds": 3600
   }
 ]

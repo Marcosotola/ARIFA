@@ -7,7 +7,7 @@ import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
   doc, query, orderBy, serverTimestamp, getDoc, where
 } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from "firebase/storage";
 
 import {
   Plus,
@@ -93,8 +93,8 @@ const getFileName = (url: string): string => {
 
 const downloadFile = async (url: string) => {
   try {
-    const response = await fetch(url);
-    const blob = await response.blob();
+    const fileRef = ref(storage, url);
+    const blob = await getBlob(fileRef);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = getFileName(url);
@@ -102,7 +102,10 @@ const downloadFile = async (url: string) => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(a.href);
-  } catch { alert("Error al descargar el archivo."); }
+  } catch {
+    // CORS no configurado en el bucket: abrir en nueva pestaña como fallback
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 };
 
 export default function HySPage() {

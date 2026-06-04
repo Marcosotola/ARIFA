@@ -6,6 +6,7 @@ import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  fetchSignInMethodsForEmail,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
@@ -106,7 +107,18 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/admin");
     } catch (err: any) {
-      alert("Error: " + err.message);
+      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+        try {
+          const methods = await fetchSignInMethodsForEmail(auth, email);
+          if (methods.includes("google.com") && !methods.includes("password")) {
+            alert("Este email está registrado con Google. Usá el botón de Google para ingresar.");
+          } else {
+            alert("Email o contraseña incorrectos.");
+          }
+        } catch { alert("Email o contraseña incorrectos."); }
+      } else {
+        alert("Error: " + err.message);
+      }
     } finally { setLoading(false); }
   };
 
@@ -116,6 +128,15 @@ export default function LoginPage() {
     if (!nombre.trim() || !apellido.trim()) { alert("Nombre y Apellido son obligatorios."); return; }
     setLoading(true);
     try {
+      const methods = await fetchSignInMethodsForEmail(auth, email);
+      if (methods.includes("google.com")) {
+        alert("Este email ya está registrado con Google. Ingresá usando el botón de Google.");
+        return;
+      }
+      if (methods.includes("password")) {
+        alert("Este email ya está registrado. Ingresá con tu contraseña.");
+        return;
+      }
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await setDoc(doc(db, "usuarios", cred.user.uid), {
         email,
@@ -131,7 +152,11 @@ export default function LoginPage() {
       });
       router.push("/admin");
     } catch (err: any) {
-      alert("Error: " + err.message);
+      if (err.code === "auth/email-already-in-use") {
+        alert("Este email ya está registrado. Intentá ingresar o usar el botón de Google.");
+      } else {
+        alert("Error: " + err.message);
+      }
     } finally { setLoading(false); }
   };
 
@@ -142,6 +167,14 @@ export default function LoginPage() {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
+
+      // Si el email ya tiene cuenta con contraseña, cancelar y avisar
+      const methods = await fetchSignInMethodsForEmail(auth, user.email!);
+      if (methods.includes("password") && !methods.includes("google.com")) {
+        await auth.signOut();
+        alert("Este email ya está registrado con contraseña. Ingresá con tu email y contraseña en lugar de Google.");
+        return;
+      }
       const userDoc = await getDoc(doc(db, "usuarios", user.uid));
       if (!userDoc.exists() || !userDoc.data()?.perfilCompleto) {
         const existing = userDoc.data() || {};
@@ -166,7 +199,11 @@ export default function LoginPage() {
         router.push("/admin");
       }
     } catch (err: any) {
-      alert("Error Google: " + err.message);
+      if (err.code === "auth/account-exists-with-different-credential") {
+        alert("Este email ya está registrado con contraseña. Ingresá con tu email y contraseña en lugar de Google.");
+      } else if (err.code !== "auth/popup-closed-by-user" && err.code !== "auth/cancelled-popup-request") {
+        alert("Error al ingresar con Google: " + err.message);
+      }
     } finally { setLoading(false); }
   };
 
@@ -232,7 +269,7 @@ export default function LoginPage() {
 
             <p style={{ textAlign: "center", marginTop: "22px", fontSize: "0.9rem", color: "#666" }}>
               ¿No tenés cuenta?{" "}
-              <button onClick={() => setMode("register")} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
+              <button onClick={() => { setMode("register"); setPassword(""); }} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
                 Registrarse
               </button>
             </p>
@@ -267,7 +304,7 @@ export default function LoginPage() {
             </form>
             <p style={{ textAlign: "center", marginTop: "18px", fontSize: "0.9rem", color: "#666" }}>
               ¿Ya tenés cuenta?{" "}
-              <button onClick={() => setMode("login")} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
+              <button onClick={() => { setMode("login"); setPassword(""); }} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
                 Ingresar
               </button>
             </p>
