@@ -24,51 +24,51 @@ export default function SuscripcionPage() {
   const [vencimientoStr, setVencimientoStr] = useState("");
 
   useEffect(() => {
+    let unsubSub: (() => void) | null = null;
+    let unsubPagos: (() => void) | null = null;
+
     const unsubAuth = onAuthStateChanged(auth, async (u) => {
       if (u) {
         setUser(u);
         const userDoc = await getDoc(doc(db, "usuarios", u.uid));
-        if (userDoc.exists()) {
-          setRole(userDoc.data().rol);
-        }
-      }
-    });
+        const rol = userDoc.exists() ? userDoc.data().rol : null;
+        setRole(rol);
 
-    const unsubSub = onSnapshot(doc(db, "configuracion", "suscripcion"), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        setSubscription(data);
-        setCosto(data.costo || 120000);
-        setEstado(data.estado || "activo");
-        if (data.vencimiento) {
-          try {
-            const date = typeof data.vencimiento.toDate === 'function' ? data.vencimiento.toDate() : new Date(data.vencimiento);
-            setVencimientoStr(date.toISOString().split('T')[0]);
-          } catch (e) {
-            console.error("Error parsing date:", e);
+        unsubSub = onSnapshot(doc(db, "configuracion", "suscripcion"), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            setSubscription(data);
+            setCosto(data.costo || 120000);
+            setEstado(data.estado || "activo");
+            if (data.vencimiento) {
+              try {
+                const date = typeof data.vencimiento.toDate === 'function' ? data.vencimiento.toDate() : new Date(data.vencimiento);
+                setVencimientoStr(date.toISOString().split('T')[0]);
+              } catch (e) {
+                console.error("Error parsing date:", e);
+              }
+            }
+          } else {
+            const initial = { costo: 120000, estado: "activo", vencimiento: null };
+            setSubscription(initial);
+            setDoc(doc(db, "configuracion", "suscripcion"), initial);
           }
-        }
-      } else {
-        const initial = {
-          costo: 120000,
-          estado: "activo",
-          vencimiento: null
-        };
-        setSubscription(initial);
-        setDoc(doc(db, "configuracion", "suscripcion"), initial);
-      }
-      setLoading(false);
-    });
+          setLoading(false);
+        });
 
-    const q = query(collection(db, "pagos_suscripcion"), orderBy("fecha", "desc"), limit(10));
-    const unsubPagos = onSnapshot(q, (snap) => {
-      setPagos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        if (rol === "superadmin") {
+          const q = query(collection(db, "pagos_suscripcion"), orderBy("fecha", "desc"), limit(10));
+          unsubPagos = onSnapshot(q, (snap) => {
+            setPagos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+          });
+        }
+      }
     });
 
     return () => {
       unsubAuth();
-      unsubSub();
-      unsubPagos();
+      unsubSub?.();
+      unsubPagos?.();
     };
   }, []);
 

@@ -169,5 +169,10 @@ service cloud.firestore {
       allow read: if request.auth != null && (isStaffMember() || resource.data.destinatarioUid == request.auth.uid);
       allow write: if isStaffMember();
     }
+
+    // Pagos de suscripción
+    match /pagos_suscripcion/{id} {
+      allow read, write: if request.auth != null && getRole() == 'superadmin';
+    }
   }
 }
