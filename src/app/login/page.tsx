@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { auth, db, isFirebaseConfigured } from "@/lib/firebase";
 import {
   signInWithEmailAndPassword,
@@ -36,6 +37,10 @@ const labelSt: React.CSSProperties = {
   marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.4px",
 };
 const gridSt: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" };
+const eyeBtnSt: React.CSSProperties = {
+  position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)",
+  background: "none", border: "none", cursor: "pointer", padding: "0", color: "#888", display: "flex",
+};
 
 // ─── Shared profile form ───────────────────────────────────────────────────────
 const ProfileFields = ({ 
@@ -88,6 +93,9 @@ export default function LoginPage() {
   // Login fields
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Register / profile fields
   const [nombre, setNombre] = useState("");
@@ -126,6 +134,7 @@ export default function LoginPage() {
     e.preventDefault();
     if (!isFirebaseConfigured) { alert("Firebase no configurado."); return; }
     if (!nombre.trim() || !apellido.trim()) { alert("Nombre y Apellido son obligatorios."); return; }
+    if (password !== confirmPassword) { alert("Las contraseñas no coinciden."); return; }
     setLoading(true);
     try {
       const methods = await fetchSignInMethodsForEmail(auth, email);
@@ -248,7 +257,12 @@ export default function LoginPage() {
               </div>
               <div>
                 <label style={labelSt}>Contraseña</label>
-                <input type="password" required style={inputSt} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+                <div style={{ position: "relative" }}>
+                  <input type={showPassword ? "text" : "password"} required style={{ ...inputSt, paddingRight: "40px" }} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
+                  <button type="button" style={eyeBtnSt} onClick={() => setShowPassword(v => !v)} tabIndex={-1}>
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
               </div>
               <button type="submit" disabled={loading} className="btn-red" style={{ width: "100%", padding: "14px", marginTop: "4px" }}>
                 {loading ? "Ingresando..." : "Entrar"}
@@ -269,7 +283,7 @@ export default function LoginPage() {
 
             <p style={{ textAlign: "center", marginTop: "22px", fontSize: "0.9rem", color: "#666" }}>
               ¿No tenés cuenta?{" "}
-              <button onClick={() => { setMode("register"); setPassword(""); }} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
+              <button onClick={() => { setMode("register"); setPassword(""); setConfirmPassword(""); }} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
                 Registrarse
               </button>
             </p>
@@ -287,8 +301,36 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <label style={labelSt}>Contraseña *</label>
-                  <input type="password" required minLength={6} style={inputSt} value={password} onChange={e => setPassword(e.target.value)} placeholder="Mín. 6 caracteres" />
+                  <div style={{ position: "relative" }}>
+                    <input type={showPassword ? "text" : "password"} required minLength={6} style={{ ...inputSt, paddingRight: "40px" }} value={password} onChange={e => setPassword(e.target.value)} placeholder="Mín. 6 caracteres" />
+                    <button type="button" style={eyeBtnSt} onClick={() => setShowPassword(v => !v)} tabIndex={-1}>
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
                 </div>
+              </div>
+              <div>
+                <label style={labelSt}>Confirmar Contraseña *</label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    required
+                    minLength={6}
+                    style={{ ...inputSt, paddingRight: "40px", borderColor: confirmPassword && confirmPassword !== password ? "#dc2626" : confirmPassword && confirmPassword === password ? "#16a34a" : "#ddd" }}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Repetí tu contraseña"
+                  />
+                  <button type="button" style={eyeBtnSt} onClick={() => setShowConfirmPassword(v => !v)} tabIndex={-1}>
+                    {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+                {confirmPassword && confirmPassword !== password && (
+                  <span style={{ fontSize: "0.75rem", color: "#dc2626", marginTop: "4px", display: "block" }}>Las contraseñas no coinciden</span>
+                )}
+                {confirmPassword && confirmPassword === password && (
+                  <span style={{ fontSize: "0.75rem", color: "#16a34a", marginTop: "4px", display: "block" }}>Las contraseñas coinciden</span>
+                )}
               </div>
               <ProfileFields 
                 nombre={nombre} setNombre={setNombre} 
@@ -304,7 +346,7 @@ export default function LoginPage() {
             </form>
             <p style={{ textAlign: "center", marginTop: "18px", fontSize: "0.9rem", color: "#666" }}>
               ¿Ya tenés cuenta?{" "}
-              <button onClick={() => { setMode("login"); setPassword(""); }} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
+              <button onClick={() => { setMode("login"); setPassword(""); setConfirmPassword(""); }} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
                 Ingresar
               </button>
             </p>
