@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useToast, Toast } from "@/components/Toast";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -108,6 +108,156 @@ const downloadFile = async (url: string) => {
   }
 };
 
+// ─── Image Cropper ────────────────────────────────────────────────────────────
+interface CropRect { x: number; y: number; w: number; h: number; } // % of image natural size
+
+function ImageCropper({ src, onConfirm, onCancel }: { src: string; onConfirm: (blob: Blob) => void; onCancel: () => void }) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  // crop in % of container display size
+  const [crop, setCrop] = useState<CropRect>({ x: 5, y: 5, w: 90, h: 90 });
+  const drag = useRef<{ type: "move" | "tl" | "tr" | "bl" | "br"; startX: number; startY: number; startCrop: CropRect } | null>(null);
+
+  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+  const MIN = 10;
+
+  const startDrag = (clientX: number, clientY: number, type: "move" | "tl" | "tr" | "bl" | "br") => {
+    drag.current = { type, startX: clientX, startY: clientY, startCrop: { ...crop } };
+  };
+
+  const onMouseDown = (e: React.MouseEvent, type: "move" | "tl" | "tr" | "bl" | "br") => {
+    e.preventDefault(); e.stopPropagation();
+    startDrag(e.clientX, e.clientY, type);
+  };
+
+  const onTouchStart = (e: React.TouchEvent, type: "move" | "tl" | "tr" | "bl" | "br") => {
+    e.stopPropagation();
+    const t = e.touches[0];
+    startDrag(t.clientX, t.clientY, type);
+  };
+
+  const applyMove = useCallback((clientX: number, clientY: number) => {
+    if (!drag.current || !containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const dx = ((clientX - drag.current.startX) / rect.width) * 100;
+    const dy = ((clientY - drag.current.startY) / rect.height) * 100;
+    const sc = drag.current.startCrop;
+    setCrop(() => {
+      let { x, y, w, h } = sc;
+      if (drag.current!.type === "move") {
+        x = clamp(sc.x + dx, 0, 100 - sc.w);
+        y = clamp(sc.y + dy, 0, 100 - sc.h);
+      } else if (drag.current!.type === "tl") {
+        const nx = clamp(sc.x + dx, 0, sc.x + sc.w - MIN);
+        const ny = clamp(sc.y + dy, 0, sc.y + sc.h - MIN);
+        w = sc.w - (nx - sc.x); h = sc.h - (ny - sc.y); x = nx; y = ny;
+      } else if (drag.current!.type === "tr") {
+        const ny = clamp(sc.y + dy, 0, sc.y + sc.h - MIN);
+        w = clamp(sc.w + dx, MIN, 100 - sc.x); h = sc.h - (ny - sc.y); y = ny;
+      } else if (drag.current!.type === "bl") {
+        const nx = clamp(sc.x + dx, 0, sc.x + sc.w - MIN);
+        w = sc.w - (nx - sc.x); h = clamp(sc.h + dy, MIN, 100 - sc.y); x = nx;
+      } else if (drag.current!.type === "br") {
+        w = clamp(sc.w + dx, MIN, 100 - sc.x);
+        h = clamp(sc.h + dy, MIN, 100 - sc.y);
+      }
+      return { x, y, w, h };
+    });
+  }, []);
+
+  const onMouseMove = useCallback((e: MouseEvent) => applyMove(e.clientX, e.clientY), [applyMove]);
+  const onTouchMove = useCallback((e: TouchEvent) => { e.preventDefault(); applyMove(e.touches[0].clientX, e.touches[0].clientY); }, [applyMove]);
+  const onEnd = useCallback(() => { drag.current = null; }, []);
+
+  useEffect(() => {
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onEnd);
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onEnd);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onEnd);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onEnd);
+    };
+  }, [onMouseMove, onTouchMove, onEnd]);
+
+  const handleConfirm = () => {
+    const img = imgRef.current;
+    if (!img) return;
+    const canvas = document.createElement("canvas");
+    const sx = (crop.x / 100) * img.naturalWidth;
+    const sy = (crop.y / 100) * img.naturalHeight;
+    const sw = (crop.w / 100) * img.naturalWidth;
+    const sh = (crop.h / 100) * img.naturalHeight;
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    canvas.toBlob(blob => { if (blob) onConfirm(blob); }, "image/jpeg", 0.92);
+  };
+
+  const handleSt: React.CSSProperties = {
+    position: "absolute", width: "14px", height: "14px", background: "#fff",
+    border: "2px solid var(--primary-blue)", borderRadius: "3px", zIndex: 10,
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 9000, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+      <div style={{ background: "#fff", borderRadius: "14px", padding: "24px", maxWidth: "700px", width: "100%", boxShadow: "0 25px 60px rgba(0,0,0,0.4)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+          <div>
+            <h3 style={{ fontWeight: 800, fontSize: "1.1rem", color: "var(--primary-blue)", margin: 0 }}>Recortar imagen</h3>
+            <p style={{ fontSize: "0.78rem", color: "#888", margin: "4px 0 0" }}>Arrastrá las esquinas para ajustar el recorte</p>
+          </div>
+          <button onClick={onCancel} style={{ background: "#f1f5f9", border: "none", borderRadius: "50%", width: "32px", height: "32px", cursor: "pointer", fontSize: "1rem", color: "#555", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+
+        {/* Canvas area */}
+        <div ref={containerRef} style={{ position: "relative", userSelect: "none", cursor: "crosshair", background: "#111", borderRadius: "8px", overflow: "hidden", maxHeight: "55vh" }}>
+          <img ref={imgRef} src={src} alt="recortar"
+            style={{ display: "block", width: "100%", height: "100%", objectFit: "contain", maxHeight: "55vh" }} />
+
+          {/* Dark overlay outside crop */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+            {/* top */}
+            <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: `${crop.y}%`, background: "rgba(0,0,0,0.5)" }} />
+            {/* bottom */}
+            <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: `${100 - crop.y - crop.h}%`, background: "rgba(0,0,0,0.5)" }} />
+            {/* left */}
+            <div style={{ position: "absolute", left: 0, top: `${crop.y}%`, width: `${crop.x}%`, height: `${crop.h}%`, background: "rgba(0,0,0,0.5)" }} />
+            {/* right */}
+            <div style={{ position: "absolute", right: 0, top: `${crop.y}%`, width: `${100 - crop.x - crop.w}%`, height: `${crop.h}%`, background: "rgba(0,0,0,0.5)" }} />
+          </div>
+
+          {/* Crop box */}
+          <div
+            onMouseDown={e => onMouseDown(e, "move")}
+            onTouchStart={e => onTouchStart(e, "move")}
+            style={{ position: "absolute", left: `${crop.x}%`, top: `${crop.y}%`, width: `${crop.w}%`, height: `${crop.h}%`, border: "2px solid var(--primary-blue)", boxSizing: "border-box", cursor: "move", zIndex: 5, touchAction: "none" }}>
+            {/* Grid lines */}
+            <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)", backgroundSize: "33.3% 33.3%", pointerEvents: "none" }} />
+            {/* Handles — más grandes en touch */}
+            <div onMouseDown={e => onMouseDown(e, "tl")} onTouchStart={e => onTouchStart(e, "tl")} style={{ ...handleSt, top: "-10px", left: "-10px", cursor: "nw-resize", width: "20px", height: "20px", touchAction: "none" }} />
+            <div onMouseDown={e => onMouseDown(e, "tr")} onTouchStart={e => onTouchStart(e, "tr")} style={{ ...handleSt, top: "-10px", right: "-10px", cursor: "ne-resize", width: "20px", height: "20px", touchAction: "none" }} />
+            <div onMouseDown={e => onMouseDown(e, "bl")} onTouchStart={e => onTouchStart(e, "bl")} style={{ ...handleSt, bottom: "-10px", left: "-10px", cursor: "sw-resize", width: "20px", height: "20px", touchAction: "none" }} />
+            <div onMouseDown={e => onMouseDown(e, "br")} onTouchStart={e => onTouchStart(e, "br")} style={{ ...handleSt, bottom: "-10px", right: "-10px", cursor: "se-resize", width: "20px", height: "20px", touchAction: "none" }} />
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "12px", marginTop: "18px" }}>
+          <button onClick={onCancel} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>
+            Cancelar
+          </button>
+          <button onClick={handleConfirm} className="btn-red" style={{ flex: 2, padding: "12px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+            Aplicar recorte y subir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HySPage() {
   const [docs, setDocs] = useState<HySDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -124,6 +274,8 @@ export default function HySPage() {
   const [uploading, setUploading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cropQueue, setCropQueue] = useState<{ src: string; file: File }[]>([]);
+  const [cropCurrent, setCropCurrent] = useState<{ src: string; file: File } | null>(null);
 
   // Filters
   const [filtroTipo, setFiltroTipo] = useState<TipoDoc | "Todos">("Todos");
@@ -256,22 +408,69 @@ export default function HySPage() {
     setShowSuggestions(false);
   };
 
+  const uploadBlob = async (blob: Blob, name: string) => {
+    const storageRef = ref(storage, `hys/${Date.now()}_${name}`);
+    await uploadBytes(storageRef, blob);
+    return getDownloadURL(storageRef);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
+    if (fileInputRef.current) fileInputRef.current.value = "";
+
+    const isPdfFile = (f: File) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+    const pdfs = files.filter(isPdfFile);
+    const images = files.filter(f => !isPdfFile(f));
+
+    // PDFs: upload directly
+    if (pdfs.length) {
+      setUploading(true);
+      try {
+        const urls: string[] = [];
+        for (const file of pdfs) {
+          const url = await uploadBlob(file, file.name);
+          urls.push(url);
+        }
+        setFImagenes(prev => [...prev, ...urls]);
+      } catch { showToast("Error al subir el PDF. Intentá de nuevo.", "error"); }
+      finally { setUploading(false); }
+    }
+
+    // Images: queue for cropping
+    if (images.length) {
+      const queue = images.map(file => ({ src: URL.createObjectURL(file), file }));
+      setCropQueue(queue.slice(1));
+      setCropCurrent(queue[0]);
+    }
+  };
+
+  const handleCropConfirm = async (blob: Blob) => {
+    if (!cropCurrent) return;
+    URL.revokeObjectURL(cropCurrent.src);
     setUploading(true);
     try {
-      const urls: string[] = [];
-      for (const file of files) {
-        const r = ref(storage, `hys/${Date.now()}_${file.name}`);
-        await uploadBytes(r, file);
-        urls.push(await getDownloadURL(r));
-      }
-      setFImagenes(prev => [...prev, ...urls]);
-    } catch { showToast("Error al subir el archivo. Intentá de nuevo.", "error"); }
-    finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      const url = await uploadBlob(blob, cropCurrent.file.name.replace(/\.[^.]+$/, ".jpg"));
+      setFImagenes(prev => [...prev, url]);
+    } catch { showToast("Error al subir la imagen. Intentá de nuevo.", "error"); }
+    finally { setUploading(false); }
+    // next in queue
+    if (cropQueue.length > 0) {
+      setCropCurrent(cropQueue[0]);
+      setCropQueue(prev => prev.slice(1));
+    } else {
+      setCropCurrent(null);
+    }
+  };
+
+  const handleCropCancel = () => {
+    if (cropCurrent) URL.revokeObjectURL(cropCurrent.src);
+    // skip current, continue with queue
+    if (cropQueue.length > 0) {
+      setCropCurrent(cropQueue[0]);
+      setCropQueue(prev => prev.slice(1));
+    } else {
+      setCropCurrent(null);
     }
   };
 
@@ -1304,6 +1503,13 @@ export default function HySPage() {
             </div>
           </div>
         </div>
+      )}
+      {cropCurrent && (
+        <ImageCropper
+          src={cropCurrent.src}
+          onConfirm={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
       )}
       <Toast {...toast} />
     </div>
