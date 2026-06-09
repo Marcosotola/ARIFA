@@ -110,9 +110,11 @@ export const generateMantenimientoPDF = async (ficha: any) => {
         "Cap. (Kg/L)",
         "Marca / Nº Fab.",
         "Nº Tarjeta",
+        "Año Fab.",
         "Fecha PH",
         "Fec. Mant.",
         "Vence Mant.",
+        "Estado",
       ]],
       body: ficha.items.map((item: any, idx: number) => {
         const marcaDisplay = item.marca === "Otro" ? (item.marcaOtro || "-") : (item.marca || "-");
@@ -129,9 +131,11 @@ export const generateMantenimientoPDF = async (ficha: any) => {
           item.capacidad || "-",
           `${marcaDisplay} / ${nroFab}`,
           item.nroTarjeta || "-",
+          item.anioFab || "-",
           fechaPH,
           fecStr,
           venceMant,
+          (item.estadoCilindro || "-").toUpperCase(),
         ];
       }),
       theme: "grid",
@@ -139,10 +143,22 @@ export const generateMantenimientoPDF = async (ficha: any) => {
       bodyStyles: { fontSize: 8 },
       columnStyles: {
         0: { cellWidth: 10, halign: "center" },
-        6: { halign: "center" },
-        7: { halign: "center" },
+        7: { halign: "center", cellWidth: 15 },
         8: { halign: "center" },
         9: { halign: "center" },
+        10: { halign: "center" },
+        11: { halign: "center", cellWidth: 22 },
+      },
+      didParseCell: (data: any) => {
+        if (data.section === 'body' && data.column.index === 11) {
+          if (data.cell.raw === 'APROBADO') {
+            data.cell.styles.textColor = [22, 163, 74];
+            data.cell.styles.fontStyle = 'bold';
+          } else if (data.cell.raw === 'RECHAZADO') {
+            data.cell.styles.textColor = [163, 31, 29];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        }
       },
     });
 
