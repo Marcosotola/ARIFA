@@ -830,10 +830,12 @@ function MatafuegosUnifiedContent() {
                     onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, agente: e.target.value } })}
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
                   >
-                    <option value="ABC">Polvo ABC</option>
-                    <option value="CO2">CO2</option>
-                    <option value="Agua">Agua</option>
-                    <option value="K">Clase K</option>
+                    <option value="ABC">Polvo químico seco ABC</option>
+                    <option value="CO2">Co2 BC</option>
+                    <option value="Agua">Agua A</option>
+                    <option value="Espuma">Espuma AFFF AB</option>
+                    <option value="K">Acetato de potasio K</option>
+                    <option value="HCFC">HCFC ABC</option>
                   </select>
                 </div>
                 <div>

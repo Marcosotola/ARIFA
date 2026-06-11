@@ -182,7 +182,7 @@ function OTFormContent() {
   };
 
   const loadTecnicos = async () => {
-    const snap = await getDocs(query(collection(db, "usuarios"), where("rol", "==", "tecnico")));
+    const snap = await getDocs(query(collection(db, "usuarios"), where("rol", "not-in", ["cliente", "superadmin"])));
     setTecnicosDB(snap.docs.map(d => ({ id: d.id, ...d.data() } as Tecnico)));
   };
 

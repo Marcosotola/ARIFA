@@ -73,7 +73,7 @@ export default function OrdenesAdmin() {
 
   const fetchTecnicos = async () => {
     try {
-      const q = query(collection(db, "usuarios"), where("rol", "==", "tecnico"));
+      const q = query(collection(db, "usuarios"), where("rol", "not-in", ["cliente", "superadmin"]));
       const snap = await getDocs(q);
       setTecnicosDB(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
