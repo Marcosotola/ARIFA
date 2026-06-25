@@ -31,8 +31,8 @@ import {
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type TipoDoc = "Visita" | "Capacitación" | "ATS" | "Programa de Seguridad" | "RGRL" | "RAR" | "Plan de Capacitación Anual" | "Medición de Contaminantes" | "Plan de acción" | "Expediente CIEC" | "Expediente Bomberos" | "Acta CYMAT";
-const TIPOS: TipoDoc[] = ["Visita", "Capacitación", "ATS", "Programa de Seguridad", "RGRL", "RAR", "Plan de Capacitación Anual", "Medición de Contaminantes", "Plan de acción", "Expediente CIEC", "Expediente Bomberos", "Acta CYMAT"];
+type TipoDoc = "Visita" | "Capacitación" | "ATS" | "Programa de Seguridad" | "RGRL" | "RAR" | "Plan de Capacitación Anual" | "Medición de Contaminantes" | "Plan de acción" | "Expediente CIEC" | "Expediente Bomberos" | "CYMAT";
+const TIPOS: TipoDoc[] = ["Visita", "Capacitación", "ATS", "Programa de Seguridad", "RGRL", "RAR", "Plan de Capacitación Anual", "Medición de Contaminantes", "Plan de acción", "Expediente CIEC", "Expediente Bomberos", "CYMAT"];
 
 interface HySDoc {
   id: string;
@@ -75,7 +75,7 @@ const TIPO_COLORS: Record<TipoDoc, { bg: string; color: string; dot: string }> =
   "Plan de acción":      { bg: "#fee2e2", color: "#991b1b", dot: "#ef4444" },
   "Expediente CIEC":     { bg: "#ccfbf1", color: "#0f766e", dot: "#14b8a6" },
   "Expediente Bomberos": { bg: "#ffe4e6", color: "#be123c", dot: "#f43f5e" },
-  "Acta CYMAT":          { bg: "#fef3c7", color: "#92400e", dot: "#f59e0b" },
+  "CYMAT":          { bg: "#fef3c7", color: "#92400e", dot: "#f59e0b" },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
