@@ -228,7 +228,7 @@ function CertificadosEditor() {
 
   // Cliente
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [tecnicos, setTecnicos] = useState<any[]>([]);
+  const [certificadores, setCertificadores] = useState<any[]>([]);
   const [clienteSearch, setClienteSearch] = useState("");
   const [clienteSeleccionado, setClienteSeleccionado] = useState<any | null>(null);
   const [clienteNombre, setClienteNombre] = useState("");
@@ -283,7 +283,7 @@ function CertificadosEditor() {
       if (!u) { router.push("/login"); return; }
       const userDoc = await getDoc(doc(db, "usuarios", u.uid));
       setRole(userDoc.exists() ? userDoc.data().rol : "cliente");
-      const [allCli] = await Promise.all([loadClientes(), loadTecnicos(), loadNextNum()]);
+      const [allCli] = await Promise.all([loadClientes(), loadCertificadores(), loadNextNum()]);
       if (isNuevo && fromOt) {
         await importFromOT(fromOt);
       } else if (!isNuevo) {
@@ -381,13 +381,13 @@ function CertificadosEditor() {
     }
   };
 
-  const loadTecnicos = async () => {
+  const loadCertificadores = async () => {
     try {
-      const q = query(collection(db, "usuarios"), where("rol", "not-in", ["cliente", "superadmin"]));
+      const q = query(collection(db, "certificadores"), orderBy("nombre", "asc"));
       const snap = await getDocs(q);
-      setTecnicos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setCertificadores(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) {
-      console.error("Error loading técnicos:", e);
+      console.error("Error loading certificadores:", e);
     }
   };
 
@@ -943,9 +943,10 @@ function CertificadosEditor() {
                   onChange={e => setResponsableCertificado(e.target.value)}
                 >
                   <option value="">Seleccionar Responsable...</option>
-                  {tecnicos.map(t => (
-                    <option key={t.id} value={t.nombre || t.email}>{t.nombre || t.email}</option>
-                  ))}
+                  {certificadores.map(c => {
+                    const label = `${c.titulo ? c.titulo + " " : ""}${c.nombre}${c.matricula ? " - MP " + c.matricula : ""}`;
+                    return <option key={c.id} value={label}>{label}</option>;
+                  })}
                 </select>
               </div>
             </div>

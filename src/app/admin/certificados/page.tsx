@@ -6,7 +6,7 @@ import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, add
 import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Eye, Edit, Download, Trash2, Scroll, BookText, ClipboardList } from "lucide-react";
+import { Plus, Eye, Edit, Download, Trash2, Scroll, BookText, ClipboardList, UserCheck } from "lucide-react";
 
 
 interface Certificado {
@@ -29,6 +29,13 @@ interface TextoMemoria {
   contenido: string;
 }
 
+interface Certificador {
+  id: string;
+  nombre: string;
+  titulo: string;
+  matricula: string;
+}
+
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
   borrador: { bg: "#f5f5f5", color: "#666" },
   emitido:  { bg: "#e8f5e9", color: "#2e7d32" },
@@ -46,11 +53,15 @@ export default function CertificadosPage() {
   const [dateTo, setDateTo] = useState("");
   const [filtroSede, setFiltroSede] = useState("Todas");
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState<"listado" | "textos">("listado");
+  const [activeTab, setActiveTab] = useState<"listado" | "textos" | "certificadores">("listado");
   const [textos, setTextos] = useState<TextoMemoria[]>([]);
   const [textoModal, setTextoModal] = useState<null | "create" | "edit">(null);
   const [formTexto, setFormTexto] = useState({ titulo: "", contenido: "", id: "" });
   const [deletingTexto, setDeletingTexto] = useState<string | null>(null);
+  const [certificadores, setCertificadores] = useState<Certificador[]>([]);
+  const [certModal, setCertModal] = useState<null | "create" | "edit">(null);
+  const [formCert, setFormCert] = useState({ nombre: "", titulo: "", matricula: "", id: "" });
+  const [deletingCert, setDeletingCert] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -138,6 +149,36 @@ export default function CertificadosPage() {
     } catch (e) { alert("Error al eliminar: " + e); }
   };
 
+  const fetchCertificadores = async () => {
+    try {
+      const snap = await getDocs(query(collection(db, "certificadores"), orderBy("nombre", "asc")));
+      setCertificadores(snap.docs.map(d => ({ id: d.id, ...d.data() } as Certificador)));
+    } catch { setCertificadores([]); }
+  };
+
+  const handleSaveCertificador = async () => {
+    if (!formCert.nombre.trim()) return;
+    try {
+      const payload = { nombre: formCert.nombre.trim(), titulo: formCert.titulo.trim(), matricula: formCert.matricula.trim() };
+      if (formCert.id) {
+        await updateDoc(doc(db, "certificadores", formCert.id), payload);
+      } else {
+        await addDoc(collection(db, "certificadores"), { ...payload, createdAt: serverTimestamp() });
+      }
+      setCertModal(null);
+      setFormCert({ nombre: "", titulo: "", matricula: "", id: "" });
+      fetchCertificadores();
+    } catch (e) { alert("Error al guardar: " + e); }
+  };
+
+  const handleDeleteCertificador = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "certificadores", id));
+      setCertificadores(prev => prev.filter(c => c.id !== id));
+      setDeletingCert(null);
+    } catch (e) { alert("Error al eliminar: " + e); }
+  };
+
   const handleDelete = async (id: string) => {
     try {
       const docRef = doc(db, "certificados", id);
@@ -217,16 +258,20 @@ export default function CertificadosPage() {
           <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)" }}>
             {isReadOnly ? "Mis Certificados" : "Certificados de Instalación"}
           </h1>
-          <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>{activeTab === "listado" ? "Generá y gestioná certificados con carácter de Declaración Jurada." : "Gestioná los textos predefinidos para la Memoria Descriptiva."}</p>
+          <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>{activeTab === "listado" ? "Generá y gestioná certificados con carácter de Declaración Jurada." : activeTab === "textos" ? "Gestioná los textos predefinidos para la Memoria Descriptiva." : "Gestioná los profesionales que figuran como Responsable Certificado."}</p>
         </div>
         {isStaff && !isReadOnly && (
           activeTab === "listado" ? (
             <Link href="/admin/certificados/nuevo" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
               <Plus size={18} /> Nuevo Certificado
             </Link>
-          ) : isAdmin && (
+          ) : activeTab === "textos" ? isAdmin && (
             <button onClick={() => { setFormTexto({ titulo: "", contenido: "", id: "" }); setTextoModal("create"); }} className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", border: "none", cursor: "pointer" }}>
               <Plus size={18} /> Nuevo Texto
+            </button>
+          ) : isAdmin && (
+            <button onClick={() => { setFormCert({ nombre: "", titulo: "", matricula: "", id: "" }); setCertModal("create"); }} className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", border: "none", cursor: "pointer" }}>
+              <Plus size={18} /> Nuevo Certificador
             </button>
           )
         )}
@@ -243,6 +288,11 @@ export default function CertificadosPage() {
             onClick={() => { setActiveTab("textos"); fetchTextos(); }}
             style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid", borderColor: activeTab === "textos" ? "#16a34a" : "#bbf7d0", background: activeTab === "textos" ? "#fff" : "#f0fdf4", fontWeight: 800, color: "#16a34a", cursor: "pointer", boxShadow: activeTab === "textos" ? "0 4px 12px rgba(22,163,74,0.15)" : "none", display: "flex", alignItems: "center", gap: "8px", transition: "0.3s" }}>
             <BookText size={18} strokeWidth={2.5} /> Textos
+          </button>
+          <button type="button"
+            onClick={() => { setActiveTab("certificadores"); fetchCertificadores(); }}
+            style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid", borderColor: activeTab === "certificadores" ? "#7c3aed" : "#ddd6fe", background: activeTab === "certificadores" ? "#fff" : "#f5f3ff", fontWeight: 800, color: "#7c3aed", cursor: "pointer", boxShadow: activeTab === "certificadores" ? "0 4px 12px rgba(124,58,237,0.15)" : "none", display: "flex", alignItems: "center", gap: "8px", transition: "0.3s" }}>
+            <UserCheck size={18} strokeWidth={2.5} /> Certificadores
           </button>
         </div>
       )}
@@ -496,6 +546,80 @@ export default function CertificadosPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === "certificadores" && (
+        <div style={{ marginBottom: "20px" }}>
+          {certificadores.length === 0 ? (
+            <div style={{ background: "#fff", borderRadius: "12px", padding: "60px", textAlign: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
+              <div style={{ fontSize: "3rem", marginBottom: "12px", opacity: 0.3 }}>🧑‍🔧</div>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>No hay certificadores creados aún. Usá &quot;+ Nuevo Certificador&quot; para agregar el primero.</p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "16px" }}>
+              {certificadores.map(c => (
+                <div key={c.id} style={{ background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", border: "1px solid #eee" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                    <div>
+                      <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "0.95rem" }}>{c.nombre}</div>
+                      {c.titulo && <div style={{ fontSize: "0.78rem", color: "#666", marginTop: "2px" }}>{c.titulo}</div>}
+                      {c.matricula && <div style={{ fontSize: "0.75rem", color: "#7c3aed", fontWeight: 700, marginTop: "4px" }}>MP {c.matricula}</div>}
+                    </div>
+                    {isAdmin && (
+                      <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "10px" }}>
+                        <button type="button" onClick={() => { setFormCert({ nombre: c.nombre, titulo: c.titulo || "", matricula: c.matricula || "", id: c.id }); setCertModal("edit"); }} style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #ddd", background: "#f0f7ff", color: "#0061ff", cursor: "pointer", display: "flex" }}>
+                          <Edit size={14} />
+                        </button>
+                        <button type="button" onClick={() => setDeletingCert(c.id)} style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", color: "var(--primary-red)", cursor: "pointer", display: "flex" }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {certModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "460px", width: "100%", maxHeight: "80vh", overflowY: "auto" }}>
+            <h3 style={{ fontWeight: 800, marginBottom: "20px", color: "var(--primary-blue)" }}>
+              {certModal === "create" ? "Nuevo Certificador" : "Editar Certificador"}
+            </h3>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Nombre completo</label>
+              <input value={formCert.nombre} onChange={e => setFormCert(f => ({ ...f, nombre: e.target.value }))} placeholder="Ej: Facundo Pedraza" style={{ width: "100%", padding: "10px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Título / Especialidad</label>
+              <input value={formCert.titulo} onChange={e => setFormCert(f => ({ ...f, titulo: e.target.value }))} placeholder="Ej: Lic. HyS Esp. Seguridad contra Incendios" style={{ width: "100%", padding: "10px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Matrícula (MP)</label>
+              <input value={formCert.matricula} onChange={e => setFormCert(f => ({ ...f, matricula: e.target.value }))} placeholder="Ej: 7458" style={{ width: "100%", padding: "10px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button type="button" onClick={() => { setCertModal(null); setFormCert({ nombre: "", titulo: "", matricula: "", id: "" }); }} style={{ flex: 1, padding: "12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+              <button type="button" onClick={handleSaveCertificador} className="btn-red" style={{ flex: 1, padding: "12px" }}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingCert && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "400px", width: "100%" }}>
+            <h3 style={{ fontWeight: 800, marginBottom: "12px" }}>¿Eliminar certificador?</h3>
+            <p style={{ color: "var(--text-muted)", marginBottom: "25px", fontSize: "0.9rem" }}>Esta acción no se puede deshacer. Los certificados ya emitidos con este responsable no se modifican.</p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button type="button" onClick={() => setDeletingCert(null)} style={{ flex: 1, padding: "12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+              <button type="button" onClick={() => handleDeleteCertificador(deletingCert)} className="btn-red" style={{ flex: 1, padding: "12px" }}>Eliminar</button>
+            </div>
+          </div>
         </div>
       )}
 

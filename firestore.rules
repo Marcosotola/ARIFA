@@ -92,6 +92,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Certificadores (responsables de certificado)
+    match /certificadores/{id} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
     // Configuración y Suscripciones
     match /configuracion/suscripcion {
       allow read: if true;
