@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { onAuthStateChanged, User } from "firebase/auth";
 import PWAInstallButton from "./PWAInstallButton";
+import ShareAppButton from "./ShareAppButton";
 
 const NAV_ITEMS = [
   { label: "Inicio", href: "/" },
@@ -190,6 +191,7 @@ export default function Header() {
               {user ? "Mi Cuenta" : "Ingresar"}
             </Link>
             <PWAInstallButton variant="mobile" />
+            <ShareAppButton variant="mobile" />
           </div>
         </div>
       </header>

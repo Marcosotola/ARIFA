@@ -29,6 +29,7 @@ import {
   Building2
 } from "lucide-react";
 import PWAInstallButton from "@/components/PWAInstallButton";
+import ShareAppButton from "@/components/ShareAppButton";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
@@ -464,6 +465,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           <div style={{ padding: '10px 0', borderTop: '1px solid rgba(255,255,255,0.1)', marginBottom: '10px' }}>
             <PWAInstallButton variant="sidebar" />
+            <ShareAppButton variant="sidebar" />
           </div>
 
           <Link href="/" style={{ 
