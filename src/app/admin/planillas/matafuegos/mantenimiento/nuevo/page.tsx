@@ -238,7 +238,7 @@ function FichaFormContent() {
     const c = clientes.find(x => x.id === id);
     if (c) {
       setClienteSeleccionado(c);
-      setNombre(c.nombre || c.razonSocial || "");
+      setNombre(`${c.nombre || c.razonSocial || ""} ${c.apellido || ""}`.trim());
       setEmpresa(c.empresa || c.razonSocial || "");
       setDniCuit(c.dniCuit || c.cuit || "");
       setTelefono(c.telefono || c.celular || "");
@@ -506,7 +506,7 @@ function FichaFormContent() {
                 <input 
                   style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', outline: 'none', background: '#f8fafc' }}
                   placeholder="Escribe el nombre, empresa o email..."
-                  value={clienteSeleccionado ? (clienteSeleccionado.nombre || clienteSeleccionado.razonSocial || clienteSeleccionado.empresa || clienteSeleccionado.email) : clienteSearch}
+                  value={clienteSeleccionado ? (`${clienteSeleccionado.nombre || clienteSeleccionado.razonSocial || clienteSeleccionado.empresa || clienteSeleccionado.email} ${clienteSeleccionado.apellido || ""}`.trim()) : clienteSearch}
                   onChange={e => {
                     setClienteSearch(e.target.value);
                     setClienteSeleccionado(null);

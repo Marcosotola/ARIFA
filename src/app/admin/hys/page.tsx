@@ -547,7 +547,7 @@ export default function HySPage() {
 
   const onSelectCliente = (u: any) => {
     setFClienteId(u.id);
-    setFCliente(u.nombre || u.razonSocial || "");
+    setFCliente(`${u.nombre || u.razonSocial || ""} ${u.apellido || ""}`.trim());
     setFDniCuit(u.dniCuit || u.cuit || "");
     setFTelefono(u.telefono || u.celular || "");
     setFDireccion(u.direccion || u.domicilio || "");

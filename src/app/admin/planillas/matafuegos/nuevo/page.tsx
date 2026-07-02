@@ -137,7 +137,7 @@ export default function NuevoRemitoPage() {
     const c = clientes.find(x => x.id === id);
     if (c) {
       setClienteSeleccionado(c);
-      setNombre(c.nombre || "");
+      setNombre(`${c.nombre || ""} ${c.apellido || ""}`.trim());
       setEmpresa(c.empresa || c.razonSocial || "");
       setDireccion(c.direccion || "");
       setTelefono(c.telefono || "");
@@ -334,7 +334,7 @@ export default function NuevoRemitoPage() {
               <input 
                 style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', background: '#f8fafc', outline: 'none' }}
                 placeholder="Escribe el nombre, empresa o email..."
-                value={clienteSeleccionado ? (clienteSeleccionado.nombre || clienteSeleccionado.razonSocial || clienteSeleccionado.empresa || clienteSeleccionado.email) : clienteSearch}
+                value={clienteSeleccionado ? (`${clienteSeleccionado.nombre || clienteSeleccionado.razonSocial || clienteSeleccionado.empresa || clienteSeleccionado.email} ${clienteSeleccionado.apellido || ""}`.trim()) : clienteSearch}
                 onChange={e => {
                   setClienteSearch(e.target.value);
                   setClienteSeleccionado(null);
