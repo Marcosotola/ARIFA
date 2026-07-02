@@ -398,7 +398,13 @@ export default function NuevoRemitoPage() {
         <div className="grid-2">
             <div>
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>NOMBRE / CONTACTO</label>
-              <input value={nombre} onChange={e => setNombre(e.target.value)} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd' }} />
+              <input
+                value={nombre}
+                readOnly={!!clienteSeleccionado}
+                onChange={e => { if (clienteSeleccionado) return; setNombre(e.target.value); }}
+                style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1px solid #ddd', ...(clienteSeleccionado ? { background: '#f1f5f9', color: '#334155', cursor: 'default' } : {}) }}
+              />
+              {clienteSeleccionado && <div style={{ fontSize: '0.68rem', color: '#94a3b8', marginTop: '4px' }}>Bloqueado: cliente registrado seleccionado. Usá la ✕ de arriba para cambiarlo.</div>}
             </div>
             <div>
               <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>EMPRESA</label>

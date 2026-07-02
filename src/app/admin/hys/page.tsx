@@ -556,6 +556,13 @@ export default function HySPage() {
     setShowSuggestions(false);
   };
 
+  const handleClearCliente = () => {
+    setFClienteId(""); setFCliente("");
+    setFDniCuit(""); setFTelefono(""); setFDireccion("");
+    setFilteredSedes([]); setFSedeId(""); setFSedeNombre(""); setFSedeRazonSocial("");
+    setShowSuggestions(true);
+  };
+
   const handleCreateNewClient = async () => {
     if (!newClientData.nombre || !newClientData.email) { showToast("Nombre y Email son obligatorios.", "error"); return; }
     try {
@@ -1179,18 +1186,28 @@ export default function HySPage() {
                       <Plus size={14} /> NUEVO CLIENTE
                     </button>
                   </div>
-                  <input
-                    style={inputSt}
-                    placeholder="Buscar cliente registrado..."
-                    value={fCliente}
-                    onChange={e => {
-                      setFCliente(e.target.value);
-                      setShowSuggestions(true);
-                      if (!e.target.value) setFClienteId("");
-                    }}
-                    onFocus={() => { fetchUsuarios(); setShowSuggestions(true); }}
-                  />
-                  {showSuggestions && fCliente.length > 1 && (
+                  <div style={{ position: "relative" }}>
+                    <input
+                      style={fClienteId ? { ...inputSt, background: "#f1f5f9", color: "#334155", paddingRight: "38px", cursor: "default" } : inputSt}
+                      placeholder="Buscar cliente registrado..."
+                      value={fCliente}
+                      readOnly={!!fClienteId}
+                      onChange={e => {
+                        if (fClienteId) return;
+                        setFCliente(e.target.value);
+                        setShowSuggestions(true);
+                        if (!e.target.value) setFClienteId("");
+                      }}
+                      onFocus={() => { if (fClienteId) return; fetchUsuarios(); setShowSuggestions(true); }}
+                    />
+                    {fClienteId && (
+                      <button type="button" onClick={handleClearCliente} title="Cambiar cliente"
+                        style={{ position: "absolute", right: "8px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#64748b", padding: "4px" }}>
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                  {showSuggestions && !fClienteId && fCliente.length > 1 && (
                     <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", maxHeight: "200px", overflowY: "auto", marginTop: "5px" }}>
                       {usuarios
                         .filter(u => `${u.nombre} ${u.apellido || ""} ${u.empresa || ""} ${u.email || ""}`.toLowerCase().includes(fCliente.toLowerCase()))
