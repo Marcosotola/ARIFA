@@ -109,9 +109,11 @@ function OTFormContent() {
   const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
   const [clienteNombre, setClienteNombre] = useState("");
   const [clienteEmpresa, setClienteEmpresa] = useState("");
+  const [clienteCuit, setClienteCuit] = useState("");
   const [clienteDireccion, setClienteDireccion] = useState("");
   const [clienteTelefono, setClienteTelefono] = useState("");
   const [tecnicosOT, setTecnicosOT] = useState<TecnicoAsignado[]>([]);
+  const [numeroExpediente, setNumeroExpediente] = useState("");
   const [estado, setEstado] = useState("borrador");
 
   const [filtroCat, setFiltroCat] = useState<"Todos" | "Detección" | "Extinción" | "Matafuegos">("Todos");
@@ -223,8 +225,10 @@ function OTFormContent() {
     }
     setClienteNombre(data.clienteNombre || "");
     setClienteEmpresa(data.clienteEmpresa || "");
+    setClienteCuit(data.clienteCuit || "");
     setClienteDireccion(data.clienteDireccion || "");
     setClienteTelefono(data.clienteTelefono || "");
+    setNumeroExpediente(data.numeroExpediente || "");
     setSedeId(data.sedeId || "");
     setSedeNombre(data.sedeNombre || "");
     setSedeRazonSocial(data.sedeRazonSocial || "");
@@ -460,8 +464,10 @@ function OTFormContent() {
         clienteId: clienteSeleccionado?.id || null,
         clienteNombre: (clienteSeleccionado?.nombre || clienteNombre) || "",
         clienteEmpresa: (clienteSeleccionado?.empresa || clienteEmpresa) || "",
+        clienteCuit: clienteCuit || "",
         clienteDireccion: clienteDireccion || "",
         clienteTelefono: clienteTelefono || "",
+        numeroExpediente: numeroExpediente || "",
         tecnicosOT: tecnicosOT, // Nueva estructura
         estado: estadoOverride || estado || "borrador",
         diagnostico: nuevaObs,
@@ -529,6 +535,8 @@ function OTFormContent() {
         body: [
             [{ content: "CLIENTE / RAZÓN SOCIAL:", styles: { fontStyle: "bold", cellWidth: 45 } }, (clienteSeleccionado?.nombre || clienteNombre || "-")],
             [{ content: "EMPRESA / SEDE:", styles: { fontStyle: "bold" } }, (sedeRazonSocial || clienteSeleccionado?.empresa || clienteEmpresa || "-") + (sedeNombre ? ` - SEDE: ${sedeNombre}` : "")],
+            [{ content: "CUIT:", styles: { fontStyle: "bold" } }, clienteCuit || "-"],
+            [{ content: "N° DE EXPEDIENTE:", styles: { fontStyle: "bold" } }, numeroExpediente || "-"],
             [{ content: "DIRECCIÓN:", styles: { fontStyle: "bold" } }, clienteDireccion || (clienteSeleccionado?.direccion || "-")],
             [{ content: "TELÉFONO / CEL:", styles: { fontStyle: "bold" } }, clienteTelefono || "-"],
         ],
@@ -814,6 +822,7 @@ function OTFormContent() {
                             setClienteDireccion(c.direccion || "");
                             setClienteTelefono(c.telefono || "");
                             setClienteEmpresa(c.empresa || "");
+                            setClienteCuit((c as any).cuit || (c as any).dniCuit || "");
                           }}
                             style={{ padding: "12px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
                             onMouseEnter={e => (e.currentTarget.style.background = "#f8f9ff")}
@@ -859,6 +868,26 @@ function OTFormContent() {
                   {filteredSedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>)}
                 </select>
               </div>
+            )}
+
+            {clienteSeleccionado && (
+              <>
+                <div>
+                  <label style={labelSt}>Razón Social (para Bomberos)</label>
+                  <input style={inputSt} value={sedeRazonSocial} onChange={e => setSedeRazonSocial(e.target.value)} placeholder="Ej: RIMO S.R.L." />
+                </div>
+                <div>
+                  <label style={labelSt}>CUIT (para Bomberos)</label>
+                  <input style={inputSt} value={clienteCuit} onChange={e => setClienteCuit(e.target.value)} placeholder="Ej: 30-12345678-9" />
+                </div>
+                <div style={{ gridColumn: 'span 2' }}>
+                  <label style={labelSt}>N° de Expediente</label>
+                  <input style={inputSt} value={numeroExpediente} onChange={e => setNumeroExpediente(e.target.value)} placeholder="Ej: EX-2026-01234567" />
+                </div>
+                <p style={{ gridColumn: 'span 2', color: "var(--text-muted)", fontSize: "0.78rem", margin: 0 }}>
+                  Estos datos no siempre están cargados en la ficha del cliente/administrador. Completalos manualmente si la IT se va a presentar ante Bomberos.
+                </p>
+              </>
             )}
 
             {plantillasClienteDisp.length > 0 && (
@@ -1043,7 +1072,7 @@ function OTFormContent() {
                     <tbody>{p.filasTabla.map((f, fIdx) => (
                         <tr key={fIdx} style={{ borderBottom: '1px solid #f0f0f0' }}>
                           {p.columnas.map(c => <td key={c} style={{ padding: "4px" }}><input style={{...inputSt, padding: '5px'}} value={f.celdas[c] || ""} onChange={e => updateCelda(pIdx, fIdx, c, e.target.value)} /></td>)}
-                          <td style={{ padding: "4px" }}><input style={{...inputSt, padding: '5px'}} value={f.celdas["__obs__"] || ""} onChange={e => updateCelda(pIdx, fIdx, "__obs__", e.target.value)} placeholder="Obs..." /></td>
+                          <td style={{ padding: "4px" }}><input style={{...inputSt, padding: '5px'}} value={f.celdas["obsFila"] || ""} onChange={e => updateCelda(pIdx, fIdx, "obsFila", e.target.value)} placeholder="Obs..." /></td>
                         </tr>
                       ))}</tbody>
                   </table>

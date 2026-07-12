@@ -224,6 +224,7 @@ function CertificadosEditor() {
   const [revPlanos, setRevPlanos] = useState("");
   const [sistemaCertificado, setSistemaCertificado] = useState("");
   const [responsableCertificado, setResponsableCertificado] = useState("");
+  const [numeroExpediente, setNumeroExpediente] = useState("");
   const [estado, setEstado] = useState<"borrador" | "emitido">("borrador");
 
   // Cliente
@@ -321,6 +322,7 @@ function CertificadosEditor() {
       setClienteEmpresa(empresa);
       setClienteCuit(data.clienteCuit || "");
       setClienteDireccion(data.clienteDireccion || data.direccion || "");
+      if (data.numeroExpediente) setNumeroExpediente(data.numeroExpediente);
 
       if (data.userId) {
         const uDoc = await getDoc(doc(db, "usuarios", data.userId));
@@ -419,6 +421,7 @@ function CertificadosEditor() {
       setRevPlanos(data.revPlanos || "");
       setSistemaCertificado(data.sistemaCertificado || "");
       setResponsableCertificado(data.responsableCertificado || "");
+      setNumeroExpediente(data.numeroExpediente || "");
       setEstado(data.estado || "borrador");
       setClienteNombre(data.clienteNombre || "");
       setClienteEmpresa(data.clienteEmpresa || "");
@@ -459,7 +462,7 @@ function CertificadosEditor() {
       const rubroFinal = rubro === "Otro" ? rubroCustom : rubro;
       const cn = clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre || "";
       const ce = sedeRazonSocial || clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa || "";
-      const cc = clienteSeleccionado?.cuit || clienteCuit || "";
+      const cc = clienteCuit || clienteSeleccionado?.cuit || "";
       const cd = clienteDireccion || clienteSeleccionado?.direccion || "";
       const payload: any = {
         numero: parseInt(numero) || nextNum,
@@ -469,6 +472,7 @@ function CertificadosEditor() {
         revPlanos: revPlanos || "",
         sistemaCertificado: sistemaCertificado || "",
         responsableCertificado: responsableCertificado || "",
+        numeroExpediente: numeroExpediente || "",
         clienteId: clienteSeleccionado?.id || null,
         clienteNombre: cn,
         clienteEmpresa: ce,
@@ -577,7 +581,7 @@ function CertificadosEditor() {
     const rubroFinal = rubro === "Otro" ? rubroCustom : rubro;
     const cn = clienteSeleccionado?.nombre || clienteSeleccionado?.razonSocial || clienteNombre || "-";
     const ce = clienteSeleccionado?.empresa || clienteSeleccionado?.razonSocial || clienteEmpresa || "";
-    const cuit = clienteSeleccionado?.cuit || clienteCuit || "";
+    const cuit = clienteCuit || clienteSeleccionado?.cuit || "";
     const cdir = clienteSeleccionado?.direccion || clienteDireccion || "";
     const fInsp = fechaInspeccion ? new Date(fechaInspeccion + "T12:00:00").toLocaleDateString("es-AR") : "-";
     const fVenc = fechaVencimiento ? new Date(fechaVencimiento + "T12:00:00").toLocaleDateString("es-AR") : "-";
@@ -646,7 +650,9 @@ function CertificadosEditor() {
          { content: "Fecha de Vencimiento", styles: { fontStyle: "bold", cellWidth: 45 } }, fVenc],
         [{ content: "Sistema certificado:", styles: { fontStyle: "bold" } }, { content: sistemaCertificado || "-", colSpan: 3, styles: { fontStyle: "bold", textColor: [163, 31, 29] } }],
         [{ content: "Cliente:", styles: { fontStyle: "bold" } }, { content: cn + (sedeNombre ? ` - SEDE: ${sedeNombre}` : ""), colSpan: 3, styles: { halign: "center", fontStyle: "bold" } }],
-        [{ content: "Razón social:", styles: { fontStyle: "bold" } }, { content: cuit || sedeRazonSocial || ce || "-", colSpan: 3, styles: { halign: "center" } }],
+        [{ content: "Razón social:", styles: { fontStyle: "bold" } }, { content: sedeRazonSocial || ce || "-", colSpan: 3, styles: { halign: "center" } }],
+        [{ content: "CUIT:", styles: { fontStyle: "bold" } }, { content: cuit || "-", colSpan: 3 }],
+        [{ content: "N° de Expediente:", styles: { fontStyle: "bold" } }, { content: numeroExpediente || "-", colSpan: 3 }],
         [{ content: "Domicilio:", styles: { fontStyle: "bold" } }, { content: clienteDireccion || cdir || "-", colSpan: 3 }],
         [{ content: "Responsable certificado:", styles: { fontStyle: "bold" } }, { content: responsableCertificado || "-", colSpan: 3 }],
         [{ content: "Empresa Certificante:", styles: { fontStyle: "bold" } }, { content: "ARIFA — INGENIERIA EN SEGURIDAD CONTRA INCENDIOS  |  CUIT 20-35108395-7  |  www.arifa.com.ar", colSpan: 3, styles: { fontStyle: "bold", textColor: [0, 34, 68] } }],
@@ -654,7 +660,7 @@ function CertificadosEditor() {
       styles: { fontSize: 9, cellPadding: 4 },
       tableLineColor: [0, 34, 68], tableLineWidth: 0.3,
       didParseCell: (data: any) => {
-        if (data.row.index === 6) data.cell.styles.fillColor = [245, 247, 255];
+        if (data.row.index === 8) data.cell.styles.fillColor = [245, 247, 255];
       },
     });
 
@@ -931,6 +937,10 @@ function CertificadosEditor() {
                 <label style={labelSt}>Rev. Planos</label>
                 <input style={inputSt} value={revPlanos} onChange={e => setRevPlanos(e.target.value)} placeholder="Ej: Abril 2026" />
               </div>
+              <div>
+                <label style={labelSt}>N° de Expediente</label>
+                <input style={inputSt} value={numeroExpediente} onChange={e => setNumeroExpediente(e.target.value)} placeholder="Ej: EX-2026-01234567" />
+              </div>
               <div style={{ gridColumn: "span 2" }}>
                 <label style={labelSt}>Sistema Certificado</label>
                 <input style={inputSt} value={sistemaCertificado} onChange={e => setSistemaCertificado(e.target.value)} placeholder="Ej: Sistema de detección y alarma — Presurización de caja de escalera" />
@@ -971,7 +981,7 @@ function CertificadosEditor() {
                 {clientesFiltrados.length > 0 && !clienteSeleccionado && (
                   <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "8px", zIndex: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", maxHeight: "200px", overflowY: "auto" }}>
                     {clientesFiltrados.map(c => (
-                      <div key={c.id} onClick={() => { setClienteSeleccionado(c); setClienteSearch(""); setFilteredSedes(c.sedes || []); setClienteDireccion(c.direccion || ""); }}
+                      <div key={c.id} onClick={() => { setClienteSeleccionado(c); setClienteSearch(""); setFilteredSedes(c.sedes || []); setClienteDireccion(c.direccion || ""); setClienteCuit((c as any).cuit || (c as any).dniCuit || ""); }}
                         style={{ padding: "12px 15px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}>
                         <div style={{ fontWeight: 700 }}>{c.nombre || c.razonSocial || c.email}</div>
                         {c.empresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{c.empresa}</div>}
@@ -1015,6 +1025,19 @@ function CertificadosEditor() {
                       ))}
                     </select>
                   </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+                    <div>
+                      <label style={labelSt}>Razón Social (para Bomberos)</label>
+                      <input style={inputSt} value={sedeRazonSocial} onChange={e => setSedeRazonSocial(e.target.value)} placeholder="Ej: RIMO S.R.L." />
+                    </div>
+                    <div>
+                      <label style={labelSt}>CUIT (para Bomberos)</label>
+                      <input style={inputSt} value={clienteCuit} onChange={e => setClienteCuit(e.target.value)} placeholder="Ej: 30-12345678-9" />
+                    </div>
+                  </div>
+                  <p style={{ color: "var(--text-muted)", fontSize: "0.78rem", margin: 0 }}>
+                    Estos datos no siempre están cargados en la ficha del cliente/administrador. Completalos manualmente si el certificado se va a presentar ante Bomberos.
+                  </p>
                 </>
               )}
             </div>
