@@ -8,12 +8,13 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
   fetchSignInMethodsForEmail,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
-type Mode = "login" | "register" | "complete_profile";
+type Mode = "login" | "register" | "complete_profile" | "forgot_password";
 
 const CARGOS = ["Propietario", "Gerente", "Responsable de Seguridad", "Encargado", "Administrativo", "Técnico", "Otro"];
 
@@ -96,6 +97,7 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   // Register / profile fields
   const [nombre, setNombre] = useState("");
@@ -163,6 +165,22 @@ export default function LoginPage() {
     } catch (err: any) {
       if (err.code === "auth/email-already-in-use") {
         alert("Este email ya está registrado. Intentá ingresar o usar el botón de Google.");
+      } else {
+        alert("Error: " + err.message);
+      }
+    } finally { setLoading(false); }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isFirebaseConfigured) { alert("Firebase no configurado."); return; }
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetSent(true);
+    } catch (err: any) {
+      if (err.code === "auth/user-not-found") {
+        alert("No existe una cuenta registrada con ese email.");
       } else {
         alert("Error: " + err.message);
       }
@@ -261,6 +279,11 @@ export default function LoginPage() {
                   <input type={showPassword ? "text" : "password"} required style={{ ...inputSt, paddingRight: "40px" }} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" />
                   <button type="button" style={eyeBtnSt} onClick={() => setShowPassword(v => !v)} tabIndex={-1}>
                     {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
+                <div style={{ textAlign: "right", marginTop: "6px" }}>
+                  <button type="button" onClick={() => { setMode("forgot_password"); setResetSent(false); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--primary-blue)", fontSize: "0.82rem", fontWeight: 600, padding: 0 }}>
+                    ¿Olvidaste tu contraseña?
                   </button>
                 </div>
               </div>
@@ -373,6 +396,42 @@ export default function LoginPage() {
                 {loading ? "Guardando..." : "Guardar y Continuar →"}
               </button>
             </form>
+          </>
+        )}
+
+        {mode === "forgot_password" && (
+          <>
+            <h1 style={{ fontSize: "1.4rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "10px", textAlign: "center" }}>Recuperar Contraseña</h1>
+            {resetSent ? (
+              <>
+                <p style={{ textAlign: "center", color: "#16a34a", fontSize: "0.92rem", margin: "18px 0" }}>
+                  ✅ Te enviamos un email a <strong>{email}</strong> con un link para restablecer tu contraseña. Revisá también la carpeta de spam.
+                </p>
+                <button onClick={() => { setMode("login"); setResetSent(false); }} className="btn-red" style={{ width: "100%", padding: "14px" }}>
+                  Volver a Ingresar
+                </button>
+              </>
+            ) : (
+              <>
+                <p style={{ textAlign: "center", color: "#777", fontSize: "0.88rem", marginBottom: "20px" }}>
+                  Ingresá tu email y te enviaremos un link para restablecer tu contraseña.
+                </p>
+                <form onSubmit={handleForgotPassword} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <div>
+                    <label style={labelSt}>Email</label>
+                    <input type="email" required style={inputSt} value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" />
+                  </div>
+                  <button type="submit" disabled={loading} className="btn-red" style={{ width: "100%", padding: "14px", marginTop: "4px" }}>
+                    {loading ? "Enviando..." : "Enviar link de recuperación"}
+                  </button>
+                </form>
+                <p style={{ textAlign: "center", marginTop: "18px", fontSize: "0.9rem", color: "#666" }}>
+                  <button onClick={() => setMode("login")} style={{ color: "var(--primary-red)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}>
+                    ← Volver a Ingresar
+                  </button>
+                </p>
+              </>
+            )}
           </>
         )}
       </div>
