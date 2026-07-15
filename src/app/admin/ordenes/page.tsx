@@ -148,7 +148,6 @@ export default function OrdenesAdmin() {
       });
       if (newOrder.clienteId) {
         await updateDoc(doc(db, "usuarios", newOrder.clienteId), {
-          nombre: newOrder.cliente,
           dniCuit: newOrder.clienteDniCuit,
           telefono: newOrder.clienteTelefono,
           direccion: newOrder.direccion,

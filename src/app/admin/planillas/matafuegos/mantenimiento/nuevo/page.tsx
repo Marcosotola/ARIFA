@@ -404,7 +404,6 @@ function FichaFormContent() {
       // 5. Actualizar datos del cliente en la colección 'usuarios' si cambió algo
       if (clienteSeleccionado?.id) {
         await updateDoc(doc(db, "usuarios", clienteSeleccionado.id), {
-            nombre,
             empresa,
             dniCuit,
             telefono,

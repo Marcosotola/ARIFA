@@ -515,7 +515,6 @@ export default function HySPage() {
 
       if (fClienteId) {
         await updateDoc(doc(db, "usuarios", fClienteId), {
-          nombre: fCliente,
           dniCuit: fDniCuit,
           telefono: fTelefono,
           direccion: fDireccion,
