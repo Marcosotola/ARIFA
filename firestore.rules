@@ -169,6 +169,7 @@ service cloud.firestore {
     match /consultas/{id} {
       allow read: if request.auth != null && (isAdmin() || getRole() == 'secretaria');
       allow create: if true;
+      allow update, delete: if isAdmin();
     }
 
     match /notificaciones_enviadas/{id} {
