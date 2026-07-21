@@ -9,6 +9,7 @@ export default function ConsultasAdmin() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -106,7 +107,13 @@ export default function ConsultasAdmin() {
                     </td>
                   )}
                   <td style={{ padding: "15px 10px", fontSize: "0.85rem", color: "var(--primary-red)", fontWeight: 700 }}>{c.servicio || "General"}</td>
-                  <td style={{ padding: "15px 10px", fontSize: "0.85rem", maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isAdmin ? "nowrap" : "normal" }}>{c.mensaje || "---"}</td>
+                  <td
+                    onClick={() => c.mensaje && setSelectedConsulta(c)}
+                    style={{ padding: "15px 10px", fontSize: "0.85rem", maxWidth: "250px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isAdmin ? "nowrap" : "normal", cursor: c.mensaje ? "pointer" : "default" }}
+                    title={c.mensaje ? "Ver mensaje completo" : undefined}
+                  >
+                    {c.mensaje || "---"}
+                  </td>
                   <td style={{ padding: "15px 10px" }}>
                     {isAdmin ? (
                       <select 
@@ -160,6 +167,39 @@ export default function ConsultasAdmin() {
           </table>
         </div>
       </div>
+
+      {selectedConsulta && (
+        <div
+          onClick={() => setSelectedConsulta(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "500px", width: "100%", maxHeight: "80vh", overflowY: "auto", boxShadow: "0 10px 40px rgba(0,0,0,0.2)" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "15px" }}>
+              <div>
+                <h3 style={{ fontSize: "1.1rem", fontWeight: 800, color: "var(--primary-blue)", margin: 0 }}>
+                  {selectedConsulta.nombre || "Consulta"}
+                </h3>
+                <div style={{ fontSize: "0.8rem", color: "var(--primary-red)", fontWeight: 700, marginTop: "4px" }}>
+                  {selectedConsulta.servicio || "General"}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedConsulta(null)}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.3rem", color: "#999", lineHeight: 1 }}
+                title="Cerrar"
+              >
+                ×
+              </button>
+            </div>
+            <p style={{ fontSize: "0.9rem", lineHeight: 1.6, whiteSpace: "pre-wrap", color: "#333" }}>
+              {selectedConsulta.mensaje}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
