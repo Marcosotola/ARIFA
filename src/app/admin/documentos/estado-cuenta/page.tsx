@@ -19,6 +19,7 @@ interface EstadoCuenta {
   clienteApellido?: string;
   clienteEmpresa?: string;
   clienteId?: string;
+  sedeNombre?: string;
   saldoActual: number;
   createdAt: any;
 }
@@ -182,7 +183,7 @@ export default function EstadosCuentaPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
               <thead>
                 <tr style={{ background: "#f8f9fc", borderBottom: "2px solid #eef0f3" }}>
-                  {["N° DOC.", "FECHA", "CLIENTE / EMPRESA", "SALDO ACTUAL", ""].map(h => (
+                  {["N° DOC.", "FECHA", "CLIENTE / EMPRESA", "SEDE", "SALDO ACTUAL", ""].map(h => (
                     <th key={h} style={{ textAlign: "left", padding: "14px 16px", fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.8px", fontWeight: 700 }}>
                       {h}
                     </th>
@@ -205,6 +206,9 @@ export default function EstadosCuentaPage() {
                       {p.clienteEmpresa && (
                         <div style={{ fontSize: "0.75rem", color: "#888" }}>{p.clienteEmpresa}</div>
                       )}
+                    </td>
+                    <td style={{ padding: "14px 16px", fontSize: "0.85rem", color: p.sedeNombre ? "#333" : "#bbb" }}>
+                      {p.sedeNombre || "-"}
                     </td>
                     <td style={{ padding: "14px 16px", fontWeight: 700, fontSize: "0.9rem", whiteSpace: "nowrap", color: p.saldoActual > 0 ? "var(--primary-red)" : "#16a34a" }}>
                       $ {fmt(p.saldoActual || 0)}
