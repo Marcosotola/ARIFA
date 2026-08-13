@@ -214,6 +214,7 @@ function CertificadosEditor() {
   const [loading, setLoading] = useState(true);
   const [nextNum, setNextNum] = useState(1);
   const [role, setRole] = useState<string | null>(null);
+  const [showSinSedeWarning, setShowSinSedeWarning] = useState(false);
 
   // Datos
   const [numero, setNumero] = useState("");
@@ -513,6 +514,11 @@ function CertificadosEditor() {
       setTimeout(() => router.push("/admin/certificados"), 1200);
     } catch (e: any) { console.error("handleSave error:", e); showToast(`Error al guardar: ${e?.message || String(e)}`, "error"); }
     finally { setSaving(false); }
+  };
+
+  const handleFinalizarClick = () => {
+    if (!sedeId) { setShowSinSedeWarning(true); return; }
+    handleSave("emitido");
   };
 
   const handleFotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -821,7 +827,7 @@ function CertificadosEditor() {
             </button>
           )}
           {!isReadOnly && (
-            <button onClick={() => handleSave("emitido")} disabled={saving} className="btn-red" 
+            <button onClick={handleFinalizarClick} disabled={saving} className="btn-red"
               style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
               {saving ? "Guardando..." : <><Check size={18} /> Finalizar</>}
             </button>
@@ -1196,7 +1202,7 @@ function CertificadosEditor() {
                 style={{ padding: "12px 20px", borderRadius: "8px", border: "1.5px solid var(--primary-blue)", background: "transparent", color: "var(--primary-blue)", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
                 <Save size={18} strokeWidth={2.5} /> {saving ? "Guardando..." : "Guardar borrador"}
               </button>
-              <button onClick={() => handleSave("emitido")} disabled={saving} className="btn-red" 
+              <button onClick={handleFinalizarClick} disabled={saving} className="btn-red"
                 style={{ padding: "12px 24px", display: "flex", alignItems: "center", gap: "8px", textTransform: "uppercase" }}>
                 {saving ? "⏳" : <Check size={20} strokeWidth={3} />} {saving ? "Guardando..." : "Emitir Certificado"}
               </button>
@@ -1300,6 +1306,24 @@ function CertificadosEditor() {
           </div>
         </div>
       )}
+
+      {showSinSedeWarning && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "440px", width: "100%" }}>
+            <h3 style={{ fontWeight: 800, marginBottom: "12px", color: "var(--primary-blue)" }}>Certificado sin Sede vinculada</h3>
+            <p style={{ color: "var(--text-muted)", marginBottom: "25px", fontSize: "0.9rem", lineHeight: 1.5 }}>
+              No seleccionaste una Sede para este certificado. Sin una Sede vinculada, esta instalación <strong>no va a aparecer en &ldquo;Instalaciones&rdquo;</strong> y no se va a poder descargar su código QR.
+              <br /><br />
+              Volvé al paso &ldquo;Datos&rdquo; y elegí una Sede del cliente antes de finalizar, o continuá si estás seguro de que no corresponde.
+            </p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button onClick={() => { setShowSinSedeWarning(false); setPaso(0); }} style={{ flex: 1, padding: "12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Volver a elegir Sede</button>
+              <button onClick={() => { setShowSinSedeWarning(false); handleSave("emitido"); }} className="btn-red" style={{ flex: 1, padding: "12px" }}>Continuar de todos modos</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toast {...toast} />
     </div>
   );
