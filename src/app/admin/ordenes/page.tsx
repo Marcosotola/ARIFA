@@ -4,6 +4,8 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, addDoc, getDocs, orderBy, updateDoc, doc, serverTimestamp, where, getDoc } from "firebase/firestore";
 import { ClipboardList, Folder, Plus, Search, MapPin, Calendar, User, Layout, ArrowLeft } from "lucide-react";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 export default function OrdenesAdmin() {
   const [activeTab, setActiveTab] = useState("listado");
@@ -42,6 +44,7 @@ export default function OrdenesAdmin() {
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
+  const [viewMode, setViewMode] = useViewMode("ordenes");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -358,8 +361,50 @@ export default function OrdenesAdmin() {
               </div>
             )}
             <button onClick={() => { setSearch(""); setFiltroSede("Todas"); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
 
+          {viewMode === "card" ? (
+          <div style={{ background: "#fff", borderRadius: "16px", boxShadow: "0 4px 25px rgba(0,0,0,0.05)", border: "1px solid #eee", overflow: "hidden" }}>
+            {filteredOrdenes.length === 0 ? (
+              <div style={{ padding: "60px", textAlign: "center", color: "#999" }}>No hay órdenes registradas.</div>
+            ) : (
+              <div className="doc-card-grid">
+                {filteredOrdenes.map(o => (
+                  <div key={o.id} className="doc-card">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                      <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>OT-{String(o.numero || 0).padStart(4, "0")}</div>
+                      <span style={{ fontSize: "0.68rem", fontWeight: 900, padding: "4px 10px", borderRadius: "20px", textTransform: "uppercase",
+                        background: o.estado === "Completada" ? "#dcfce7" : o.estado === "En Proceso" ? "#fef9c3" : "#fee2e2",
+                        color: o.estado === "Completada" ? "#166534" : o.estado === "En Proceso" ? "#854d0e" : "#b91c1c" }}>
+                        {o.estado}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: "#999", marginBottom: "10px" }}>
+                      {o.fechaCreacion?.seconds ? new Date(o.fechaCreacion.seconds * 1000).toLocaleDateString() : "Recién creada"}
+                    </div>
+                    <div style={{ marginBottom: "10px" }}>
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{o.cliente}</div>
+                      {o.sedeNombre && <div style={{ fontSize: "0.75rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {o.sedeNombre}</div>}
+                      {o.direccion && <div style={{ fontSize: "0.75rem", color: "#888" }}>{o.direccion}</div>}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", marginBottom: "10px" }}>{o.tipo}</div>
+                    <div style={{ fontSize: "0.82rem", color: "#666", marginBottom: isAdmin ? "12px" : 0 }}>Técnico: {o.tecnico || "—"}</div>
+                    {isAdmin && (
+                      <div style={{ borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                        <select value={o.estado} onChange={(e) => updateEstado(o.id, e.target.value)} style={{ width: "100%", padding: "8px", borderRadius: "6px", fontSize: "0.8rem", border: "1px solid #ddd" }}>
+                          <option>Pendiente</option>
+                          <option>En Proceso</option>
+                          <option>Completada</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          ) : (
           <div style={{ background: "#fff", borderRadius: "16px", boxShadow: "0 4px 25px rgba(0,0,0,0.05)", overflow: "hidden", border: "1px solid #eee" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
@@ -408,6 +453,7 @@ export default function OrdenesAdmin() {
             </table>
             {filteredOrdenes.length === 0 && <div style={{ padding: "60px", textAlign: "center", color: "#999" }}>No hay órdenes registradas.</div>}
           </div>
+          )}
         </>
       )}
 

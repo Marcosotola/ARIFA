@@ -7,6 +7,8 @@ import { ref, deleteObject } from "firebase/storage";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Eye, Edit, Download, Trash2, Scroll, BookText, ClipboardList, UserCheck } from "lucide-react";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 
 interface Certificado {
@@ -62,6 +64,7 @@ export default function CertificadosPage() {
   const [certModal, setCertModal] = useState<null | "create" | "edit">(null);
   const [formCert, setFormCert] = useState({ nombre: "", titulo: "", matricula: "", id: "" });
   const [deletingCert, setDeletingCert] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useViewMode("certificados");
 
   const router = useRouter();
 
@@ -342,12 +345,13 @@ export default function CertificadosPage() {
             </select>
           </div>
         )}
-        <button 
+        <button
           onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); }}
           style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}
         >
           Limpiar
         </button>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden", marginBottom: "20px", display: activeTab === "listado" ? undefined : "none" }}>
@@ -361,8 +365,8 @@ export default function CertificadosPage() {
           </div>
         ) : (
           <>
-            {/* Desktop Table */}
-            <div className="hide-on-mobile" style={{ overflowX: "auto" }}>
+            {viewMode === "table" && (
+            <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "650px" }}>
                 <thead>
                   <tr style={{ background: "#f8f9fc", borderBottom: "2px solid #eef0f3" }}>
@@ -452,15 +456,16 @@ export default function CertificadosPage() {
                 </tbody>
               </table>
             </div>
+            )}
 
-            {/* Mobile Cards */}
-            <div className="show-on-mobile" style={{ display: "none", flexDirection: "column", gap: "12px", padding: "12px" }}>
+            {viewMode === "card" && (
+            <div className="doc-card-grid">
               {filteredCerts.map(c => {
                 const ec = ESTADO_COLORS[c.estado] || ESTADO_COLORS.borrador;
                 const venc = c.fechaVencimiento ? new Date(c.fechaVencimiento + "T12:00:00") : null;
                 const vencido = venc && venc < new Date();
                 return (
-                  <div key={c.id} style={{ background: "#fff", borderRadius: "12px", padding: "16px", border: "1.5px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                  <div key={c.id} className="doc-card">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                       <div>
                         <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1.1rem" }}>N°{String(c.numero || "?").padStart(4, "0")}</div>
@@ -511,6 +516,7 @@ export default function CertificadosPage() {
                 );
               })}
             </div>
+            )}
           </>
         )}
       </div>
@@ -670,13 +676,6 @@ export default function CertificadosPage() {
           </div>
         </div>
       )}
-      {/* STYLES */}
-      <style jsx>{`
-        @media (max-width: 768px) {
-          .hide-on-mobile { display: none !important; }
-          .show-on-mobile { display: flex !important; }
-        }
-      `}</style>
     </div>
   );
 }

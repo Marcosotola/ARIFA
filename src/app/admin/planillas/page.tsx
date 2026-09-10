@@ -14,6 +14,8 @@ import {
   Eye, Edit, Trash2, Plus, ClipboardList,
   Folder, Search, Shield, Flame, Scroll, Settings, BookMarked, X
 } from "lucide-react";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface OT {
@@ -313,6 +315,7 @@ export default function OTUnifiedPage() {
   const [dateTo, setDateTo] = useState("");
   const [filtroSede, setFiltroSede] = useState("Todas");
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [viewMode, setViewMode] = useViewMode("planillas-ots");
 
   const router = useRouter();
 
@@ -687,14 +690,64 @@ export default function OTUnifiedPage() {
               </select>
             </div>
             <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
 
-          {/* TABLA OT */}
+          {/* LISTADO OT */}
           <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden" }}>
             {loading ? (
               <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>Cargando órdenes...</div>
             ) : filteredOts.length === 0 ? (
               <div style={{ textAlign: "center", padding: "60px", color: "#999" }}>No se encontraron órdenes de trabajo.</div>
+            ) : viewMode === "card" ? (
+              <div className="doc-card-grid">
+                {filteredOts.map(ot => {
+                  const ec = ESTADO_COLORS[ot.estado] || ESTADO_COLORS.borrador;
+                  return (
+                    <div key={ot.id} className="doc-card">
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                        <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>IT-{String(ot.numero || "?").padStart(4, "0")}</div>
+                        <span style={{ fontSize: "0.65rem", padding: "4px 8px", borderRadius: "10px", fontWeight: 900, textTransform: "uppercase", background: ec.bg, color: ec.color }}>{(ot.estado === "firmada" ? "completada" : ot.estado).replace("_", " ")}</span>
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: "#999", marginBottom: "10px" }}>
+                        {ot.fecha ? new Date(ot.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}
+                      </div>
+                      <div style={{ marginBottom: "12px" }}>
+                        <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{ot.clienteNombre}</div>
+                        <div style={{ fontSize: "0.75rem", color: "#888" }}>{ot.clienteEmpresa}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                        <Link title="Ver Vista Previa" href={`/admin/planillas/deteccion/${ot.id}?view=true`}
+                          style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                          <Eye size={18} strokeWidth={2.5} />
+                        </Link>
+                        {!isReadOnly && (
+                          <Link title="Certificar" href={`/admin/certificados/nuevo?fromOt=${ot.id}`}
+                            style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                            <Settings size={18} strokeWidth={2.5} />
+                          </Link>
+                        )}
+                        {!isReadOnly && (
+                          <Link title="Editar" href={`/admin/planillas/deteccion/${ot.id}`}
+                            style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                            <Edit size={18} strokeWidth={2.5} />
+                          </Link>
+                        )}
+                        <button title="Descargar PDF" onClick={() => downloadOTPDF(ot.id)}
+                          style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: "#fff7ed", color: "#d97706", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+                          <Scroll size={18} strokeWidth={2.5} />
+                        </button>
+                        {isAdmin && !isReadOnly && (
+                          <button title="Eliminar" onClick={() => setDeleteConfirm({ id: ot.id, type: "ot" })}
+                            style={{ width: "38px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Trash2 size={18} strokeWidth={2.5} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>

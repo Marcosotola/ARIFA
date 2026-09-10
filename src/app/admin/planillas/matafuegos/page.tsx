@@ -21,6 +21,8 @@ import {
   AlertTriangle,
   Bell
 } from "lucide-react";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 interface Remito {
   id: string;
@@ -70,6 +72,7 @@ function MatafuegosUnifiedContent() {
   const [filtroSede, setFiltroSede] = useState("Todas");
   const [filtroMes, setFiltroMes] = useState("");
   const [filtroAnio, setFiltroAnio] = useState("");
+  const [viewMode, setViewMode] = useViewMode("matafuegos");
 
   const today = new Date();
   const nextMonth = new Date();
@@ -251,6 +254,23 @@ function MatafuegosUnifiedContent() {
     }
     const matchesSede = filtroSede === "Todas" || (f as any).sedeNombre === filtroSede;
     return matchesSearch && matchesDate && matchesSede;
+  });
+
+  const filteredMatafuegos = matafuegos.filter(m => {
+    const matchesSearch =
+      m.nroTarjeta?.toLowerCase().includes(search.toLowerCase()) ||
+      m.clienteNombre?.toLowerCase().includes(search.toLowerCase()) ||
+      m.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
+    const matchesSede = filtroSede === "Todas" || m.sedeNombre === filtroSede;
+
+    let matchesVenc = true;
+    if (filtroMes || filtroAnio) {
+      const [anio, mes] = (m.historial?.vencimientoCarga || "").split("-");
+      if (filtroMes && mes !== filtroMes) matchesVenc = false;
+      if (filtroAnio && anio !== filtroAnio) matchesVenc = false;
+    }
+
+    return matchesSearch && matchesSede && matchesVenc;
   });
 
   const isStaff = role === "admin" || role === "tecnico" || role === "superadmin" || role === "supervisor";
@@ -465,6 +485,7 @@ function MatafuegosUnifiedContent() {
         )}
 
         <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); setFiltroMes(""); setFiltroAnio(""); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
       {/* CONTENIDO */}
@@ -472,6 +493,93 @@ function MatafuegosUnifiedContent() {
         <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden" }}>
           {loading ? (
             <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>Cargando datos...</div>
+          ) : viewMode === "card" ? (
+            <div className="doc-card-grid">
+              {activeTab === "remitos" ? (
+                filteredRemitos.map(r => (
+                  <div key={r.id} className="doc-card">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                      <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>R-{String(r.numero || "?").padStart(5, "0")}</div>
+                      <span style={{ fontSize: "0.65rem", padding: "4px 8px", borderRadius: "10px", fontWeight: 900, textTransform: "uppercase", background: r.tipo === "retiro" ? "#fee2e2" : "#dcfce7", color: r.tipo === "retiro" ? "#b91c1c" : "#166534" }}>{r.tipo}</span>
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: "#999", marginBottom: "10px" }}>{r.fecha ? new Date(r.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}</div>
+                    <div style={{ marginBottom: "10px" }}>
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{r.clienteNombre}</div>
+                      <div style={{ fontSize: "0.75rem", color: "#888" }}>{r.clienteEmpresa}</div>
+                    </div>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 600, marginBottom: "12px" }}>{r.equipos?.length || 0} equipos</div>
+                    <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                      <Link title="Ver Vista Previa" href={`/admin/planillas/matafuegos/${r.id}?view=true`}
+                        style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                        <Eye size={18} strokeWidth={2.5} />
+                      </Link>
+                      {!isReadOnly && (
+                        <>
+                          <button onClick={() => window.location.href = `/admin/planillas/matafuegos/mantenimiento/nuevo?fromRemito=${r.id}`}
+                            title="Generar Ficha Técnica desde este Remito"
+                            style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: "#f0f4ff", color: "#2563eb", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <Settings size={18} strokeWidth={2.5} />
+                          </button>
+                          <Link title="Ver / Editar" href={`/admin/planillas/matafuegos/nuevo?edit=${r.id}`}
+                            style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                            <Edit size={18} strokeWidth={2.5} />
+                          </Link>
+                        </>
+                      )}
+                      <button title="Descargar PDF" onClick={() => handleDownload(r.id, "remito")} disabled={downloadingId === r.id}
+                        style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", opacity: downloadingId === r.id ? 0.5 : 1 }}>
+                        <Scroll size={18} strokeWidth={2.5} />
+                      </button>
+                      {isAdmin && !isReadOnly && (
+                        <button title="Eliminar" onClick={() => setDeleteConfirm({ id: r.id, type: "remito" })}
+                          style={{ width: "38px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Trash2 size={18} strokeWidth={2.5} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                filteredFichas.map(f => (
+                  <div key={f.id} className="doc-card">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                      <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>FT-{String(f.numeroFicha || "?").padStart(5, "0")}</div>
+                      <span style={{ background: "#f0f4ff", color: "#3b82f6", padding: "3px 9px", borderRadius: "10px", fontWeight: 800, fontSize: "0.72rem" }}>{f.items?.length || 0} Extintores</span>
+                    </div>
+                    <div style={{ fontSize: "0.78rem", color: "#999", marginBottom: "10px" }}>{f.fechaServicio ? new Date(f.fechaServicio + "T12:00:00").toLocaleDateString("es-AR") : "-"}</div>
+                    <div style={{ marginBottom: "12px" }}>
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{f.clienteNombre}</div>
+                      <div style={{ fontSize: "0.75rem", color: "#888" }}>{f.clienteEmpresa}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                      <Link title="Ver Vista Previa" href={`/admin/planillas/matafuegos/mantenimiento/${f.id}?view=true`}
+                        style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                        <Eye size={18} strokeWidth={2.5} />
+                      </Link>
+                      {!isReadOnly && (
+                        <Link title="Ver / Editar" href={`/admin/planillas/matafuegos/mantenimiento/nuevo?edit=${f.id}`}
+                          style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                          <Edit size={18} strokeWidth={2.5} />
+                        </Link>
+                      )}
+                      <button title="Descargar PDF" onClick={() => handleDownload(f.id, "ficha")} disabled={downloadingId === f.id}
+                        style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer", opacity: downloadingId === f.id ? 0.5 : 1 }}>
+                        <Scroll size={18} strokeWidth={2.5} />
+                      </button>
+                      {isAdmin && !isReadOnly && (
+                        <button title="Eliminar" onClick={() => setDeleteConfirm({ id: f.id, type: "ficha" })}
+                          style={{ width: "38px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Trash2 size={18} strokeWidth={2.5} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+              {((activeTab === "remitos" && filteredRemitos.length === 0) || (activeTab === "fichas" && filteredFichas.length === 0)) && (
+                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "#999" }}>No se encontraron registros.</div>
+              )}
+            </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "600px" }}>
@@ -581,7 +689,98 @@ function MatafuegosUnifiedContent() {
         </div>
       )}
 
-        {activeTab === "inventario" && (
+        {activeTab === "inventario" && viewMode === "card" && (
+          <div style={{ marginBottom: "30px" }}>
+            <div className="doc-card-grid" style={{ padding: 0 }}>
+              {filteredMatafuegos.map(m => {
+                const proxPH = m.historial?.proximaPH;
+                const isUrgent = proxPH && new Date(proxPH) < today;
+                const vc = m.historial?.vencimientoCarga;
+                const vcExp = vc ? new Date(vc + "-01") < today : false;
+                const vcSoon = vc && !vcExp ? new Date(vc + "-01") <= nextMonth : false;
+                return (
+                  <div key={m.id} className="doc-card">
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                      <span style={{ background: '#fee2e2', color: '#b91c1c', padding: '5px 12px', borderRadius: '20px', fontWeight: 900, fontSize: '0.85rem', border: '1px solid #fecaca' }}>
+                        {m.nroTarjeta}
+                      </span>
+                      {isUrgent && <AlertTriangle size={18} color="#ef4444" />}
+                    </div>
+                    <div style={{ marginBottom: "10px" }}>
+                      <div style={{ fontWeight: 700, color: 'var(--primary-blue)' }}>{m.clienteNombre || m.clienteId || "Carga Manual"}</div>
+                      <div style={{ fontSize: '0.75rem', color: '#666' }}>{m.sedeNombre ? `📍 ${m.sedeNombre}` : (m.clienteEmpresa || "Sin empresa")}</div>
+                    </div>
+                    <div style={{ marginBottom: "10px" }}>
+                      <div style={{ fontWeight: 800, color: '#334155', fontSize: "0.9rem" }}>{m.datosTecnicos?.marca || "Sin Marca"} - {m.datosTecnicos?.capacidad}</div>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 900, padding: '2px 8px', borderRadius: '6px', textTransform: 'uppercase',
+                        background: m.datosTecnicos?.agente === 'CO2' ? '#334155' : m.datosTecnicos?.agente === 'Agua' ? '#bfdbfe' : '#fef08a',
+                        color: m.datosTecnicos?.agente === 'CO2' ? '#fff' : m.datosTecnicos?.agente === 'Agua' ? '#1e40af' : '#854d0e' }}>
+                        {m.datosTecnicos?.agente}
+                      </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px", background: "#f8fafc", padding: "10px", borderRadius: "8px" }}>
+                      <div>
+                        <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Año Fab.</div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700 }}>{m.datosTecnicos?.anioFab || m.anioFab || "-"}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Venc. PH</div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, color: isUrgent ? "#ef4444" : "#64748b" }}>{proxPH || "-"}</div>
+                      </div>
+                      <div style={{ gridColumn: "span 2" }}>
+                        <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Venc. Carga</div>
+                        <div style={{ fontSize: "0.8rem", fontWeight: 700, color: vcExp ? "#ef4444" : vcSoon ? "#f97316" : "#22c55e" }}>{vc || "-"}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                      {(isUrgent || (vc && new Date(vc + "-28") < new Date())) && isStaff && (
+                        <button title="Enviar Alerta al Cliente" onClick={async () => {
+                          if (!m.clienteId) { showToast("Este equipo no tiene un cliente asociado para enviar alertas.", "error"); return; }
+                          const confirmSend = confirm(`¿Enviar notificación de vencimiento a ${m.clienteNombre}?`);
+                          if (confirmSend) {
+                            try {
+                              await addDoc(collection(db, "notificaciones_enviadas"), {
+                                titulo: "Vencimiento de Extintor",
+                                cuerpo: `Tu extintor Tarjeta N° ${m.nroTarjeta} (${m.datosTecnicos?.agente} ${m.datosTecnicos?.capacidad}) se encuentra vencido o próximo a vencer. Por favor, contactanos para coordinar el mantenimiento.`,
+                                tipo: "usuario",
+                                destinatarioUid: m.clienteId,
+                                destinatarioEmail: m.clienteEmail || "",
+                                estado: "pendiente",
+                                creadaEn: serverTimestamp()
+                              });
+                              showToast("Alerta programada para envío", "success");
+                            } catch (e) {
+                              showToast("Error al programar alerta. Intentá de nuevo.", "error");
+                            }
+                          }
+                        }} style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#fff7ed", color: "#ea580c", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #ffedd5", cursor: "pointer" }}>
+                          <Bell size={18} strokeWidth={2.5} />
+                        </button>
+                      )}
+                      {isStaff && (
+                        <button title="Editar" onClick={() => setEditInventory(m)}
+                          style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer" }}>
+                          <Edit size={18} strokeWidth={2.5} />
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <button title="Eliminar" onClick={() => setDeleteConfirm({ id: m.id, type: "inventario" })}
+                          style={{ width: "38px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Trash2 size={18} strokeWidth={2.5} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {matafuegos.length === 0 && (
+                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px", color: "#999", fontSize: "1rem" }}>No hay extintores registrados en el inventario.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "inventario" && viewMode === "table" && (
           <div style={{ marginBottom: "30px" }}>
 
             <div style={{ background: '#fff', padding: '20px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', border: '1px solid #eee', overflowX: 'auto' }}>
@@ -598,22 +797,7 @@ function MatafuegosUnifiedContent() {
               </tr>
             </thead>
             <tbody>
-              {matafuegos.filter(m => {
-                const matchesSearch = 
-                  m.nroTarjeta?.toLowerCase().includes(search.toLowerCase()) ||
-                  m.clienteNombre?.toLowerCase().includes(search.toLowerCase()) ||
-                  m.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
-                const matchesSede = filtroSede === "Todas" || m.sedeNombre === filtroSede;
-                
-                let matchesVenc = true;
-                if (filtroMes || filtroAnio) {
-                  const [anio, mes] = (m.historial?.vencimientoCarga || "").split("-");
-                  if (filtroMes && mes !== filtroMes) matchesVenc = false;
-                  if (filtroAnio && anio !== filtroAnio) matchesVenc = false;
-                }
-                
-                return matchesSearch && matchesSede && matchesVenc;
-              }).map((m, idx) => {
+              {filteredMatafuegos.map((m, idx) => {
                 const proxPH = m.historial?.proximaPH;
                 const isUrgent = proxPH && new Date(proxPH) < new Date();
                 

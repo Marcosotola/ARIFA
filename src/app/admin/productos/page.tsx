@@ -9,6 +9,8 @@ import {
 } from "firebase/firestore";
 import { storage } from "@/lib/firebase";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Producto {
@@ -79,6 +81,7 @@ export default function AdminProductos() {
   const [filtroCat, setFiltroCat] = useState("Todas");
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useViewMode("productos");
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -253,10 +256,13 @@ export default function AdminProductos() {
       <div style={{ background: "#fff", borderRadius: "10px", padding: "16px 20px", marginBottom: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", border: "1px solid #eee" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", marginBottom: "12px" }}>
           <input style={{ ...inputSt }} placeholder="🔎 Buscar por título o proveedor..." value={search} onChange={e => setSearch(e.target.value)} />
-          <button onClick={() => { setSearch(""); setFiltroCat("Todas"); }}
-            style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", whiteSpace: "nowrap", fontWeight: 600 }}>
-            🔄 Limpiar
-          </button>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <button onClick={() => { setSearch(""); setFiltroCat("Todas"); }}
+              style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", whiteSpace: "nowrap", fontWeight: 600 }}>
+              🔄 Limpiar
+            </button>
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
+          </div>
         </div>
         <div style={{ display: "flex", gap: "8px", overflowX: "auto", paddingBottom: "4px", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
           {["Todas", ...CATEGORIAS].map(cat => (
@@ -269,6 +275,55 @@ export default function AdminProductos() {
       </div>
 
       <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #eee", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", overflow: "hidden" }}>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "60px", color: "#bbb" }}>
+            <div style={{ fontSize: "2rem", marginBottom: "10px" }}>⏳</div>Cargando...
+          </div>
+        ) : visible.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "60px", color: "#bbb" }}>
+            <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>📦</div>
+            {search || filtroCat !== "Todas" ? "No hay productos que coincidan." : "Catálogo vacío."}
+          </div>
+        ) : viewMode === "card" ? (
+          <div className="doc-card-grid">
+            {visible.map(p => (
+              <div key={p.id} className="doc-card" style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ width: "100%", aspectRatio: "16/10", background: "#f5f5f5", overflow: "hidden" }}>
+                  {p.imagenes && p.imagenes.length > 0 ? (
+                    <img src={p.imagenes[0]} alt={p.titulo} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "2.5rem", color: "#ddd" }}>📦</div>
+                  )}
+                </div>
+                <div style={{ padding: "16px" }}>
+                  <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.95rem" }}>{p.titulo}</div>
+                  {p.categoria && (
+                    <div style={{ fontSize: "0.65rem", color: CAT_COLORS[p.categoria] || "#666", marginTop: "2px", marginBottom: "10px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.3px" }}>
+                      {p.categoria}
+                    </div>
+                  )}
+                  <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: "10px" }}>{p.proveedor || "—"}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{fmtPeso(p.precio)}</div>
+                      <div style={{ fontSize: "1rem", fontWeight: 800, color: "var(--primary-red)" }}>{fmtPeso(p.precioVenta)}</div>
+                    </div>
+                    <span style={{ background: "#f0fdf4", color: "#16a34a", fontSize: "0.72rem", fontWeight: 800, padding: "3px 8px", borderRadius: "20px" }}>{p.porcentaje}%</span>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                    <button onClick={() => toggleActivo(p)} style={{ padding: "4px 10px", borderRadius: "20px", border: "none", cursor: "pointer", fontSize: "0.68rem", fontWeight: 900, background: p.activo ? "#dcfce7" : "#fee2e2", color: p.activo ? "#15803d" : "#dc2626" }}>
+                      {p.activo ? "✓ Activo" : "✕ Inactivo"}
+                    </button>
+                    <div>
+                      <button onClick={() => openEdit(p)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem" }}>✏️</button>
+                      <button onClick={() => setDeleteConfirm(p.id)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "1.1rem", marginLeft: "8px" }}>🗑️</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
         <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
             <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
@@ -279,16 +334,7 @@ export default function AdminProductos() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "60px", color: "#bbb" }}>
-                  <div style={{ fontSize: "2rem", marginBottom: "10px" }}>⏳</div>Cargando...
-                </td></tr>
-              ) : visible.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign: "center", padding: "60px", color: "#bbb" }}>
-                  <div style={{ fontSize: "2.5rem", marginBottom: "12px" }}>📦</div>
-                  {search || filtroCat !== "Todas" ? "No hay productos que coincidan." : "Catálogo vacío."}
-                </td></tr>
-              ) : visible.map(p => (
+              {visible.map(p => (
                 <tr key={p.id} style={{ borderBottom: "1px solid #f5f5f5" }}
                   onMouseEnter={e => (e.currentTarget.style.background = "#fafcff")}
                   onMouseLeave={e => (e.currentTarget.style.background = "")}>
@@ -338,6 +384,7 @@ export default function AdminProductos() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Modal - Adjusted to NOT cover the sidebar (z-index 150 < sidebar 200) */}

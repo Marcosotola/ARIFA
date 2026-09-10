@@ -8,6 +8,8 @@ import {
   doc, query, orderBy, serverTimestamp, getDoc, where
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from "firebase/storage";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 import {
   Plus,
@@ -284,6 +286,7 @@ export default function HySPage() {
   const [filtroSede, setFiltroSede] = useState("Todas");
   const [filtroFechaDesde, setFiltroFechaDesde] = useState("");
   const [filtroFechaHasta, setFiltroFechaHasta] = useState("");
+  const [viewMode, setViewMode] = useViewMode("hys");
 
   // Form
   const [usuarios, setUsuarios] = useState<{id: string, nombre: string, apellido: string, email: string, empresa?: string, sedes?: any[]}[]>([]);
@@ -666,10 +669,11 @@ export default function HySPage() {
             <label style={labelSt}>Fecha hasta</label>
             <input type="date" style={inputSt} value={filtroFechaHasta} onChange={e => setFiltroFechaHasta(e.target.value)} />
           </div>
-          <div style={{ display: "flex", alignItems: "flex-end" }}>
+          <div style={{ display: "flex", alignItems: "flex-end", gap: "10px" }}>
             <button onClick={() => { setFiltroTipo("Todos"); setFiltroCliente(""); setFiltroSede("Todas"); setFiltroFechaDesde(""); setFiltroFechaHasta(""); }} style={{ padding: "10px 18px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.85rem", color: "#666" }}>
               Limpiar filtros
             </button>
+            <ViewToggle mode={viewMode} onChange={setViewMode} />
           </div>
         </div>
       </div>
@@ -697,8 +701,8 @@ export default function HySPage() {
         </div>
       ) : (
         <>
-          {/* Desktop Table */}
-          <div className="hide-on-mobile" style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee", marginBottom: "20px" }}>
+          {viewMode === "table" && (
+          <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee", marginBottom: "20px" }}>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "700px" }}>
                 <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
@@ -803,12 +807,13 @@ export default function HySPage() {
               </table>
             </div>
           </div>
+          )}
 
-          {/* Mobile Cards */}
-          <div className="show-on-mobile" style={{ display: "none", flexDirection: "column", gap: "12px" }}>
+          {viewMode === "card" && (
+          <div className="doc-card-grid">
             {filtered.map(d => {
               return (
-                <div key={d.id} style={{ background: "#fff", borderRadius: "12px", padding: "16px", border: "1px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                <div key={d.id} className="doc-card">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
                     <div>
                       <div style={{ fontSize: "0.75rem", color: "#999", fontWeight: 600, marginBottom: "2px" }}>{fmtFecha(d.fecha)}</div>
@@ -884,6 +889,7 @@ export default function HySPage() {
               );
             })}
           </div>
+          )}
         </>
       )}
 
@@ -1418,8 +1424,6 @@ export default function HySPage() {
       {/* ── Styles ── */}
       <style jsx>{`
         @media (max-width: 768px) {
-          .hide-on-mobile { display: none !important; }
-          .show-on-mobile { display: flex !important; }
           .modal-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>

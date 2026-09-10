@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Eye, Edit, Scroll, Trash2, ArrowLeft, Search } from "lucide-react";
 import { generateEstadoCuentaPDF } from "@/lib/pdfGenerator";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 interface EstadoCuenta {
   id: string;
@@ -34,6 +36,7 @@ export default function EstadosCuentaPage() {
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useViewMode("estado-cuenta");
   const router = useRouter();
 
   useEffect(() => {
@@ -170,13 +173,61 @@ export default function EstadosCuentaPage() {
         >
           Limpiar
         </button>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
-      {/* TABLA */}
+      {/* LISTADO */}
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden" }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px", color: "#999" }}>
             {estados.length === 0 ? "Aún no hay estados de cuenta cargados." : "No se encontraron resultados."}
+          </div>
+        ) : viewMode === "card" ? (
+          <div className="doc-card-grid">
+            {filtered.map(p => (
+              <div key={p.id} className="doc-card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                  <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>
+                    EC-{String(p.numero || "?").padStart(5, "0")}
+                  </div>
+                  <span style={{ fontWeight: 800, fontSize: "0.9rem", color: p.saldoActual > 0 ? "var(--primary-red)" : "#16a34a" }}>
+                    $ {fmt(p.saldoActual || 0)}
+                  </span>
+                </div>
+                <div style={{ fontSize: "0.78rem", color: "#999", marginBottom: "10px" }}>
+                  {p.fecha ? new Date(p.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}
+                </div>
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                    {p.clienteNombre}{p.clienteApellido ? ` ${p.clienteApellido}` : ""}
+                  </div>
+                  {p.clienteEmpresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{p.clienteEmpresa}</div>}
+                  {p.sedeNombre && <div style={{ fontSize: "0.75rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {p.sedeNombre}</div>}
+                </div>
+                <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                  <Link title="Ver Vista Previa" href={`/admin/documentos/estado-cuenta/${p.id}`}
+                    style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                    <Eye size={18} strokeWidth={2.5} />
+                  </Link>
+                  {!isReadOnly && (
+                    <Link title="Editar" href={`/admin/documentos/estado-cuenta/nuevo?edit=${p.id}`}
+                      style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                      <Edit size={18} strokeWidth={2.5} />
+                    </Link>
+                  )}
+                  <button title="Descargar PDF" onClick={() => handleDownload(p)} disabled={downloading === p.id}
+                    style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: "#f5f3ff", color: "#7c3aed", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: downloading === p.id ? 0.6 : 1 }}>
+                    <Scroll size={18} strokeWidth={2.5} />
+                  </button>
+                  {isAdmin && (
+                    <button title="Eliminar" onClick={() => setDeleteConfirm(p.id)}
+                      style={{ width: "38px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Trash2 size={18} strokeWidth={2.5} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>

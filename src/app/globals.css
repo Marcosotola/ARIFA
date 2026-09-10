@@ -1611,6 +1611,26 @@ ul { list-style: none; }
   }
 }
 
+/* ======= ADMIN DOCUMENT CARDS ======= */
+.doc-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+.doc-card {
+  background: #fff;
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.doc-card:hover {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+  border-color: #ddd;
+}
+
 /* ======= ADMIN PANEL — MOBILE RESPONSIVE ======= */
 
 /* Tables inside admin — always scrollable horizontally */

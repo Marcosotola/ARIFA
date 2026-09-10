@@ -25,6 +25,8 @@ import {
   MessageCircle,
   Eye
 } from "lucide-react";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 const CARGOS = ["Propietario", "Gerente", "Responsable de Seguridad", "Encargado", "Administrativo", "Técnico", "Otro"];
 
@@ -42,6 +44,7 @@ export default function UsuariosPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const { toast, showToast } = useToast();
   const [search, setSearch] = useState("");
+  const [viewMode, setViewMode] = useViewMode("usuarios");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -222,10 +225,85 @@ export default function UsuariosPage() {
               <UserPlus size={18} strokeWidth={2.5} /> Nuevo Usuario
             </button>
           )}
+          <ViewToggle mode={viewMode} onChange={setViewMode} />
         </div>
       </header>
 
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee" }}>
+        {viewMode === "card" ? (
+          <div className="doc-card-grid">
+            {usuariosVisibles.map(u => {
+              const { bg, color } = rolColor(u.rol);
+              const fullName = [u.nombre, u.apellido].filter(Boolean).join(" ") || u.email?.split("@")[0];
+              const initials = (u.nombre?.charAt(0) || u.email?.charAt(0) || "?").toUpperCase();
+              return (
+                <div key={u.id} className="doc-card">
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                    <div style={{ width: "38px", height: "38px", borderRadius: "50%", background: "var(--bg-light)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--primary-blue)", fontWeight: 800, fontSize: "1rem", flexShrink: 0 }}>
+                      {initials}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.92rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fullName}</div>
+                      <div style={{ fontSize: "0.78rem", color: "#888", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.email}</div>
+                    </div>
+                    <span style={{ fontSize: "0.65rem", fontWeight: 800, padding: "4px 9px", borderRadius: "20px", background: bg, color, textTransform: "uppercase", flexShrink: 0 }}>
+                      {u.rol || "cliente"}
+                    </span>
+                  </div>
+                  {(u.empresa || u.cargo) && (
+                    <div style={{ marginBottom: "8px" }}>
+                      {u.empresa && <div style={{ fontWeight: 700, fontSize: "0.85rem", color: '#334155', display: 'flex', alignItems: 'center', gap: '5px' }}><Building2 size={13} style={{ color: '#64748b' }} /> {u.empresa}</div>}
+                      {u.cargo && <div style={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 600, display: 'flex', alignItems: 'center', gap: '5px' }}><Briefcase size={12} /> {u.cargo}</div>}
+                    </div>
+                  )}
+                  {u.telefono && (
+                    <a href={`https://wa.me/${u.telefono.replace("+", "")}`} target="_blank" rel="noopener noreferrer"
+                      style={{ color: "#16a34a", textDecoration: "none", fontSize: "0.82rem", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px', marginBottom: "8px" }}>
+                      <MessageCircle size={13} /> {u.telefono}
+                    </a>
+                  )}
+                  {u.direccion && (
+                    <div style={{ fontSize: "0.8rem", color: '#334155', display: 'flex', alignItems: 'center', gap: '5px', marginBottom: "8px" }}>
+                      <MapPin size={13} style={{ color: '#64748b', flexShrink: 0 }} /> {u.direccion}
+                    </div>
+                  )}
+                  {u.sedes?.length > 0 && (
+                    <button onClick={() => setViewingUser(u)}
+                      style={{ fontSize: "0.7rem", color: "var(--primary-blue)", fontWeight: 800, background: 'rgba(0,97,255,0.08)', border: '1px solid rgba(0,97,255,0.2)', borderRadius: '4px', padding: '3px 7px', width: 'fit-content', cursor: 'pointer', marginBottom: "10px" }}>
+                      {u.sedes.length} sede{u.sedes.length !== 1 ? "s" : ""} cargada{u.sedes.length !== 1 ? "s" : ""}
+                    </button>
+                  )}
+                  <div style={{ marginBottom: "12px" }}>
+                    {u.perfilCompleto
+                      ? <span style={{ fontSize: "0.75rem", color: "#16a34a", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}><CheckCircle2 size={14} /> Perfil Completo</span>
+                      : <span style={{ fontSize: "0.75rem", color: "#f59e0b", fontWeight: 700, display: 'flex', alignItems: 'center', gap: '5px' }}><AlertCircle size={14} /> Perfil Incompleto</span>}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                    <button onClick={() => setViewingUser(u)}
+                      style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer' }} title="Ver Detalle">
+                      <Eye size={18} strokeWidth={2.5} />
+                    </button>
+                    {(currentUserRole === "admin" || currentUserRole === "superadmin") && (
+                      <>
+                        <button onClick={() => handleEdit(u)}
+                          style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer' }} title="Editar">
+                          <Edit size={18} strokeWidth={2.5} />
+                        </button>
+                        <button onClick={() => handleDelete(u.id)} disabled={u.id === currentUser?.uid}
+                          style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#fef2f2", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", border: 'none', cursor: 'pointer', opacity: u.id === currentUser?.uid ? 0.3 : 1 }} title="Eliminar">
+                          <Trash2 size={18} strokeWidth={2.5} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {usuariosVisibles.length === 0 && (
+              <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "#bbb" }}>No hay usuarios que coincidan.</div>
+            )}
+          </div>
+        ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "860px", tableLayout: "fixed" }}>
             <colgroup>
@@ -357,6 +435,7 @@ export default function UsuariosPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* ── Modal Editar ── */}

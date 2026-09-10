@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, getDocs, orderBy, updateDoc, doc, deleteDoc, where, getDoc } from "firebase/firestore";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 export default function ConsultasAdmin() {
   const [consultas, setConsultas] = useState<any[]>([]);
@@ -10,6 +12,7 @@ export default function ConsultasAdmin() {
   const [role, setRole] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [selectedConsulta, setSelectedConsulta] = useState<any>(null);
+  const [viewMode, setViewMode] = useViewMode("consultas");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -80,6 +83,76 @@ export default function ConsultasAdmin() {
         </p>
       </header>
 
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
+      </div>
+
+      {viewMode === "card" ? (
+        <div style={{ background: "#fff", padding: isAdmin ? "20px" : "12px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.03)" }}>
+          {consultas.length > 0 ? (
+            <div className="doc-card-grid" style={{ padding: 0 }}>
+              {consultas.map(c => (
+                <div key={c.id} className="doc-card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                    <div style={{ fontSize: "0.78rem", color: "#999" }}>
+                      {new Date(c.fecha?.seconds * 1000).toLocaleDateString()}
+                      <div style={{ fontSize: "0.7rem" }}>{new Date(c.fecha?.seconds * 1000).toLocaleTimeString()}</div>
+                    </div>
+                    {isAdmin ? (
+                      <select
+                        value={c.estado || "nueva"}
+                        onChange={(e) => updateStatus(c.id, e.target.value)}
+                        style={{
+                          fontSize: "0.68rem", padding: "4px 9px", borderRadius: "20px", border: "none",
+                          fontWeight: 800, textTransform: "uppercase", cursor: "pointer",
+                          background: c.estado === "atendida" ? "#e8f5e9" : c.estado === "cancelada" ? "#fee" : "#e0f2f1",
+                          color: c.estado === "atendida" ? "#2e7d32" : c.estado === "cancelada" ? "#c62828" : "#00796b"
+                        }}
+                      >
+                        <option value="nueva">Nueva</option>
+                        <option value="atendida">Atendida</option>
+                        <option value="cancelada">Cancelada</option>
+                      </select>
+                    ) : (
+                      <span style={{
+                        fontSize: "0.62rem", padding: "4px 9px", borderRadius: "20px", fontWeight: 900, textTransform: "uppercase",
+                        background: c.estado === "atendida" ? "#e8f5e9" : c.estado === "cancelada" ? "#fee" : "#e0f2f1",
+                        color: c.estado === "atendida" ? "#2e7d32" : c.estado === "cancelada" ? "#c62828" : "#00796b"
+                      }}>
+                        {c.estado || "Enviada"}
+                      </span>
+                    )}
+                  </div>
+                  {isAdmin && (
+                    <div style={{ marginBottom: "8px" }}>
+                      <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{c.nombre || "---"}</div>
+                      <div style={{ color: "#666", fontSize: '0.78rem' }}>{c.email}</div>
+                    </div>
+                  )}
+                  <div style={{ fontSize: "0.8rem", color: "var(--primary-red)", fontWeight: 700, marginBottom: "8px" }}>{c.servicio || "General"}</div>
+                  <div
+                    onClick={() => c.mensaje && setSelectedConsulta(c)}
+                    style={{ fontSize: "0.85rem", color: "#555", marginBottom: "12px", overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", cursor: c.mensaje ? "pointer" : "default" } as React.CSSProperties}
+                    title={c.mensaje ? "Ver mensaje completo" : undefined}
+                  >
+                    {c.mensaje || "---"}
+                  </div>
+                  {isAdmin && (
+                    <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                      <button onClick={() => window.open(`https://wa.me/${c.telefono?.replace(/\D/g, '')}`, '_blank')}
+                        style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: "#f0fdf4", cursor: "pointer", fontSize: "1rem" }} title="Contactar WhatsApp">💬</button>
+                      <button onClick={() => deleteConsulta(c.id)}
+                        style={{ flex: 1, padding: "9px", borderRadius: "8px", border: "none", background: "#fef2f2", cursor: "pointer", fontSize: "1rem" }} title="Eliminar">🗑️</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: '60px', textAlign: 'center', color: '#bbb' }}>No se encontraron consultas registradas.</div>
+          )}
+        </div>
+      ) : (
       <div style={{ background: "#fff", padding: isAdmin ? "30px" : "20px", borderRadius: "12px", boxShadow: "0 10px 25px rgba(0,0,0,0.03)" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -167,6 +240,7 @@ export default function ConsultasAdmin() {
           </table>
         </div>
       </div>
+      )}
 
       {selectedConsulta && (
         <div

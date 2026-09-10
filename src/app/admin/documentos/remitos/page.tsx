@@ -10,6 +10,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { generateRemitoPDF } from "@/lib/pdfGenerator";
 import { Plus, Eye, Edit, Scroll, Trash2, ArrowLeft, Search, Package } from "lucide-react";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 interface RemitoDoc {
   id: string;
@@ -32,6 +34,7 @@ export default function RemitosPage() {
   const [search, setSearch] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useViewMode("remitos");
   const router = useRouter();
 
   useEffect(() => {
@@ -132,14 +135,66 @@ export default function RemitosPage() {
           </div>
         </div>
         <button onClick={() => setSearch("")} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
-      {/* Tabla */}
+      {/* Listado */}
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden" }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: "center", padding: "60px", color: "#999" }}>
             <Package size={40} style={{ marginBottom: "12px", opacity: 0.3, display: "block", margin: "0 auto 12px" }} />
             <div>{remitos.length === 0 ? "Aún no hay remitos cargados." : "No se encontraron resultados."}</div>
+          </div>
+        ) : viewMode === "card" ? (
+          <div className="doc-card-grid">
+            {filtered.map(p => {
+              const totalItems = (p.items || []).reduce((acc, i) => acc + (Number(i.cantidad) || 0), 0);
+              return (
+                <div key={p.id} className="doc-card">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                    <div style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "1rem" }}>
+                      RM-{String(p.numero || "?").padStart(5, "0")}
+                    </div>
+                    <span style={{ background: "#f0f7ff", color: "#0061ff", borderRadius: "8px", padding: "3px 9px", fontSize: "0.75rem", fontWeight: 700 }}>{totalItems} u.</span>
+                  </div>
+                  <div style={{ fontSize: "0.78rem", color: "#999", marginBottom: "10px" }}>
+                    {p.fecha ? new Date(p.fecha + "T12:00:00").toLocaleDateString("es-AR") : "-"}
+                  </div>
+                  <div style={{ marginBottom: "10px" }}>
+                    <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{p.clienteNombre}{p.clienteApellido ? ` ${p.clienteApellido}` : ""}</div>
+                    {p.clienteEmpresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{p.clienteEmpresa}</div>}
+                    {p.sedeNombre && <div style={{ fontSize: "0.75rem", color: "var(--primary-blue)", fontWeight: 600 }}>📍 {p.sedeNombre}</div>}
+                  </div>
+                  {p.descripcionGeneral && (
+                    <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: "12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.descripcionGeneral}
+                    </div>
+                  )}
+                  <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                    <Link title="Ver" href={`/admin/documentos/remitos/${p.id}`}
+                      style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                      <Eye size={18} strokeWidth={2.5} />
+                    </Link>
+                    {!isReadOnly && (
+                      <Link title="Editar" href={`/admin/documentos/remitos/nuevo?edit=${p.id}`}
+                        style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0f7ff", color: "#0061ff", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
+                        <Edit size={18} strokeWidth={2.5} />
+                      </Link>
+                    )}
+                    <button title="Descargar PDF" onClick={() => handleDownload(p.id)} disabled={downloadingId === p.id}
+                      style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f5f3ff", color: "#7c3aed", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: downloadingId === p.id ? 0.5 : 1 }}>
+                      <Scroll size={18} strokeWidth={2.5} />
+                    </button>
+                    {isAdmin && (
+                      <button title="Eliminar" onClick={() => setDeleteConfirm(p.id)}
+                        style={{ width: "38px", borderRadius: "8px", border: "none", background: "#fef2f2", color: "#ef4444", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Trash2 size={18} strokeWidth={2.5} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>

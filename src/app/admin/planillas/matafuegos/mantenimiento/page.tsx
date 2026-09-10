@@ -5,6 +5,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, query, orderBy, doc, getDoc, deleteDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 interface Ficha {
   id: string;
@@ -27,6 +29,7 @@ export default function MantenimientoListPage() {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [viewMode, setViewMode] = useViewMode("mantenimiento-matafuegos");
 
   const router = useRouter();
 
@@ -134,15 +137,16 @@ export default function MantenimientoListPage() {
             style={{ width: "100%", padding: "9px 12px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.85rem" }}
           />
         </div>
-        <button 
+        <button
           onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); }}
           style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}
         >
           Limpiar
         </button>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
-      {/* TABLA ESTILO OT */}
+      {/* LISTADO ESTILO OT */}
       <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.05)", overflow: "hidden" }}>
         {loading ? (
           <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>CargandoMaintenance...</div>
@@ -151,6 +155,39 @@ export default function MantenimientoListPage() {
             <div style={{ fontSize: "3.5rem", marginBottom: "15px", filter: "grayscale(1)", opacity: 0.3 }}>🧯</div>
             <h3 style={{ fontWeight: 800, color: "#999", marginBottom: "8px" }}>No hay fichas registradas</h3>
             <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Empezá cargando una nueva ficha técnica de taller.</p>
+          </div>
+        ) : viewMode === "card" ? (
+          <div className="doc-card-grid">
+            {filteredFichas.map(ficha => (
+              <div key={ficha.id} className="doc-card">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 800, fontSize: "1rem", color: "var(--primary-blue)" }}>
+                    FT-{String(ficha.numeroFicha || "?").padStart(5, "0")}
+                  </span>
+                  <span style={{ fontSize: "0.72rem", background: "#f0f4ff", color: "#3557a0", padding: "3px 10px", borderRadius: "12px", fontWeight: 700 }}>
+                    {ficha.items?.length || 0} Extintores
+                  </span>
+                </div>
+                <div style={{ fontSize: "0.78rem", color: "#999", marginBottom: "10px" }}>
+                  {ficha.fechaServicio ? new Date(ficha.fechaServicio + "T12:00:00").toLocaleDateString("es-AR") : "-"}
+                </div>
+                <div style={{ marginBottom: "10px" }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{ficha.clienteNombre || "-"}</div>
+                  {ficha.clienteEmpresa && <div style={{ fontSize: "0.78rem", color: "#888" }}>{ficha.clienteEmpresa}</div>}
+                </div>
+                <div style={{ fontSize: "0.82rem", color: "#666", marginBottom: "12px" }}>Técnico: {ficha.tecnicoNombre || "-"}</div>
+                <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                  <Link href={`/admin/planillas/matafuegos/mantenimiento/${ficha.id}`} style={{ flex: 1, textAlign: "center", padding: "9px", borderRadius: "6px", border: "1px solid #ddd", background: "#fff", fontSize: "0.82rem", fontWeight: 600, color: "var(--primary-blue)", textDecoration: 'none' }}>
+                    {!isStaff ? "Ver Documento" : "Ver / Editar"}
+                  </Link>
+                  {(role === "admin" || role === "superadmin" || role === "supervisor") && (
+                    <button onClick={() => setDeleteConfirm(ficha.id)} style={{ padding: "9px 12px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", cursor: "pointer", color: "var(--primary-red)", fontSize: "0.82rem" }}>
+                      🗑️
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>

@@ -8,6 +8,8 @@ import {
   doc, query, orderBy, serverTimestamp, getDoc, where 
 } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 import { 
   Package, 
@@ -70,6 +72,7 @@ export default function PlanAccionPage() {
   const [filtroPrioridad, setFiltroPrioridad] = useState<Prioridad | "Todas">("Todas");
   const [filtroRealizado, setFiltroRealizado] = useState<"Todos" | "Si" | "No">("Todos");
   const [filtroSede, setFiltroSede] = useState("Todas");
+  const [viewMode, setViewMode] = useViewMode("plan-accion");
 
   // Form State
   const [fCliente, setFCliente] = useState("");
@@ -324,12 +327,13 @@ export default function PlanAccionPage() {
             )}
           </select>
         </div>
-        <button 
+        <button
           onClick={() => { setSearch(""); setFiltroPrioridad("Todas"); setFiltroRealizado("Todos"); setFiltroSede("Todas"); }}
           style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}
         >
           Limpiar
         </button>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
       {/* GRÁFICO DE ESTADOS */}
@@ -385,7 +389,8 @@ export default function PlanAccionPage() {
           <div style={{ textAlign: "center", padding: "60px", color: "#999" }}>No se encontraron registros en el Plan de Acción.</div>
         ) : (
           <>
-            <div className="hide-on-mobile" style={{ overflowX: "auto" }}>
+            {viewMode === "table" && (
+            <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
                 <thead>
                   <tr style={{ background: "#fafafa", borderBottom: "2px solid #eee" }}>
@@ -454,13 +459,14 @@ export default function PlanAccionPage() {
                 </tbody>
               </table>
             </div>
+            )}
 
-            {/* Mobile Cards */}
-            <div className="show-on-mobile" style={{ display: "none", flexDirection: "column", gap: "12px", padding: "12px" }}>
+            {viewMode === "card" && (
+            <div className="doc-card-grid">
               {filtered.map(item => {
                 const pc = PRIORIDAD_COLORS[item.prioridad];
                 return (
-                  <div key={item.id} style={{ background: "#fff", borderRadius: "12px", padding: "16px", border: "1.5px solid #eee", boxShadow: "0 2px 8px rgba(0,0,0,0.03)" }}>
+                  <div key={item.id} className="doc-card">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
                       <div>
                         <div style={{ fontSize: "0.7rem", color: "#999", fontWeight: 600 }}>{new Date(item.fecha + "T12:00:00").toLocaleDateString("es-AR")}</div>
@@ -512,6 +518,7 @@ export default function PlanAccionPage() {
                 );
               })}
             </div>
+            )}
           </>
         )}
       </div>
@@ -820,13 +827,6 @@ export default function PlanAccionPage() {
         </div>
       )}
 
-      {/* STYLES */}
-      <style jsx>{`
-        @media (max-width: 768px) {
-          .hide-on-mobile { display: none !important; }
-          .show-on-mobile { display: flex !important; }
-        }
-      `}</style>
       <Toast {...toast} />
     </div>
   );

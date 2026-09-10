@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
 import { Building2, MapPin, QrCode, Download, ExternalLink, Search, CheckCircle2, AlertTriangle, XCircle, Clock, RefreshCw } from "lucide-react";
+import { useViewMode } from "@/hooks/useViewMode";
+import ViewToggle from "@/components/admin/ViewToggle";
 
 interface Sede {
   id: string;
@@ -70,6 +72,7 @@ export default function InstalacionesPage() {
   const [qrModal, setQrModal] = useState<{ sedeId: string; sedeNombre: string; clienteNombre: string } | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [displayCount, setDisplayCount] = useState(20);
+  const [viewMode, setViewMode] = useViewMode("instalaciones");
 
   useEffect(() => {
     fetchData();
@@ -315,19 +318,78 @@ export default function InstalacionesPage() {
       </div>
 
       {/* Buscador */}
-      <div style={{ position: "relative", marginBottom: "20px" }}>
-        <Search size={18} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
-        <input
-          style={{ width: "100%", padding: "12px 12px 12px 44px", borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "0.92rem", background: "#fff", boxSizing: "border-box" }}
-          placeholder="Buscar por cliente, sede, dirección o N° de certificado..."
-          value={search}
-          onChange={e => { setSearch(e.target.value); setDisplayCount(20); }}
-        />
+      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <Search size={18} style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+          <input
+            style={{ width: "100%", padding: "12px 12px 12px 44px", borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "0.92rem", background: "#fff", boxSizing: "border-box" }}
+            placeholder="Buscar por cliente, sede, dirección o N° de certificado..."
+            value={search}
+            onChange={e => { setSearch(e.target.value); setDisplayCount(20); }}
+          />
+        </div>
+        <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
-      {/* Tabla */}
+      {/* Listado */}
       {loading ? (
         <div style={{ textAlign: "center", padding: "60px", color: "var(--text-muted)" }}>Cargando instalaciones...</div>
+      ) : viewMode === "card" ? (
+        <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee" }}>
+          <div className="doc-card-grid">
+            {visibles.map(inst => (
+              <div key={inst.sedeId} className="doc-card">
+                <div style={{ marginBottom: "10px" }}>{estadoBadge(inst.estado)}</div>
+                <div style={{ fontWeight: 700, fontSize: "0.9rem", color: "var(--primary-blue)", marginBottom: "6px" }}>{inst.clienteNombre}</div>
+                <div style={{ fontWeight: 600, fontSize: "0.88rem", color: "#1e293b" }}>{inst.sedeNombre}</div>
+                {inst.sedeDireccion && (
+                  <div style={{ fontSize: "0.78rem", color: "#94a3b8", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px", marginBottom: "10px" }}>
+                    <MapPin size={12} /> {inst.sedeDireccion}
+                  </div>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px", background: "#f8fafc", padding: "10px", borderRadius: "8px" }}>
+                  <div>
+                    <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Último cert.</div>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 700 }}>{inst.certNumero || "—"}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Vencimiento</div>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 700, color: inst.estado === "vencido" ? "#dc2626" : inst.estado === "por_vencer" ? "#d97706" : "#16a34a" }}>
+                      {inst.certFechaVencimiento ? formatDate(inst.certFechaVencimiento) : "—"}
+                    </div>
+                  </div>
+                  <div style={{ gridColumn: "span 2" }}>
+                    <div style={{ fontSize: "0.6rem", color: "#999", textTransform: "uppercase", fontWeight: 700 }}>Técnico</div>
+                    <div style={{ fontSize: "0.8rem", fontWeight: 600 }}>{inst.certTecnico || "—"}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
+                  <button onClick={() => openQrModal(inst)}
+                    style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#eff6ff", color: "var(--primary-blue)", display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer" }}
+                    title="Ver QR">
+                    <QrCode size={17} />
+                  </button>
+                  <a href={`https://arifa.com.ar/verificar/${inst.sedeId}`} target="_blank" rel="noopener noreferrer"
+                    style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}
+                    title="Abrir verificación">
+                    <ExternalLink size={17} />
+                  </a>
+                </div>
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "50px", color: "#bbb" }}>No hay instalaciones que coincidan con los filtros.</div>
+            )}
+          </div>
+          {hayMas && (
+            <button
+              onClick={() => setDisplayCount(c => c + 20)}
+              style={{ width: "100%", padding: "16px", background: "#f8fafc", border: "none", borderTop: "1px solid #f0f0f0", cursor: "pointer", fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.88rem", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+            >
+              Cargar más — mostrando {visibles.length} de {filtered.length}
+            </button>
+          )}
+        </div>
       ) : (
         <div style={{ background: "#fff", borderRadius: "12px", boxShadow: "0 4px 20px rgba(0,0,0,0.04)", overflow: "hidden", border: "1px solid #eee" }}>
           <div className="admin-table-wrap">
