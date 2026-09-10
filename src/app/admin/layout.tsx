@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import PWAInstallButton from "@/components/PWAInstallButton";
 import ShareAppButton from "@/components/ShareAppButton";
+import GlobalSearchBox from "@/components/admin/GlobalSearchBox";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
@@ -322,7 +323,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : isSupervisor ? "SUPERVISOR" : "PANEL"}
           </span>
         </div>
-        
+
+        <GlobalSearchBox role={role} uid={user?.uid || null} />
+
         <nav style={{ flex: 1 }}>
           <ul style={{ listStyle: "none", padding: 0 }}>
             {sidebarLinks.map((link) => {
