@@ -78,28 +78,6 @@ function MatafuegosUnifiedContent() {
   const nextMonth = new Date();
   nextMonth.setMonth(today.getMonth() + 1);
 
-  const stats = {
-    total: matafuegos.length,
-    vencidosCarga: 0,
-    vencidosPH: 0,
-    porVencerCarga: 0
-  };
-
-  matafuegos.forEach(m => {
-    const vc = m.historial?.vencimientoCarga;
-    const vph = m.historial?.proximaPH;
-
-    if (vc) {
-        const d = new Date(vc + "-01");
-        if (d < today) stats.vencidosCarga++;
-        else if (d <= nextMonth) stats.porVencerCarga++;
-    }
-    if (vph) {
-        const d = new Date(vph);
-        if (d < today) stats.vencidosPH++;
-    }
-  });
-
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -273,6 +251,32 @@ function MatafuegosUnifiedContent() {
     return matchesSearch && matchesSede && matchesVenc;
   });
 
+  const stats = {
+    total: filteredMatafuegos.length,
+    vencidosCarga: 0,
+    vencidosPH: 0,
+    porVencerCarga: 0,
+    porTipo: {} as Record<string, number>
+  };
+
+  filteredMatafuegos.forEach(m => {
+    const vc = m.historial?.vencimientoCarga;
+    const vph = m.historial?.proximaPH;
+
+    if (vc) {
+        const d = new Date(vc + "-01");
+        if (d < today) stats.vencidosCarga++;
+        else if (d <= nextMonth) stats.porVencerCarga++;
+    }
+    if (vph) {
+        const d = new Date(vph);
+        if (d < today) stats.vencidosPH++;
+    }
+
+    const tipo = m.datosTecnicos?.agente || "Sin especificar";
+    stats.porTipo[tipo] = (stats.porTipo[tipo] || 0) + 1;
+  });
+
   const isStaff = role === "admin" || role === "tecnico" || role === "superadmin" || role === "supervisor";
   const isAdmin = role === "admin" || role === "superadmin" || role === "supervisor";
   const isReadOnly = role === "cliente";
@@ -365,9 +369,14 @@ function MatafuegosUnifiedContent() {
       {/* ESPACIO PARA ESTADÍSTICAS SI ES INVENTARIO */}
       {activeTab === "inventario" && (
         <div style={{ marginBottom: "25px" }}>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', 
+            {filtroSede !== "Todas" && (
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', marginBottom: '12px' }}>
+                Mostrando estadísticas de: <span style={{ color: 'var(--primary-blue)' }}>{filtroSede}</span>
+              </div>
+            )}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
               gap: '15px',
             }}>
               <div style={{ background: '#fff', padding: '15px', borderRadius: '15px', border: '1px solid #eee', display: 'flex', flexDirection: 'column', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
@@ -399,6 +408,28 @@ function MatafuegosUnifiedContent() {
                 </div>
               </div>
             </div>
+
+            {Object.keys(stats.porTipo).length > 0 && (
+              <div style={{ marginTop: '15px', background: '#fff', padding: '15px 20px', borderRadius: '15px', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 800, color: '#94a3b8', textTransform: 'uppercase', marginBottom: '10px' }}>
+                  Equipos por tipo
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                  {Object.entries(stats.porTipo).sort((a, b) => b[1] - a[1]).map(([tipo, count]) => (
+                    <div key={tipo} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '8px 14px' }}>
+                      <span style={{
+                        fontSize: '0.65rem', fontWeight: 900, padding: '2px 8px', borderRadius: '6px', textTransform: 'uppercase',
+                        background: tipo === 'CO2' ? '#334155' : tipo === 'Agua' ? '#bfdbfe' : '#fef08a',
+                        color: tipo === 'CO2' ? '#fff' : tipo === 'Agua' ? '#1e40af' : '#854d0e'
+                      }}>
+                        {tipo}
+                      </span>
+                      <span style={{ fontWeight: 800, color: '#1e293b' }}>{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
         </div>
       )}
 
