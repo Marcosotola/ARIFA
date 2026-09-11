@@ -281,16 +281,22 @@ function NuevoRemitoContent() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           {/* Header */}
-          <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 36px", gap: "10px" }}>
+          <div className="items-header" style={{ display: "grid", gridTemplateColumns: "80px 1fr 36px", gap: "10px" }}>
             <span style={{ fontSize: "0.68rem", fontWeight: 800, color: "#aaa", textTransform: "uppercase" }}>Cantidad</span>
             <span style={{ fontSize: "0.68rem", fontWeight: 800, color: "#aaa", textTransform: "uppercase" }}>Descripción</span>
             <span />
           </div>
           {items.map((item, idx) => (
-            <div key={item.id} style={{ display: "grid", gridTemplateColumns: "80px 1fr 36px", gap: "10px", alignItems: "center" }}>
-              <input type="number" value={item.cantidad} onChange={e => updateItem(item.id, "cantidad", Number(e.target.value))} min={1} style={{ ...inp, textAlign: "center", fontWeight: 700 }} />
-              <input value={item.descripcion} onChange={e => updateItem(item.id, "descripcion", e.target.value)} placeholder={`Descripción del ítem ${idx + 1}...`} style={inp} />
-              <button type="button" onClick={() => items.length > 1 && removeItem(item.id)} disabled={items.length === 1} style={{ width: "36px", height: "36px", borderRadius: "8px", border: "none", background: items.length === 1 ? "#f0f0f0" : "#fef2f2", color: items.length === 1 ? "#ccc" : "#ef4444", cursor: items.length === 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div key={item.id} className="item-row" style={{ display: "grid", gridTemplateColumns: "80px 1fr 36px", gap: "10px", alignItems: "center" }}>
+              <div className="item-field item-field-cant">
+                <label className="item-mobile-label">Cantidad</label>
+                <input type="number" value={item.cantidad} onChange={e => updateItem(item.id, "cantidad", Number(e.target.value))} min={1} style={{ ...inp, textAlign: "center", fontWeight: 700 }} />
+              </div>
+              <div className="item-field item-field-desc">
+                <label className="item-mobile-label">Descripción</label>
+                <input value={item.descripcion} onChange={e => updateItem(item.id, "descripcion", e.target.value)} placeholder={`Descripción del ítem ${idx + 1}...`} style={inp} />
+              </div>
+              <button type="button" className="item-field-delete" onClick={() => items.length > 1 && removeItem(item.id)} disabled={items.length === 1} style={{ width: "36px", height: "36px", borderRadius: "8px", border: "none", background: items.length === 1 ? "#f0f0f0" : "#fef2f2", color: items.length === 1 ? "#ccc" : "#ef4444", cursor: items.length === 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Trash2 size={16} />
               </button>
             </div>
@@ -341,9 +347,27 @@ function NuevoRemitoContent() {
       </div>
 
       <style>{`
+        .item-mobile-label { display: none; }
         @media (max-width: 600px) {
           .grid-2 { grid-template-columns: 1fr !important; }
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
+
+          .items-header { display: none !important; }
+          .item-row {
+            grid-template-columns: 1fr 44px !important;
+            grid-template-areas:
+              "desc desc"
+              "cant del" !important;
+            row-gap: 10px !important;
+            padding: 12px !important;
+            background: #f8f9fc !important;
+            border: 1px solid #eee !important;
+            border-radius: 12px !important;
+          }
+          .item-field-cant { grid-area: cant; }
+          .item-field-desc { grid-area: desc; }
+          .item-field-delete { grid-area: del; width: 100% !important; height: 100% !important; min-height: 40px; }
+          .item-mobile-label { display: block; }
         }
       `}</style>
       <Toast {...toast} />

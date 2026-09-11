@@ -532,7 +532,7 @@ function NuevoPresupuestoContent() {
         </div>
 
         {/* Cabecera */}
-        <div style={{ display: "grid", gridTemplateColumns: "70px 1fr 130px 120px 36px", gap: "8px", marginBottom: "8px", padding: "0 4px" }}>
+        <div className="items-header" style={{ display: "grid", gridTemplateColumns: "70px 1fr 130px 120px 36px", gap: "8px", marginBottom: "8px", padding: "0 4px" }}>
           {["Cant.", "Descripción", "P. Unitario", "Subtotal", ""].map(h => (
             <div key={h} style={{ fontSize: "0.68rem", fontWeight: 800, color: "#aaa", textTransform: "uppercase" }}>{h}</div>
           ))}
@@ -541,34 +541,48 @@ function NuevoPresupuestoContent() {
         {items.map((item, idx) => (
           <div
             key={item.id}
+            className="item-row"
             style={{ display: "grid", gridTemplateColumns: "70px 1fr 130px 120px 36px", gap: "8px", marginBottom: "8px", alignItems: "center" }}
           >
-            <input
-              type="number"
-              value={item.cantidad}
-              onChange={e => updateItem(idx, "cantidad", e.target.value === "" ? "" : Number(e.target.value))}
-              min={1}
-              style={{ ...inputStyle, padding: "10px", textAlign: "center" }}
-            />
-            <input
-              placeholder="Descripción del servicio o producto..."
-              value={item.descripcion}
-              onChange={e => updateItem(idx, "descripcion", e.target.value)}
-              style={{ ...inputStyle, padding: "10px" }}
-            />
-            <input
-              type="number"
-              value={item.precioUnitario}
-              onChange={e => updateItem(idx, "precioUnitario", e.target.value === "" ? "" : Number(e.target.value))}
-              min={0}
-              step={0.01}
-              style={{ ...inputStyle, padding: "10px", textAlign: "right" }}
-              placeholder="0.00"
-            />
-            <div style={{ ...inputStyle, padding: "10px", background: "#f8f9fc", fontWeight: 700, fontSize: "0.9rem", textAlign: "right", color: "var(--primary-blue)" }}>
-              $ {fmt(item.subtotal)}
+            <div className="item-field item-field-cant">
+              <label className="item-mobile-label">Cant.</label>
+              <input
+                type="number"
+                value={item.cantidad}
+                onChange={e => updateItem(idx, "cantidad", e.target.value === "" ? "" : Number(e.target.value))}
+                min={1}
+                style={{ ...inputStyle, padding: "10px", textAlign: "center" }}
+              />
+            </div>
+            <div className="item-field item-field-desc">
+              <label className="item-mobile-label">Descripción</label>
+              <input
+                placeholder="Descripción del servicio o producto..."
+                value={item.descripcion}
+                onChange={e => updateItem(idx, "descripcion", e.target.value)}
+                style={{ ...inputStyle, padding: "10px" }}
+              />
+            </div>
+            <div className="item-field item-field-precio">
+              <label className="item-mobile-label">P. Unitario</label>
+              <input
+                type="number"
+                value={item.precioUnitario}
+                onChange={e => updateItem(idx, "precioUnitario", e.target.value === "" ? "" : Number(e.target.value))}
+                min={0}
+                step={0.01}
+                style={{ ...inputStyle, padding: "10px", textAlign: "right" }}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="item-field item-field-subtotal">
+              <label className="item-mobile-label">Subtotal</label>
+              <div style={{ ...inputStyle, padding: "10px", background: "#f8f9fc", fontWeight: 700, fontSize: "0.9rem", textAlign: "right", color: "var(--primary-blue)" }}>
+                $ {fmt(item.subtotal)}
+              </div>
             </div>
             <button
+              className="item-field-delete"
               onClick={() => eliminarItem(idx)}
               disabled={items.length === 1}
               style={{ width: "36px", height: "36px", borderRadius: "8px", background: items.length === 1 ? "#f8f9fc" : "#fef2f2", color: items.length === 1 ? "#ccc" : "#ef4444", border: "none", cursor: items.length === 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
@@ -583,7 +597,7 @@ function NuevoPresupuestoContent() {
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}><Receipt size={20} /> Totales</h3>
 
-        <div style={{ display: "flex", gap: "30px", flexWrap: "wrap" }}>
+        <div className="totales-flex" style={{ display: "flex", gap: "30px", flexWrap: "wrap" }}>
           {/* Descuento */}
           <div style={{ flex: 1, minWidth: "260px" }}>
             <label style={labelStyle}>DESCUENTO</label>
@@ -636,7 +650,7 @@ function NuevoPresupuestoContent() {
         {/* Resumen */}
         <div style={{ marginTop: "25px", background: "#f8f9fc", borderRadius: "12px", padding: "20px" }}>
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <div style={{ minWidth: "280px" }}>
+            <div className="totales-resumen-inner" style={{ minWidth: "280px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid #eee", fontSize: "0.9rem" }}>
                 <span style={{ color: "#666" }}>Subtotal</span>
                 <span style={{ fontWeight: 700 }}>$ {fmt(subtotal)}</span>
@@ -901,10 +915,36 @@ function NuevoPresupuestoContent() {
       )}
 
       <style>{`
+        .item-mobile-label { display: none; }
         @media (max-width: 600px) {
           .grid-responsive { grid-template-columns: 1fr !important; }
           .grid-2 { grid-template-columns: 1fr !important; }
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
+
+          .items-header { display: none !important; }
+          .item-row {
+            grid-template-columns: 1fr 1fr 44px !important;
+            grid-template-areas:
+              "desc desc desc"
+              "cant precio del"
+              "subtotal subtotal subtotal" !important;
+            row-gap: 10px !important;
+            padding: 12px !important;
+            background: #f8f9fc !important;
+            border: 1px solid #eee !important;
+            border-radius: 12px !important;
+            margin-bottom: 12px !important;
+          }
+          .item-field-cant { grid-area: cant; }
+          .item-field-desc { grid-area: desc; }
+          .item-field-precio { grid-area: precio; }
+          .item-field-subtotal { grid-area: subtotal; }
+          .item-field-delete { grid-area: del; width: 100% !important; height: 100% !important; min-height: 40px; }
+          .item-mobile-label { display: block; }
+
+          .totales-flex { flex-direction: column !important; gap: 15px !important; }
+          .totales-flex > div { min-width: 0 !important; }
+          .totales-resumen-inner { min-width: 0 !important; width: 100% !important; }
         }
       `}</style>
       <Toast {...toast} />

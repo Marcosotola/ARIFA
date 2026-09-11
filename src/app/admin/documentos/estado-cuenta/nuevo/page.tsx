@@ -432,7 +432,7 @@ function NuevoEstadoCuentaContent() {
         </div>
 
         {/* Cabecera */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 140px 130px 36px", gap: "8px", marginBottom: "8px", padding: "0 4px" }}>
+        <div className="items-header" style={{ display: "grid", gridTemplateColumns: "1fr 140px 130px 36px", gap: "8px", marginBottom: "8px", padding: "0 4px" }}>
           {["Descripción", "Tipo", "Monto", ""].map(h => (
             <div key={h} style={{ fontSize: "0.68rem", fontWeight: 800, color: "#aaa", textTransform: "uppercase" }}>{h}</div>
           ))}
@@ -441,32 +441,43 @@ function NuevoEstadoCuentaContent() {
         {items.map((item, idx) => (
           <div
             key={item.id}
+            className="item-row"
             style={{ display: "grid", gridTemplateColumns: "1fr 140px 130px 36px", gap: "8px", marginBottom: "12px", alignItems: "center" }}
           >
-            <input
-              placeholder="Ej: Monto inicial de obra, Adelanto, etc..."
-              value={item.descripcion}
-              onChange={e => updateItem(idx, "descripcion", e.target.value)}
-              style={{ ...inputStyle, padding: "10px" }}
-            />
-            <select
-              value={item.tipo}
-              onChange={e => updateItem(idx, "tipo", e.target.value as any)}
-              style={{ ...inputStyle, padding: "10px", fontWeight: 700, color: item.tipo === "egreso" ? "#ef4444" : "#16a34a" }}
-            >
-              <option value="egreso">DEUDA (Egreso)</option>
-              <option value="ingreso">PAGO (Ingreso)</option>
-            </select>
-            <input
-              type="number"
-              value={item.monto}
-              onChange={e => updateItem(idx, "monto", e.target.value === "" ? "" : Number(e.target.value))}
-              min={0}
-              step={0.01}
-              style={{ ...inputStyle, padding: "10px", textAlign: "right", fontWeight: 700 }}
-              placeholder="0.00"
-            />
+            <div className="item-field item-field-desc">
+              <label className="item-mobile-label">Descripción</label>
+              <input
+                placeholder="Ej: Monto inicial de obra, Adelanto, etc..."
+                value={item.descripcion}
+                onChange={e => updateItem(idx, "descripcion", e.target.value)}
+                style={{ ...inputStyle, padding: "10px" }}
+              />
+            </div>
+            <div className="item-field item-field-tipo">
+              <label className="item-mobile-label">Tipo</label>
+              <select
+                value={item.tipo}
+                onChange={e => updateItem(idx, "tipo", e.target.value as any)}
+                style={{ ...inputStyle, padding: "10px", fontWeight: 700, color: item.tipo === "egreso" ? "#ef4444" : "#16a34a" }}
+              >
+                <option value="egreso">DEUDA (Egreso)</option>
+                <option value="ingreso">PAGO (Ingreso)</option>
+              </select>
+            </div>
+            <div className="item-field item-field-monto">
+              <label className="item-mobile-label">Monto</label>
+              <input
+                type="number"
+                value={item.monto}
+                onChange={e => updateItem(idx, "monto", e.target.value === "" ? "" : Number(e.target.value))}
+                min={0}
+                step={0.01}
+                style={{ ...inputStyle, padding: "10px", textAlign: "right", fontWeight: 700 }}
+                placeholder="0.00"
+              />
+            </div>
             <button
+              className="item-field-delete"
               onClick={() => eliminarItem(idx)}
               disabled={items.length === 1}
               style={{ width: "36px", height: "36px", borderRadius: "8px", background: items.length === 1 ? "#f8f9fc" : "#fef2f2", color: items.length === 1 ? "#ccc" : "#ef4444", border: "none", cursor: items.length === 1 ? "default" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
@@ -616,10 +627,30 @@ function NuevoEstadoCuentaContent() {
       )}
 
       <style>{`
+        .item-mobile-label { display: none; }
         @media (max-width: 600px) {
           .grid-responsive { grid-template-columns: 1fr !important; }
           .grid-2 { grid-template-columns: 1fr !important; }
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
+
+          .items-header { display: none !important; }
+          .item-row {
+            grid-template-columns: 1fr 1fr 44px !important;
+            grid-template-areas:
+              "desc desc desc"
+              "tipo monto del" !important;
+            row-gap: 10px !important;
+            padding: 12px !important;
+            background: #f8f9fc !important;
+            border: 1px solid #eee !important;
+            border-radius: 12px !important;
+            margin-bottom: 12px !important;
+          }
+          .item-field-desc { grid-area: desc; }
+          .item-field-tipo { grid-area: tipo; }
+          .item-field-monto { grid-area: monto; }
+          .item-field-delete { grid-area: del; width: 100% !important; height: 100% !important; min-height: 40px; }
+          .item-mobile-label { display: block; }
         }
       `}</style>
       <Toast {...toast} />
