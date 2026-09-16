@@ -98,6 +98,49 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Capacitaciones — biblioteca de materiales por tema.
+    // Lectura: cualquier usuario logueado del panel (todos los roles).
+    // La página pública sin login NO usa esta regla: lee server-side con adminDb (bypassa reglas).
+    match /capacitaciones_temas/{id} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin() || getRole() == 'secretaria';
+    }
+
+    // Personal a capacitar por empresa.
+    // Lectura/escritura: staff admin/secretaria (cualquier empresa) o el propio cliente dueño del registro.
+    match /capacitaciones_personal/{id} {
+      allow read: if request.auth != null && (
+        isAdmin() || getRole() == 'secretaria' ||
+        (getRole() == 'cliente' && resource.data.empresaId == request.auth.uid)
+      );
+      allow create: if request.auth != null && (
+        isAdmin() || getRole() == 'secretaria' ||
+        (getRole() == 'cliente' && request.resource.data.empresaId == request.auth.uid)
+      );
+      allow update, delete: if request.auth != null && (
+        isAdmin() || getRole() == 'secretaria' ||
+        (getRole() == 'cliente' && resource.data.empresaId == request.auth.uid)
+      );
+    }
+
+    // Banco de preguntas. Solo admin/secretaria — ni cliente ni otros roles de staff
+    // (tecnico/supervisor/tecnicoHyS) acceden, por integridad del futuro examen.
+    match /capacitaciones_preguntas/{id} {
+      allow read, write: if request.auth != null && (isAdmin() || getRole() == 'secretaria');
+    }
+
+    // Intentos/resultados de examen. El flujo público (sin login) escribe con el
+    // Admin SDK, que bypassa estas reglas. Acá solo se gobierna el acceso autenticado
+    // desde el panel: staff ve todo, cliente solo lee lo de su propia empresa, y solo
+    // admin/secretaria pueden escribir (ej: marcar `excluido` al resetear una recapacitación).
+    match /capacitaciones_intentos/{id} {
+      allow read: if request.auth != null && (
+        isAdmin() || getRole() == 'secretaria' ||
+        (getRole() == 'cliente' && resource.data.empresaId == request.auth.uid)
+      );
+      allow write: if request.auth != null && (isAdmin() || getRole() == 'secretaria');
+    }
+
     // Configuración y Suscripciones
     match /configuracion/suscripcion {
       allow read: if true;

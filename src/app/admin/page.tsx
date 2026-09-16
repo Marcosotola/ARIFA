@@ -21,7 +21,8 @@ import {
   Sparkles,
   ShieldCheck,
   FolderOpen,
-  Building2
+  Building2,
+  GraduationCap
 } from "lucide-react";
 
 // ─── Module definitions ───────────────────────────────────────────────────────
@@ -83,6 +84,14 @@ const MODULES = [
     href: "/admin/hys",
     color: "#15803d",
     roles: ["admin", "superadmin", "cliente", "tecnichys", "supervisor"],
+  },
+  {
+    icon: <GraduationCap size={24} />,
+    label: "Capacitaciones",
+    description: "Biblioteca de materiales, personal y exámenes de capacitación.",
+    href: "/admin/capacitaciones",
+    color: "#059669",
+    roles: ["admin", "superadmin", "secretaria", "cliente", "tecnico", "tecnichys", "supervisor"],
   },
   {
     icon: <ShoppingCart size={24} />,

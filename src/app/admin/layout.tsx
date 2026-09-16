@@ -26,7 +26,8 @@ import {
   Menu,
   X as CloseIcon,
   FolderOpen,
-  Building2
+  Building2,
+  GraduationCap
 } from "lucide-react";
 import PWAInstallButton from "@/components/PWAInstallButton";
 import ShareAppButton from "@/components/ShareAppButton";
@@ -221,6 +222,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       color: "#15803d",
     });
   }
+
+  // Capacitaciones — todos los roles
+  sidebarLinks.push({ label: "Capacitaciones", href: "/admin/capacitaciones", icon: <GraduationCap size={20} />, color: "#059669" });
 
   // Productos — admin, tecnico y secretaria
   if (isAdmin || isTecnico || isSecretaria) {
