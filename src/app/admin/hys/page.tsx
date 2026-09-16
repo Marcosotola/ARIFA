@@ -261,6 +261,30 @@ function ImageCropper({ src, onConfirm, onCancel }: { src: string; onConfirm: (b
   );
 }
 
+// Fotos de cámara a resolución completa (12-50MP) pueden quedarse sin memoria al
+// decodificarse en el <img> del recortador en celulares de gama baja, provocando
+// que el navegador se cierre ("This page couldn't load"). Se achica antes de mostrarla.
+const MAX_CROP_DIM = 1600;
+
+async function prepareImageForCrop(file: File): Promise<string> {
+  if (typeof createImageBitmap !== "function" || file.size < 800_000) {
+    return URL.createObjectURL(file);
+  }
+  try {
+    const bitmap = await createImageBitmap(file, { resizeWidth: MAX_CROP_DIM, resizeQuality: "medium" });
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return await new Promise<string>((resolve, reject) => {
+      canvas.toBlob(blob => (blob ? resolve(URL.createObjectURL(blob)) : reject(new Error("toBlob failed"))), "image/jpeg", 0.9);
+    });
+  } catch {
+    return URL.createObjectURL(file);
+  }
+}
+
 export default function HySPage() {
   const [docs, setDocs] = useState<HySDoc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -443,7 +467,12 @@ export default function HySPage() {
 
     // Images: queue for cropping
     if (images.length) {
-      const queue = images.map(file => ({ src: URL.createObjectURL(file), file }));
+      setUploading(true);
+      const queue: { src: string; file: File }[] = [];
+      for (const file of images) {
+        queue.push({ src: await prepareImageForCrop(file), file });
+      }
+      setUploading(false);
       setCropQueue(queue.slice(1));
       setCropCurrent(queue[0]);
     }
