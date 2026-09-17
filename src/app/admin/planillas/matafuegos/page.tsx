@@ -7,6 +7,7 @@ import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, upd
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";
+import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES } from "@/lib/matafuegosConstants";
 import { 
   Package, 
   Settings, 
@@ -195,11 +196,21 @@ function MatafuegosUnifiedContent() {
     setSavingInventory(true);
     try {
       const { id, ...data } = editInventory;
-      await updateDoc(doc(db, "matafuegos_activos", id), {
+      const dt = data.datosTecnicos || {};
+      const { marcaOtro, capacidadOtro, ...restDatosTecnicos } = dt;
+      const resolvedData = {
         ...data,
+        datosTecnicos: {
+          ...restDatosTecnicos,
+          marca: dt.marca === "Otro" ? (marcaOtro || "") : dt.marca,
+          capacidad: dt.capacidad === "Otro" ? (capacidadOtro || "") : dt.capacidad,
+        }
+      };
+      await updateDoc(doc(db, "matafuegos_activos", id), {
+        ...resolvedData,
         updatedAt: serverTimestamp()
       });
-      setMatafuegos(prev => prev.map(m => m.id === id ? editInventory : m));
+      setMatafuegos(prev => prev.map(m => m.id === id ? { id, ...resolvedData } : m));
       setEditInventory(null);
       showToast("Inventario actualizado correctamente", "success");
     } catch (e) {
@@ -1031,12 +1042,27 @@ function MatafuegosUnifiedContent() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Marca</label>
-                  <input 
-                    type="text" 
-                    value={editInventory.datosTecnicos?.marca || ""} 
+                  <select
+                    value={editInventory.datosTecnicos?.marca || ""}
                     onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, marca: e.target.value } })}
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
-                  />
+                  >
+                    <option value="">-- Seleccionar --</option>
+                    {Array.from(new Set([
+                      ...MARCAS_DISPONIBLES.filter(m => m !== "Otro"),
+                      ...(editInventory.datosTecnicos?.marca ? [editInventory.datosTecnicos.marca] : [])
+                    ])).map(m => <option key={m} value={m}>{m}</option>)}
+                    <option value="Otro">Otro</option>
+                  </select>
+                  {editInventory.datosTecnicos?.marca === "Otro" && (
+                    <input
+                      type="text"
+                      placeholder="Especifique marca"
+                      value={editInventory.datosTecnicos?.marcaOtro || ""}
+                      onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, marcaOtro: e.target.value } })}
+                      style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #ddd", marginTop: "5px", fontSize: "0.8rem" }}
+                    />
+                  )}
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Agente</label>
@@ -1055,12 +1081,27 @@ function MatafuegosUnifiedContent() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Capacidad</label>
-                  <input 
-                    type="text" 
-                    value={editInventory.datosTecnicos?.capacidad || ""} 
+                  <select
+                    value={editInventory.datosTecnicos?.capacidad || ""}
                     onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, capacidad: e.target.value } })}
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
-                  />
+                  >
+                    <option value="">-- Seleccionar --</option>
+                    {Array.from(new Set([
+                      ...CAPACIDADES_DISPONIBLES.filter(c => c !== "Otro"),
+                      ...(editInventory.datosTecnicos?.capacidad ? [editInventory.datosTecnicos.capacidad] : [])
+                    ])).map(c => <option key={c} value={c}>{c}</option>)}
+                    <option value="Otro">Otro</option>
+                  </select>
+                  {editInventory.datosTecnicos?.capacidad === "Otro" && (
+                    <input
+                      type="text"
+                      placeholder="Especifique capacidad"
+                      value={editInventory.datosTecnicos?.capacidadOtro || ""}
+                      onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, capacidadOtro: e.target.value } })}
+                      style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #ddd", marginTop: "5px", fontSize: "0.8rem" }}
+                    />
+                  )}
                 </div>
                  <div>
                    <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Año Fab.</label>

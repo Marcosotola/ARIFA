@@ -1,26 +1,25 @@
 "use client";
-import { useEffect, useState, useRef, Suspense } from "react";
-import dynamic from "next/dynamic";
+import { useEffect, useState, Suspense } from "react";
 import { useToast, Toast } from "@/components/Toast";
+import SignatureModal from "@/components/admin/SignatureModal";
+import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES } from "@/lib/matafuegosConstants";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
-import { 
-  ArrowLeft, 
-  Save, 
-  Plus, 
-  Trash2, 
-  User, 
-  ClipboardList, 
-  PenTool, 
+import {
+  ArrowLeft,
+  Save,
+  Plus,
+  Trash2,
+  User,
+  ClipboardList,
+  PenTool,
   Check,
   RotateCcw,
   ShieldCheck,
   AlertTriangle
 } from "lucide-react";
-
-import SignatureCanvas from "react-signature-canvas";
 
 interface MantenimientoItem {
   id: string;
@@ -29,6 +28,7 @@ interface MantenimientoItem {
   agente: string;
   base: string;
   capacidad: string;
+  capacidadOtro?: string;
   claseFuego: string[];
   marca: string;
   marcaOtro?: string;
@@ -60,21 +60,9 @@ function FichaFormContent() {
   const [saving, setSaving] = useState(false);
   const { toast, showToast } = useToast();
   const [tecnico, setTecnico] = useState<any>(null);
-  const sigCanvas = useRef<any>(null);
+  const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
+  const [showFirmaModal, setShowFirmaModal] = useState(false);
   const [proximaOblea, setProximaOblea] = useState<number>(1);
-  const [isMounted, setIsMounted] = useState(false);
-  const [canvasWidth, setCanvasWidth] = useState(0);
-
-  useEffect(() => {
-    setIsMounted(true);
-    const updateWidth = () => {
-      const container = document.getElementById("sig-container");
-      if (container) setCanvasWidth(container.offsetWidth);
-    };
-    updateWidth();
-    window.addEventListener("resize", updateWidth);
-    return () => window.removeEventListener("resize", updateWidth);
-  }, []);
 
   // Datos de cabecera
   const [numeroFichaExistente, setNumeroFichaExistente] = useState<number | null>(null);
@@ -349,7 +337,7 @@ function FichaFormContent() {
         tecnicoNombre: tecnico.nombre,
         tallerNombre,
         items,
-        firmaTecnico: sigCanvas.current && !sigCanvas.current.isEmpty() ? sigCanvas.current.getTrimmedCanvas().toDataURL("image/png") : null,
+        firmaTecnico: firmaDataUrl || null,
         updatedAt: serverTimestamp()
       };
 
@@ -371,7 +359,7 @@ function FichaFormContent() {
           sedeNombre: sedeNombre || "",
           datosTecnicos: {
             agente: it.agente,
-            capacidad: it.capacidad,
+            capacidad: it.capacidad === "Otro" ? it.capacidadOtro : it.capacidad,
             marca: it.marca === "Otro" ? it.marcaOtro : it.marca,
             anioFab: it.anioFab,
             claseFuego: it.claseFuego
@@ -408,7 +396,7 @@ function FichaFormContent() {
             dniCuit,
             telefono,
             direccion: domicilio,
-            firmaTecnico: sigCanvas.current && !sigCanvas.current.isEmpty() ? sigCanvas.current.getTrimmedCanvas().toDataURL("image/png") : (editId ? null : ""),
+            firmaTecnico: firmaDataUrl || (editId ? null : ""),
             updatedAt: serverTimestamp()
         }).catch(err => console.error("Error updating client profile:", err));
       }
@@ -425,7 +413,6 @@ function FichaFormContent() {
 
   if (loading) return <div style={{ padding: "100px", textAlign: "center" }}>Cargando datos...</div>;
 
-  const marcasDisponibles = ["Melisam", "Horizonte", "Drago", "Yukon", "Cassaro", "Fadesa", "Centurion", "Otro"];
   const componentesDisponibles = ["Tubo sifón", "Válvula", "Anilla", "Precinto", "Manómetro", "Manguera", "Difusor"];
 
   return (
@@ -673,13 +660,24 @@ function FichaFormContent() {
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>CAPACIDAD</label>
-                <input value={item.capacidad} onChange={e => updateItem(idx, 'capacidad', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                <select value={item.capacidad} onChange={e => updateItem(idx, 'capacidad', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                  <option value="">-- Seleccionar --</option>
+                  {CAPACIDADES_DISPONIBLES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                {item.capacidad === "Otro" && (
+                  <input
+                    value={item.capacidadOtro}
+                    onChange={e => updateItem(idx, 'capacidadOtro', e.target.value)}
+                    placeholder="Especifique capacidad"
+                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
+                  />
+                )}
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>MARCA</label>
                 <select value={item.marca} onChange={e => updateItem(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
                   <option value="">-- Seleccionar --</option>
-                  {marcasDisponibles.map(m => <option key={m} value={m}>{m}</option>)}
+                  {MARCAS_DISPONIBLES.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
                 {item.marca === "Otro" && (
                   <input
@@ -771,27 +769,36 @@ function FichaFormContent() {
         </h3>
         <p style={{ fontSize: '0.75rem', color: '#666', marginBottom: '15px' }}>Firma en el recuadro para validar el certificado técnico.</p>
         
-        <div id="sig-container" style={{ border: '2px dashed #ddd', borderRadius: '12px', background: '#fcfcfc', marginBottom: '15px', overflow: 'hidden' }}>
-            {isMounted && (
-              <SignatureCanvas 
-                ref={sigCanvas} 
-                penColor="#002244" 
-                canvasProps={{ 
-                  width: canvasWidth, 
-                  height: 180, 
-                  className: 'sigCanvas',
-                  style: { display: 'block' } 
-                }} 
-              />
-            )}
+        <div style={{ border: '2px dashed #ddd', borderRadius: '12px', background: '#fcfcfc', marginBottom: '15px', overflow: 'hidden' }}>
+          {firmaDataUrl ? (
+            <div style={{ padding: '10px', textAlign: 'center' }}>
+              <img src={firmaDataUrl} alt="Firma del técnico" style={{ maxWidth: '100%', height: '150px', objectFit: 'contain' }} />
+            </div>
+          ) : (
+            <div style={{ padding: '50px 20px', textAlign: 'center', color: '#999', fontSize: '0.85rem' }}>
+              Aún no se registró la firma.
+            </div>
+          )}
         </div>
-        
-        <div style={{ textAlign: 'right' }}>
-          <button type="button" onClick={() => sigCanvas.current.clear()} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-            <RotateCcw size={14} /> Borrar firma
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          {firmaDataUrl && (
+            <button type="button" onClick={() => setFirmaDataUrl(null)} style={{ padding: '14px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <RotateCcw size={14} /> Borrar
+          </button>
+          )}
+          <button type="button" onClick={() => setShowFirmaModal(true)} className="btn-blue" style={{ flex: 1, padding: '14px 18px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <PenTool size={16} /> {firmaDataUrl ? "Volver a firmar" : "Firmar"}
           </button>
         </div>
       </div>
+
+      <SignatureModal
+        open={showFirmaModal}
+        title="Firma del Técnico"
+        onClose={() => setShowFirmaModal(false)}
+        onSave={(dataUrl) => { setFirmaDataUrl(dataUrl); setShowFirmaModal(false); }}
+      />
 
       {/* FOOTER */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '15px' }}>

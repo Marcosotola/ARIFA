@@ -1,33 +1,33 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
-import dynamic from "next/dynamic";
 import { useToast, Toast } from "@/components/Toast";
-import { 
-  ArrowLeft, 
-  Save, 
-  Plus, 
-  Trash2, 
-  User, 
-  Package, 
-  PenTool, 
+import SignatureModal from "@/components/admin/SignatureModal";
+import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES } from "@/lib/matafuegosConstants";
+import {
+  ArrowLeft,
+  Save,
+  Plus,
+  Trash2,
+  User,
+  Package,
+  PenTool,
   Check,
   RotateCcw
 } from "lucide-react";
-
-// Firma digital (solo cliente) - Desactivamos SSR porque usa APIs del navegador (canvas)
-const SignatureCanvas = dynamic(() => import("react-signature-canvas"), { ssr: false }) as any;
 
 interface EquipoRemito {
   id: string; // ID interno (opcional)
   nroTarjeta: string; // Oblea
   tipo: string;
   capacidad: string;
+  capacidadOtro?: string;
   cantidad: string;
   marca: string;
+  marcaOtro?: string;
   esPrestamo: boolean;
   estado: "bueno" | "malo" | "recarga";
 }
@@ -39,7 +39,8 @@ export default function NuevoRemitoPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { toast, showToast } = useToast();
-  const sigCanvas = useRef<any>(null);
+  const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
+  const [showFirmaModal, setShowFirmaModal] = useState(false);
 
   // Datos del Remito
   const [tipoMovimiento, setTipoMovimiento] = useState<"retiro" | "entrega">("retiro");
@@ -210,7 +211,7 @@ export default function NuevoRemitoPage() {
     if (!nombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
     if (equipos.length === 0) { showToast("Debés agregar al menos un equipo.", "error"); return; }
     if (equipos.some(eq => !eq.cantidad)) { showToast("Todos los renglones deben tener una cantidad definida.", "error"); return; }
-    if (!editId && (!sigCanvas.current || sigCanvas.current.isEmpty())) { showToast("El cliente debe firmar el remito.", "error"); return; }
+    if (!editId && !firmaDataUrl) { showToast("El cliente debe firmar el remito.", "error"); return; }
     if (!aclaracion.trim()) { showToast("Ingresá la aclaración de la firma.", "error"); return; }
 
     setSaving(true);
@@ -241,8 +242,8 @@ export default function NuevoRemitoPage() {
         updatedAt: serverTimestamp()
       };
 
-      if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
-        payload.firma = sigCanvas.current.getTrimmedCanvas().toDataURL("image/png");
+      if (firmaDataUrl) {
+        payload.firma = firmaDataUrl;
       }
 
       if (editId) {
@@ -264,8 +265,8 @@ export default function NuevoRemitoPage() {
           sedeNombre: sedeNombre || "",
           datosTecnicos: {
             agente: eq.tipo,
-            capacidad: eq.capacidad,
-            marca: eq.marca,
+            capacidad: eq.capacidad === "Otro" ? eq.capacidadOtro : eq.capacidad,
+            marca: eq.marca === "Otro" ? eq.marcaOtro : eq.marca,
           },
           updatedAt: serverTimestamp()
         };
@@ -478,7 +479,18 @@ export default function NuevoRemitoPage() {
                       </div>
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>MARCA</label>
-                        <input placeholder="Marca" value={eq.marca || ""} onChange={(e) => updateEquipo(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                        <select value={eq.marca || ""} onChange={(e) => updateEquipo(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                          <option value="">-- Seleccionar --</option>
+                          {MARCAS_DISPONIBLES.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                        {eq.marca === "Otro" && (
+                          <input
+                            value={eq.marcaOtro || ""}
+                            onChange={(e) => updateEquipo(idx, 'marcaOtro', e.target.value)}
+                            placeholder="Especifique marca"
+                            style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
+                          />
+                        )}
                       </div>
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>TIPO</label>
@@ -493,7 +505,18 @@ export default function NuevoRemitoPage() {
                       </div>
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>CAPAC.</label>
-                        <input placeholder="5kg" value={eq.capacidad || ""} onChange={(e) => updateEquipo(idx, 'capacidad', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                        <select value={eq.capacidad || ""} onChange={(e) => updateEquipo(idx, 'capacidad', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                          <option value="">-- Seleccionar --</option>
+                          {CAPACIDADES_DISPONIBLES.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        {eq.capacidad === "Otro" && (
+                          <input
+                            value={eq.capacidadOtro || ""}
+                            onChange={(e) => updateEquipo(idx, 'capacidadOtro', e.target.value)}
+                            placeholder="Especifique capacidad"
+                            style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
+                          />
+                        )}
                       </div>
                   </div>
                   <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -527,27 +550,43 @@ export default function NuevoRemitoPage() {
         )}
 
         <div style={{ border: '2px dashed #ddd', borderRadius: '12px', background: '#fcfcfc', marginBottom: '15px', overflow: 'hidden' }}>
-            <SignatureCanvas 
-              ref={sigCanvas} 
-              penColor="#002244" 
-              canvasProps={{ height: 200, className: 'sigCanvas', style: { width: '100%', height: '200px' } }} 
-            />
+          {firmaDataUrl ? (
+            <div style={{ padding: '10px', textAlign: 'center' }}>
+              <img src={firmaDataUrl} alt="Firma del cliente" style={{ maxWidth: '100%', height: '150px', objectFit: 'contain' }} />
+            </div>
+          ) : (
+            <div style={{ padding: '50px 20px', textAlign: 'center', color: '#999', fontSize: '0.85rem' }}>
+              Aún no se registró la firma.
+            </div>
+          )}
         </div>
-        
-        <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>ACLARACIÓN DE LA FIRMA (OBLIGATORIO)</label>
-        <input 
-          placeholder="Nombre completo de quien firma..." 
-          value={aclaracion} 
-          onChange={e => setAclaracion(e.target.value)} 
-          style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '1rem', marginBottom: '10px' }} 
-        />
 
-        <div style={{ textAlign: 'right' }}>
-          <button onClick={() => sigCanvas.current.clear()} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-            <RotateCcw size={14} /> Borrar firma
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+          {firmaDataUrl && (
+            <button type="button" onClick={() => setFirmaDataUrl(null)} style={{ padding: '14px 18px', borderRadius: '10px', border: '1px solid #ddd', background: '#fff', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <RotateCcw size={14} /> Borrar
+            </button>
+          )}
+          <button type="button" onClick={() => setShowFirmaModal(true)} className="btn-blue" style={{ flex: 1, padding: '14px 18px', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+            <PenTool size={16} /> {firmaDataUrl ? "Volver a firmar" : "Firmar"}
           </button>
         </div>
+
+        <label style={{ display: 'block', fontWeight: 800, fontSize: '0.7rem', color: '#999', marginBottom: '5px' }}>ACLARACIÓN DE LA FIRMA (OBLIGATORIO)</label>
+        <input
+          placeholder="Nombre completo de quien firma..."
+          value={aclaracion}
+          onChange={e => setAclaracion(e.target.value)}
+          style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '1rem', marginBottom: '10px' }}
+        />
       </div>
+
+      <SignatureModal
+        open={showFirmaModal}
+        title="Firma del Cliente"
+        onClose={() => setShowFirmaModal(false)}
+        onSave={(dataUrl) => { setFirmaDataUrl(dataUrl); setShowFirmaModal(false); }}
+      />
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '15px' }}>
         <button onClick={() => router.back()} style={{ padding: '18px', borderRadius: '12px', border: '1px solid #ddd', background: '#fff', fontWeight: 700, cursor: 'pointer' }}>
