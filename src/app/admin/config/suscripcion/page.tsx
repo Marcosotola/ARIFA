@@ -76,6 +76,29 @@ export default function SuscripcionPage() {
     setSaving(true);
     setMessage("");
     try {
+      const costoChanged = Number(costo) !== subscription?.costo;
+      let mpWarning = "";
+
+      // Si ya hay una suscripción recurrente activa en Mercado Pago, hay que avisarle
+      // del nuevo monto ahí también: MP cobra con el monto fijado al crear el Preapproval,
+      // no con el que quede guardado en Firestore.
+      if (costoChanged && subscription?.subId) {
+        try {
+          const res = await fetch("/api/mercadopago/update-preapproval", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ subId: subscription.subId, costo: Number(costo) }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            mpWarning = ` (⚠ No se pudo actualizar el monto en Mercado Pago: ${data.details || data.error || "error desconocido"}. El próximo cobro automático puede seguir usando el monto anterior.)`;
+          }
+        } catch (mpError) {
+          console.error(mpError);
+          mpWarning = " (⚠ No se pudo actualizar el monto en Mercado Pago. El próximo cobro automático puede seguir usando el monto anterior.)";
+        }
+      }
+
       const updatedData = {
         costo: Number(costo),
         estado,
@@ -83,13 +106,13 @@ export default function SuscripcionPage() {
         updatedAt: Timestamp.now()
       };
       await updateDoc(doc(db, "configuracion", "suscripcion"), updatedData);
-      setMessage("✓ Configuración guardada con éxito.");
+      setMessage(mpWarning ? `✓ Configuración guardada.${mpWarning}` : "✓ Configuración guardada con éxito.");
     } catch (error) {
       console.error(error);
       setMessage("✗ Error al guardar.");
     } finally {
       setSaving(false);
-      setTimeout(() => setMessage(""), 3000);
+      setTimeout(() => setMessage(""), 6000);
     }
   };
 
