@@ -7,7 +7,8 @@ import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, upd
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";
-import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
+import { CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
+import { normalizarMarca, sugerenciasMarcas, registrarMarcas } from "@/lib/marcas";
 import { 
   Package, 
   Settings, 
@@ -198,14 +199,14 @@ function MatafuegosUnifiedContent() {
     try {
       const { id, ...data } = editInventory;
       const dt = data.datosTecnicos || {};
-      const { marcaOtro, capacidadOtro, ...restDatosTecnicos } = dt;
+      const { capacidadOtro, ...restDatosTecnicos } = dt;
       const resolvedData = {
         ...data,
         mantenimientoPor: data.mantenimientoPor || MANTENIMIENTO_ARIFA,
         empresaMantenimiento: data.mantenimientoPor === MANTENIMIENTO_OTRA ? (data.empresaMantenimiento || "").trim() : "",
         datosTecnicos: {
           ...restDatosTecnicos,
-          marca: resolverOtro(dt.marca || "", marcaOtro),
+          marca: normalizarMarca(dt.marca),
           capacidad: resolverOtro(dt.capacidad || "", capacidadOtro),
         }
       };
@@ -213,6 +214,7 @@ function MatafuegosUnifiedContent() {
         ...resolvedData,
         updatedAt: serverTimestamp()
       });
+      registrarMarcas([resolvedData.datosTecnicos.marca]).catch(console.error);
       setMatafuegos(prev => prev.map(m => m.id === id ? { id, ...resolvedData } : m));
       setEditInventory(null);
       showToast("Inventario actualizado correctamente", "success");
@@ -1091,23 +1093,17 @@ function MatafuegosUnifiedContent() {
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Marca</label>
-                  <select
+                  <input
+                    type="text"
+                    list="marcas-sugeridas-inv"
+                    placeholder="Marca"
                     value={editInventory.datosTecnicos?.marca || ""}
                     onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, marca: e.target.value } })}
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
-                  >
-                    <option value="">-- Seleccionar --</option>
-                    {opcionesConValor(MARCAS_DISPONIBLES, editInventory.datosTecnicos?.marca).map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
-                  {editInventory.datosTecnicos?.marca === "Otro" && (
-                    <input
-                      type="text"
-                      placeholder="Especifique marca"
-                      value={editInventory.datosTecnicos?.marcaOtro || ""}
-                      onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, marcaOtro: e.target.value } })}
-                      style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #ddd", marginTop: "5px", fontSize: "0.8rem" }}
-                    />
-                  )}
+                  />
+                  <datalist id="marcas-sugeridas-inv">
+                    {sugerenciasMarcas(matafuegos.map(m => m.datosTecnicos?.marca)).map(m => <option key={m} value={m} />)}
+                  </datalist>
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Agente</label>

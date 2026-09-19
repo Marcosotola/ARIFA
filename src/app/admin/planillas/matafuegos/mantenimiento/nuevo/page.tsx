@@ -2,7 +2,8 @@
 import { useEffect, useState, Suspense } from "react";
 import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
-import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
+import { CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
+import { normalizarMarca, sugerenciasMarcas, registrarMarcas } from "@/lib/marcas";
 import { renumerarAuto, reservarTarjetas } from "@/lib/tarjetas";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -35,7 +36,6 @@ interface MantenimientoItem {
   capacidadOtro?: string;
   claseFuego: string[];
   marca: string;
-  marcaOtro?: string;
   nroFabricacion: string;
   anioFab: string;
   estadoCilindro: "aprobado" | "rechazado";
@@ -67,6 +67,7 @@ function FichaFormContent() {
   const [firmaDataUrl, setFirmaDataUrl] = useState<string | null>(null);
   const [showFirmaModal, setShowFirmaModal] = useState(false);
   const [proximaOblea, setProximaOblea] = useState<number>(1);
+  const [marcasUsadas, setMarcasUsadas] = useState<string[]>([]);
 
   // Datos de cabecera
   const [numeroFichaExistente, setNumeroFichaExistente] = useState<number | null>(null);
@@ -126,6 +127,7 @@ function FichaFormContent() {
         const configDoc = await getDoc(doc(db, "configuracion", "matafuegos"));
         if (configDoc.exists()) {
           setProximaOblea(configDoc.data().proximaTarjeta || 1);
+          setMarcasUsadas(configDoc.data().marcas || []);
         }
 
         // CARGA DESDE REMITO SI EXISTE
@@ -163,7 +165,6 @@ function FichaFormContent() {
               capacidad: eq.capacidad || "",
               claseFuego: ["A", "B", "C"],
               marca: eq.marca || "",
-              marcaOtro: "",
               nroFabricacion: "",
               anioFab: "",
               estadoCilindro: "aprobado",
@@ -199,7 +200,7 @@ function FichaFormContent() {
             setTelefono(data.telefono || "");
             setDomicilio(data.domicilio || "");
             setQuienRecibe(data.quienRecibe || "");
-            setItems(data.items || []);
+            setItems((data.items || []).map((it: any) => it.marca === "Otro" ? { ...it, marca: it.marcaOtro || "" } : it));
             setTallerNombre(data.tallerNombre || "Taller Central");
             
             if (data.clienteId) {
@@ -254,7 +255,7 @@ function FichaFormContent() {
       id: Math.random().toString(36).substr(2, 9),
       nroTarjeta: "", tarjetaAuto: true, mantenimientoPor: MANTENIMIENTO_ARIFA, empresaMantenimiento: "",
       sector: "", agente: "ABC", base: "", capacidad: "5kg", claseFuego: ["A", "B", "C"],
-      marca: "", marcaOtro: "", nroFabricacion: "", anioFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
+      marca: "", nroFabricacion: "", anioFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
       componentesReemplazados: [], agenteAdicional: "",
       presionInicial: "", presionFinal: "", pesoInicial: "", pesoFinal: "",
       marbeteColor: "", marbeteAnio: new Date().getFullYear().toString(),
@@ -336,9 +337,9 @@ function FichaFormContent() {
 
       const reserva = await reservarTarjetas(items);
       if (reserva.reasignadas) showToast("Se reasignaron números de tarjeta porque otro usuario cargó equipos al mismo tiempo. Revisá la ficha.", "info");
-      const itemsFinal = reserva.filas.map(({ tarjetaAuto, marcaOtro, capacidadOtro, ...it }) => ({
+      const itemsFinal = reserva.filas.map(({ tarjetaAuto, capacidadOtro, ...it }) => ({
         ...it,
-        marca: resolverOtro(it.marca, marcaOtro),
+        marca: normalizarMarca(it.marca),
         capacidad: resolverOtro(it.capacidad, capacidadOtro),
         mantenimientoPor: it.mantenimientoPor || MANTENIMIENTO_ARIFA,
         empresaMantenimiento: it.mantenimientoPor === MANTENIMIENTO_OTRA ? (it.empresaMantenimiento || "").trim() : "",
@@ -404,7 +405,8 @@ function FichaFormContent() {
       });
 
       await Promise.all(updates);
-      
+      registrarMarcas(itemsFinal.map(it => it.marca)).catch(console.error);
+
       // 5. Actualizar datos del cliente en la colección 'usuarios' si cambió algo
       if (clienteSeleccionado?.id) {
         await updateDoc(doc(db, "usuarios", clienteSeleccionado.id), {
@@ -613,6 +615,10 @@ function FichaFormContent() {
         </div>
       </div>
 
+      <datalist id="marcas-sugeridas">
+        {sugerenciasMarcas(marcasUsadas).map(m => <option key={m} value={m} />)}
+      </datalist>
+
       {/* ITEMS */}
       <div style={{ marginBottom: '25px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -691,18 +697,7 @@ function FichaFormContent() {
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>MARCA</label>
-                <select value={item.marca} onChange={e => updateItem(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
-                  <option value="">-- Seleccionar --</option>
-                  {opcionesConValor(MARCAS_DISPONIBLES, item.marca).map(m => <option key={m} value={m}>{m}</option>)}
-                </select>
-                {item.marca === "Otro" && (
-                  <input
-                    value={item.marcaOtro}
-                    onChange={e => updateItem(idx, 'marcaOtro', e.target.value)}
-                    placeholder="Especifique marca"
-                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
-                  />
-                )}
+                <input list="marcas-sugeridas" value={item.marca} onChange={e => updateItem(idx, 'marca', e.target.value)} placeholder="Marca" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>MANTENIMIENTO POR</label>

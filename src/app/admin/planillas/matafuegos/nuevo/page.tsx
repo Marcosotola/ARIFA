@@ -6,7 +6,8 @@ import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
-import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
+import { CAPACIDADES_DISPONIBLES, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
+import { normalizarMarca, sugerenciasMarcas, registrarMarcas } from "@/lib/marcas";
 import { renumerarAuto, reservarTarjetas } from "@/lib/tarjetas";
 import {
   ArrowLeft,
@@ -29,7 +30,6 @@ interface EquipoRemito {
   capacidadOtro?: string;
   cantidad: string;
   marca: string;
-  marcaOtro?: string;
   esPrestamo: boolean;
   estado: "bueno" | "malo" | "recarga";
 }
@@ -68,6 +68,7 @@ export default function NuevoRemitoPage() {
   const [aclaracion, setAclaracion] = useState("");
   const [numeroExistente, setNumeroExistente] = useState<number | null>(null);
   const [proximaOblea, setProximaOblea] = useState<number>(1);
+  const [marcasUsadas, setMarcasUsadas] = useState<string[]>([]);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [newClientData, setNewClientData] = useState({ 
     nombre: "", 
@@ -100,6 +101,7 @@ export default function NuevoRemitoPage() {
         const configDoc = await getDoc(doc(db, "configuracion", "matafuegos"));
         if (configDoc.exists()) {
           setProximaOblea(configDoc.data().proximaTarjeta || 1);
+          setMarcasUsadas(configDoc.data().marcas || []);
         }
 
         if (editId) {
@@ -112,7 +114,7 @@ export default function NuevoRemitoPage() {
             setEmpresa(r.clienteEmpresa || "");
             setDireccion(r.clienteDireccion || "");
             setTelefono(r.clienteTelefono || "");
-            setEquipos(r.equipos || []);
+            setEquipos((r.equipos || []).map((e: any) => e.marca === "Otro" ? { ...e, marca: e.marcaOtro || "" } : e));
             setAclaracion(r.aclaracion || "");
             setNumeroExistente(r.numero || 0);
             setSedeId(r.sedeId || "");
@@ -226,9 +228,9 @@ export default function NuevoRemitoPage() {
 
       const reserva = await reservarTarjetas(equipos);
       if (reserva.reasignadas) showToast("Se reasignaron números de tarjeta porque otro usuario cargó equipos al mismo tiempo. Revisá el remito.", "info");
-      const equiposFinal = reserva.filas.map(({ tarjetaAuto, marcaOtro, capacidadOtro, ...eq }) => ({
+      const equiposFinal = reserva.filas.map(({ tarjetaAuto, capacidadOtro, ...eq }) => ({
         ...eq,
-        marca: resolverOtro(eq.marca, marcaOtro),
+        marca: normalizarMarca(eq.marca),
         capacidad: resolverOtro(eq.capacidad, capacidadOtro),
       }));
 
@@ -287,6 +289,7 @@ export default function NuevoRemitoPage() {
       });
 
       await Promise.all(updates);
+      registrarMarcas(equiposFinal.map(e => e.marca)).catch(console.error);
 
       showToast(editId ? "Remito actualizado correctamente" : "Remito generado con éxito", "success");
       setTimeout(() => router.push("/admin/planillas/matafuegos?tab=remitos"), 1200);
@@ -480,18 +483,7 @@ export default function NuevoRemitoPage() {
                       </div>
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>MARCA</label>
-                        <select value={eq.marca || ""} onChange={(e) => updateEquipo(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
-                          <option value="">-- Seleccionar --</option>
-                          {opcionesConValor(MARCAS_DISPONIBLES, eq.marca).map(m => <option key={m} value={m}>{m}</option>)}
-                        </select>
-                        {eq.marca === "Otro" && (
-                          <input
-                            value={eq.marcaOtro || ""}
-                            onChange={(e) => updateEquipo(idx, 'marcaOtro', e.target.value)}
-                            placeholder="Especifique marca"
-                            style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
-                          />
-                        )}
+                        <input list="marcas-sugeridas" placeholder="Marca" value={eq.marca || ""} onChange={(e) => updateEquipo(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
                       </div>
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>TIPO</label>
@@ -533,6 +525,10 @@ export default function NuevoRemitoPage() {
           ))
         )}
       </div>
+
+      <datalist id="marcas-sugeridas">
+        {sugerenciasMarcas(marcasUsadas).map(m => <option key={m} value={m} />)}
+      </datalist>
 
       {/* SECCION 3: FIRMA */}
       <div style={{ background: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', marginBottom: '30px', border: '1px solid #eee' }}>
