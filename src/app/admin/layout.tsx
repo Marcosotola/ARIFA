@@ -26,7 +26,8 @@ import {
   Menu,
   X as CloseIcon,
   FolderOpen,
-  Building2
+  Building2,
+  BookOpen
 } from "lucide-react";
 import PWAInstallButton from "@/components/PWAInstallButton";
 import ShareAppButton from "@/components/ShareAppButton";
@@ -236,6 +237,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       color: "#0d9488",
       matchChildren: true,
     });
+  }
+
+  // Libro contable — solo admin (incluye retiros de caja y totales)
+  if (isAdmin) {
+    sidebarLinks.push({ label: "Libro Contable", href: "/admin/libro-contable", icon: <BookOpen size={20} />, color: "#15803d" });
   }
 
   // Usuarios — admin y secretaria
