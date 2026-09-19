@@ -11,10 +11,11 @@ import {
   Edit, 
   Download, 
   Scroll,
-  CheckCircle2, 
-  AlertCircle 
+  Printer,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
-import { generateMantenimientoPDF } from "@/lib/pdfGenerator";
+import { generateMantenimientoPDF, generateObleasPDF } from "@/lib/pdfGenerator";
 
 export default function DetalleMantenimientoPage() {
   const { id } = useParams();
@@ -25,6 +26,7 @@ export default function DetalleMantenimientoPage() {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [printingObleas, setPrintingObleas] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -54,6 +56,21 @@ export default function DetalleMantenimientoPage() {
     } catch (error) {
         console.error("Error al generar PDF:", error);
         alert("Hubo un error al generar el PDF.");
+    }
+  };
+
+  const handleObleas = async () => {
+    if (!ficha) return;
+    setPrintingObleas(true);
+    try {
+      const cfg = await getDoc(doc(db, "configuracion", "matafuegos"));
+      const cantidad = await generateObleasPDF(ficha, cfg.exists() ? cfg.data().inscripcionMunicipal : undefined);
+      if (cantidad === 0) alert("Esta ficha no tiene equipos de ARIFA con número de tarjeta para imprimir.");
+    } catch (error) {
+      console.error("Error al generar obleas:", error);
+      alert("Hubo un error al generar las obleas.");
+    } finally {
+      setPrintingObleas(false);
     }
   };
 
@@ -96,7 +113,13 @@ export default function DetalleMantenimientoPage() {
               <Edit size={18} /> Editar
             </button>
           )}
-          <button onClick={handleDownloadPDF} className="btn-red" 
+          {role !== "cliente" && (
+            <button onClick={handleObleas} disabled={printingObleas}
+              style={{ padding: '10px 18px', borderRadius: '10px', border: '1px solid var(--primary-blue)', background: '#fff', color: 'var(--primary-blue)', fontWeight: 700, cursor: printingObleas ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Printer size={18} /> {printingObleas ? "Generando..." : "Imprimir obleas"}
+            </button>
+          )}
+          <button onClick={handleDownloadPDF} className="btn-red"
             style={{ padding: "10px 20px", fontWeight: 700, borderRadius: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Scroll size={18} /> Descargar PDF
           </button>

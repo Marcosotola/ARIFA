@@ -1,3 +1,5 @@
+import { AGENTES_NOMBRE, OBLEA_EMISOR, MANTENIMIENTO_ARIFA } from "./matafuegosConstants";
+
 export const generateMantenimientoPDF = async (ficha: any) => {
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
@@ -1279,4 +1281,246 @@ export const generateCertificadoPDF = async (certId: string): Promise<void> => {
   }
 
   pdf.save(`ARIFA-Cert-${nCert}.pdf`);
+};
+
+// ============================================================
+// OBLEAS — Tarjeta de control de extintores (4 por hoja A4)
+// ============================================================
+export interface ObleaImagen { dataUrl: string; ratio: number } // ratio = ancho / alto
+export interface ObleaAssets { logo?: ObleaImagen | null; firmaDirector?: ObleaImagen | null; escudo?: ObleaImagen | null }
+
+interface ObleaDatos {
+  nroTarjeta: string; propietario: string; domicilio: string; marca: string; capacidad: string; agente: string;
+  nroFabricacion: string; fechaFabricacion: string;
+  cargaMes: string; cargaAnio: string; vencCargaMes: string; vencCargaAnio: string;
+  phMes: string; phAnio: string; vencPhMes: string; vencPhAnio: string;
+}
+
+const mesAnio = (v?: string) => {
+  if (!v) return { mes: "", anio: "" };
+  const [anio, mes] = v.split("-");
+  return { mes: mes || "", anio: anio || "" };
+};
+
+const datosOblea = (ficha: any, item: any): ObleaDatos => {
+  const carga = mesAnio(ficha.fechaServicio);
+  const vencCarga = mesAnio(item.vencimientoCarga);
+  const ph = mesAnio(item.ultimaPH);
+  const vencPh = mesAnio(item.proximaPH);
+  return {
+    nroTarjeta: String(item.nroTarjeta || ""),
+    propietario: ficha.clienteEmpresa || ficha.clienteNombre || "",
+    domicilio: ficha.domicilio || ficha.sedeNombre || "",
+    marca: item.marca === "Otro" ? (item.marcaOtro || "") : (item.marca || ""),
+    capacidad: item.capacidad === "Otro" ? (item.capacidadOtro || "") : (item.capacidad || ""),
+    agente: AGENTES_NOMBRE[item.agente] || item.agente || "",
+    nroFabricacion: item.nroFabricacion || "",
+    fechaFabricacion: item.anioFab || "",
+    cargaMes: carga.mes, cargaAnio: carga.anio,
+    vencCargaMes: vencCarga.mes, vencCargaAnio: vencCarga.anio,
+    phMes: ph.mes, phAnio: ph.anio,
+    vencPhMes: vencPh.mes, vencPhAnio: vencPh.anio,
+  };
+};
+
+const NAVY: [number, number, number] = [27, 47, 94];
+
+// Dibuja una tarjeta dentro de una celda A6 (105 x 148,5 mm) de la hoja. Las coordenadas están medidas sobre la plantilla (716 x 1013 px).
+const dibujarOblea = (pdf: any, ox: number, oy: number, d: ObleaDatos, assets: ObleaAssets, emisor: typeof OBLEA_EMISOR) => {
+  const s = 95 / 660;
+  const X = (px: number) => ox + 5 + (px - 30) * s;
+  const Y = (py: number) => oy + 5 + (py - 40) * s;
+  const L = (px: number) => px * s;
+
+  const ajustar = (t: string, maxW: number, size: number, min = 4.5) => {
+    let sz = size;
+    pdf.setFontSize(sz);
+    while (sz > min && pdf.getTextWidth(t) > maxW) { sz -= 0.3; pdf.setFontSize(sz); }
+    return sz;
+  };
+  const texto = (t: string, x: number, y: number, size: number, opts: { bold?: boolean; color?: number[]; align?: "left" | "center" | "right"; maxW?: number } = {}) => {
+    pdf.setFont("helvetica", opts.bold ? "bold" : "normal");
+    pdf.setTextColor(...(opts.color || NAVY));
+    if (opts.maxW) {
+      ajustar(t, opts.maxW, size);
+      while (t.length > 1 && pdf.getTextWidth(t) > opts.maxW) t = t.slice(0, -1);
+    } else pdf.setFontSize(size);
+    pdf.text(t, x, y, { align: opts.align || "left" });
+  };
+  // jsPDF pierde el color de relleno al escribir texto, por eso se fija antes de cada bloque relleno.
+  const relleno = (x: number, y: number, w: number, h: number) => {
+    pdf.setFillColor(...NAVY);
+    pdf.rect(x, y, w, h, "F");
+  };
+  const imagen = (img: ObleaImagen | null | undefined, x: number, y: number, maxW: number, maxH: number) => {
+    if (!img) return;
+    let w = maxW; let h = w / img.ratio;
+    if (h > maxH) { h = maxH; w = h * img.ratio; }
+    try { pdf.addImage(img.dataUrl, "PNG", x + (maxW - w) / 2, y + (maxH - h) / 2, w, h); } catch { /* imagen inválida: se omite */ }
+  };
+
+  pdf.setDrawColor(...NAVY);
+  pdf.setFillColor(...NAVY);
+
+  // ── Encabezado ──
+  pdf.setLineWidth(0.35);
+  pdf.rect(X(30), Y(40), L(660), L(182));
+  pdf.line(X(360), Y(40), X(360), Y(222));
+  relleno(X(30), Y(206), L(330), L(16));
+  texto(`${emisor.titular}   CUIL: ${emisor.cuil}`, X(195), Y(218), 4.6, { bold: true, color: [255, 255, 255], align: "center", maxW: L(320) });
+  imagen(assets.logo, X(110), Y(58), L(160), L(140));
+
+  imagen(assets.escudo, X(388), Y(52), L(46), L(52));
+  ["REGISTRO MUNICIPAL", "DE FABRICANTES, REPARADORES", "Y RECARGADORES DE MATAFUEGOS."].forEach((t, i) =>
+    texto(t, X(440), Y(66 + i * 14) + 0.8, 5.1, { bold: true, maxW: L(245) }));
+  texto("INSCRIPCIÓN REGISTRO MUNICIPAL:", X(393), Y(117) + 0.8, 4.3, { bold: true });
+  texto(emisor.inscripcionMunicipal, X(393) + pdf.getTextWidth("INSCRIPCIÓN REGISTRO MUNICIPAL:") + 1.2, Y(117) + 0.9, 6.2, { color: [0, 0, 0] });
+
+  relleno(X(390), Y(135), L(294), L(45));
+  texto("TARJETA DE CONTROL", X(537), Y(154), 6.4, { bold: true, color: [255, 255, 255], align: "center" });
+  texto("DE EXTINTORES", X(537), Y(171), 6.4, { bold: true, color: [255, 255, 255], align: "center" });
+  pdf.rect(X(390), Y(180), L(294), L(42));
+  texto("N°", X(410), Y(208), 9.5, { bold: true });
+  pdf.setLineWidth(0.3);
+  pdf.line(X(445), Y(211), X(660), Y(211));
+  texto(d.nroTarjeta, X(552), Y(208), 10, { bold: true, color: [0, 0, 0], align: "center", maxW: L(200) });
+
+  // ── Datos del equipo ──
+  const campo = (etiqueta: string, xEt: number, yc: number, xIni: number, xFin: number, valor: string) => {
+    texto(etiqueta, X(xEt), Y(yc) + 1, 7.3, { bold: true });
+    const xv = Math.max(X(xIni), X(xEt) + pdf.getTextWidth(etiqueta) + 1);
+    pdf.setDrawColor(170, 170, 170);
+    pdf.setLineWidth(0.15);
+    pdf.line(xv, Y(yc) + 2.1, X(xFin), Y(yc) + 2.1);
+    if (valor) texto(valor, xv + 0.8, Y(yc) + 1, 7.8, { bold: true, color: [0, 0, 0], maxW: X(xFin) - xv - 1 });
+  };
+  campo("PROPIETARIO:", 50, 262, 187, 680, d.propietario);
+  campo("DOMICILIO:", 50, 295, 164, 680, d.domicilio);
+  campo("MARCA:", 50, 328, 132, 345, d.marca);
+  campo("CAPACIDAD:", 358, 328, 481, 680, d.capacidad);
+  campo("TIPO DE AGENTE EXTINTOR:", 50, 362, 318, 680, d.agente);
+  campo("N° DE FABRICACION:", 50, 397, 247, 347, d.nroFabricacion);
+  campo("FECHA DE FABRICACION:", 353, 397, 591, 680, d.fechaFabricacion);
+
+  // ── Recuadros de fechas (MES / AÑO) ──
+  pdf.setDrawColor(...NAVY);
+  const recuadro = (top: number, et1: string, et2: string, v1: [string, string], v2: [string, string]) => {
+    pdf.setDrawColor(...NAVY);
+    pdf.setLineWidth(0.35);
+    pdf.roundedRect(X(45), Y(top), L(633), L(96), 1.8, 1.8);
+    pdf.line(X(45), Y(top + 48), X(678), Y(top + 48));
+    pdf.line(X(498), Y(top), X(498), Y(top + 96));
+    [top, top + 48].forEach((ty, r) => {
+      relleno(X(498), Y(ty), L(180), L(17));
+      texto("MES", X(542), Y(ty + 13), 4.6, { bold: true, color: [255, 255, 255], align: "center" });
+      texto("AÑO", X(632), Y(ty + 13), 4.6, { bold: true, color: [255, 255, 255], align: "center" });
+      pdf.setDrawColor(...NAVY);
+      pdf.line(X(587), Y(ty + 17), X(587), Y(ty + 48));
+      const [mes, anio] = r === 0 ? v1 : v2;
+      texto(mes, X(542), Y(ty + 36), 8.4, { bold: true, color: [0, 0, 0], align: "center" });
+      texto(anio, X(632), Y(ty + 36), 8.4, { bold: true, color: [0, 0, 0], align: "center" });
+    });
+    texto(et1, X(67), Y(top + 28) + 0.9, 7.3, { bold: true });
+    texto(et2, X(65), Y(top + 70) + 0.9, 7.3, { bold: true });
+  };
+  recuadro(427, "FECHA DE CARGA/MANTENIMIENTO", "VENCIMIENTO DE CARGA", [d.cargaMes, d.cargaAnio], [d.vencCargaMes, d.vencCargaAnio]);
+  recuadro(532, "FECHA DE PRUEBA HIDRÁULICA", "VENCIMIENTO DE PRUEBA HIDRÁULICA", [d.phMes, d.phAnio], [d.vencPhMes, d.vencPhAnio]);
+
+  // ── Director técnico ──
+  pdf.setDrawColor(...NAVY);
+  pdf.setLineWidth(0.35);
+  pdf.roundedRect(X(45), Y(637), L(633), L(85), 1.8, 1.8);
+  texto("DIRECTOR TÉCNICO:", X(67), Y(658) + 0.9, 7.3, { bold: true });
+  texto(emisor.directorTitulo, X(87), Y(688), 5.6, { color: [0, 0, 0] });
+  texto(emisor.directorMatricula, X(87), Y(705), 5.6, { color: [0, 0, 0] });
+  imagen(assets.firmaDirector, X(340), Y(640), L(270), L(78));
+
+  // ── Pie ──
+  relleno(X(30), Y(733), L(660), L(135));
+  texto(emisor.empresa, X(360), Y(775), 8.4, { bold: true, color: [255, 255, 255], align: "center", maxW: L(630) });
+  emisor.responsables.forEach((r, i) => texto(r, X(360), Y(812 + i * 30), 6.6, { bold: true, color: [255, 255, 255], align: "center", maxW: L(630) }));
+  pdf.setDrawColor(...NAVY);
+  pdf.rect(X(30), Y(868), L(660), L(110));
+  [emisor.email, emisor.direccion, emisor.telefonos].forEach((t, i) =>
+    texto(t, X(360), Y(898 + i * 30), 7.2, { bold: true, align: "center", maxW: L(600) }));
+};
+
+// Arma el PDF (sin depender del navegador). Devuelve null si no hay equipos de ARIFA con número de tarjeta.
+export const buildObleasPdf = async (ficha: any, opts: { assets: ObleaAssets; inscripcionMunicipal?: string }) => {
+  const { default: jsPDF } = await import("jspdf");
+  const items = (ficha.items || []).filter((it: any) =>
+    (it.mantenimientoPor || MANTENIMIENTO_ARIFA) === MANTENIMIENTO_ARIFA && String(it.nroTarjeta || "").trim());
+  if (items.length === 0) return null;
+
+  const emisor = { ...OBLEA_EMISOR, inscripcionMunicipal: opts.inscripcionMunicipal || OBLEA_EMISOR.inscripcionMunicipal };
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+  items.forEach((it: any, i: number) => {
+    if (i > 0 && i % 4 === 0) pdf.addPage();
+    const pos = i % 4;
+    dibujarOblea(pdf, (pos % 2) * 105, Math.floor(pos / 2) * 148.5, datosOblea(ficha, it), opts.assets, emisor);
+  });
+
+  const paginas = Math.ceil(items.length / 4);
+  for (let p = 1; p <= paginas; p++) {
+    pdf.setPage(p);
+    pdf.setDrawColor(200, 200, 200);
+    pdf.setLineWidth(0.1);
+    pdf.setLineDashPattern([1.5, 1.5], 0);
+    pdf.line(105, 0, 105, 297);
+    pdf.line(0, 148.5, 210, 148.5);
+    pdf.setLineDashPattern([], 0);
+  }
+  return { pdf, cantidad: items.length };
+};
+
+const cargarImagen = async (url: string, svg = false): Promise<ObleaImagen | null> => {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const blob = await resp.blob();
+    const objUrl = URL.createObjectURL(svg ? new Blob([await blob.text()], { type: "image/svg+xml" }) : blob);
+    const img = new Image();
+    await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = objUrl; });
+    const c = document.createElement("canvas");
+    c.width = svg ? 600 : img.naturalWidth;
+    c.height = svg ? Math.round(600 * ((img.naturalHeight || 1) / (img.naturalWidth || 1))) : img.naturalHeight;
+    const ctx = c.getContext("2d")!;
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(objUrl);
+
+    // El logo SVG trae mucho margen transparente: se recorta al contenido visible.
+    let out = c;
+    if (svg) {
+      const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+      let minX = width, minY = height, maxX = -1, maxY = -1;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          if (data[(y * width + x) * 4 + 3] > 8) {
+            if (x < minX) minX = x; if (x > maxX) maxX = x;
+            if (y < minY) minY = y; if (y > maxY) maxY = y;
+          }
+        }
+      }
+      if (maxX >= 0) {
+        out = document.createElement("canvas");
+        out.width = maxX - minX + 1; out.height = maxY - minY + 1;
+        out.getContext("2d")!.drawImage(c, minX, minY, out.width, out.height, 0, 0, out.width, out.height);
+      }
+    }
+    return { dataUrl: out.toDataURL("image/png"), ratio: out.width / out.height };
+  } catch { return null; }
+};
+
+// Devuelve la cantidad de obleas generadas (0 si no había equipos de ARIFA con número de tarjeta).
+export const generateObleasPDF = async (ficha: any, inscripcionMunicipal?: string): Promise<number> => {
+  const [logo, firmaDirector, escudo] = await Promise.all([
+    cargarImagen("/logos/logoFondoTransparente.svg", true),
+    cargarImagen("/firmas/director-tecnico.png"),
+    cargarImagen("/logos/escudo-municipal.png"),
+  ]);
+  const res = await buildObleasPdf(ficha, { assets: { logo, firmaDirector, escudo }, inscripcionMunicipal });
+  if (!res) return 0;
+  res.pdf.save(`Obleas_FT${String(ficha.numeroFicha || "").padStart(5, "0")}.pdf`);
+  return res.cantidad;
 };
