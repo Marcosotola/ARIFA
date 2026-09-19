@@ -6,7 +6,8 @@ import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
-import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES } from "@/lib/matafuegosConstants";
+import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
+import { renumerarAuto, reservarTarjetas } from "@/lib/tarjetas";
 import {
   ArrowLeft,
   Save,
@@ -22,6 +23,7 @@ import {
 interface EquipoRemito {
   id: string; // ID interno (opcional)
   nroTarjeta: string; // Oblea
+  tarjetaAuto?: boolean; // número asignado automáticamente (se confirma al guardar)
   tipo: string;
   capacidad: string;
   capacidadOtro?: string;
@@ -160,16 +162,17 @@ export default function NuevoRemitoPage() {
   );
 
   const agregarEquipo = () => {
-    setEquipos([...equipos, { 
-      id: '', 
+    setEquipos(renumerarAuto([...equipos, {
+      id: '',
       nroTarjeta: '',
-      tipo: 'ABC', 
-      capacidad: '5kg', 
-      cantidad: '1', 
-      marca: '', 
-      esPrestamo: false, 
-      estado: 'bueno' 
-    }]);
+      tarjetaAuto: true,
+      tipo: 'ABC',
+      capacidad: '5kg',
+      cantidad: '1',
+      marca: '',
+      esPrestamo: false,
+      estado: 'bueno'
+    }], proximaOblea));
   };
 
   const handleObleaBlur = async (idx: number, nroTarjeta: string) => {
@@ -193,18 +196,17 @@ export default function NuevoRemitoPage() {
   };
 
   const asignarProximaOblea = (idx: number) => {
-    updateEquipo(idx, 'nroTarjeta', proximaOblea.toString());
-    setProximaOblea(prev => prev + 1);
+    setEquipos(renumerarAuto(equipos.map((eq, i) => i === idx ? { ...eq, tarjetaAuto: true } : eq), proximaOblea));
   };
 
   const eliminarEquipo = (idx: number) => {
-    setEquipos(equipos.filter((_, i) => i !== idx));
+    setEquipos(renumerarAuto(equipos.filter((_, i) => i !== idx), proximaOblea));
   };
 
   const updateEquipo = (idx: number, field: keyof EquipoRemito, value: any) => {
     const n = [...equipos];
-    n[idx] = { ...n[idx], [field]: value };
-    setEquipos(n);
+    n[idx] = { ...n[idx], [field]: value, ...(field === 'nroTarjeta' ? { tarjetaAuto: false } : {}) };
+    setEquipos(field === 'nroTarjeta' ? renumerarAuto(n, proximaOblea) : n);
   };
 
   const handleSave = async () => {
@@ -222,6 +224,14 @@ export default function NuevoRemitoPage() {
         proximoNumero = remitosSnap.size + 1;
       }
 
+      const reserva = await reservarTarjetas(equipos);
+      if (reserva.reasignadas) showToast("Se reasignaron números de tarjeta porque otro usuario cargó equipos al mismo tiempo. Revisá el remito.", "info");
+      const equiposFinal = reserva.filas.map(({ tarjetaAuto, marcaOtro, capacidadOtro, ...eq }) => ({
+        ...eq,
+        marca: resolverOtro(eq.marca, marcaOtro),
+        capacidad: resolverOtro(eq.capacidad, capacidadOtro),
+      }));
+
       const payload: any = {
         numero: proximoNumero,
         tipo: tipoMovimiento,
@@ -237,7 +247,7 @@ export default function NuevoRemitoPage() {
         sedeRazonSocial: sedeRazonSocial || "",
         tecnicoId: tecnico.uid,
         tecnicoNombre: tecnico.nombre,
-        equipos,
+        equipos: equiposFinal,
         aclaracion,
         updatedAt: serverTimestamp()
       };
@@ -253,7 +263,7 @@ export default function NuevoRemitoPage() {
       }
 
       // Sincronizar Matafuegos Activos
-      const updates = equipos.map(async (eq) => {
+      const updates = equiposFinal.map(async (eq) => {
         if (!eq.nroTarjeta) return;
         const mfRef = doc(db, "matafuegos_activos", eq.nroTarjeta);
         const mfData = {
@@ -265,8 +275,8 @@ export default function NuevoRemitoPage() {
           sedeNombre: sedeNombre || "",
           datosTecnicos: {
             agente: eq.tipo,
-            capacidad: eq.capacidad === "Otro" ? eq.capacidadOtro : eq.capacidad,
-            marca: eq.marca === "Otro" ? eq.marcaOtro : eq.marca,
+            capacidad: eq.capacidad,
+            marca: eq.marca,
           },
           updatedAt: serverTimestamp()
         };
@@ -275,15 +285,6 @@ export default function NuevoRemitoPage() {
            await setDoc(mfRef, { ...mfData, createdAt: serverTimestamp() });
         });
       });
-
-      // Actualizar contador global
-      const maxObleaUsada = Math.max(...equipos.map(it => parseInt(it.nroTarjeta)).filter(n => !isNaN(n)));
-      if (maxObleaUsada >= proximaOblea) {
-        await updateDoc(doc(db, "configuracion", "matafuegos"), { proximaTarjeta: maxObleaUsada + 1 }).catch(async () => {
-          const { setDoc } = await import("firebase/firestore");
-          await setDoc(doc(db, "configuracion", "matafuegos"), { proximaTarjeta: maxObleaUsada + 1 });
-        });
-      }
 
       await Promise.all(updates);
 
@@ -472,7 +473,7 @@ export default function NuevoRemitoPage() {
                           />
                           <button 
                             onClick={() => asignarProximaOblea(idx)}
-                            style={{ padding: '0 8px', borderRadius: '8px', border: '1px solid #3b82f6', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 700 }}>
+                            style={{ padding: '0 8px', borderRadius: '8px', border: '1px solid #3b82f6', background: eq.tarjetaAuto ? '#3b82f6' : '#eff6ff', color: eq.tarjetaAuto ? '#fff' : '#3b82f6', cursor: 'pointer', fontSize: '0.6rem', fontWeight: 700 }}>
                             AUTO
                           </button>
                         </div>
@@ -481,7 +482,7 @@ export default function NuevoRemitoPage() {
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>MARCA</label>
                         <select value={eq.marca || ""} onChange={(e) => updateEquipo(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
                           <option value="">-- Seleccionar --</option>
-                          {MARCAS_DISPONIBLES.map(m => <option key={m} value={m}>{m}</option>)}
+                          {opcionesConValor(MARCAS_DISPONIBLES, eq.marca).map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                         {eq.marca === "Otro" && (
                           <input
@@ -507,7 +508,7 @@ export default function NuevoRemitoPage() {
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>CAPAC.</label>
                         <select value={eq.capacidad || ""} onChange={(e) => updateEquipo(idx, 'capacidad', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
                           <option value="">-- Seleccionar --</option>
-                          {CAPACIDADES_DISPONIBLES.map(c => <option key={c} value={c}>{c}</option>)}
+                          {opcionesConValor(CAPACIDADES_DISPONIBLES, eq.capacidad).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                         {eq.capacidad === "Otro" && (
                           <input

@@ -7,7 +7,7 @@ import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, upd
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";
-import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES } from "@/lib/matafuegosConstants";
+import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
 import { 
   Package, 
   Settings, 
@@ -73,6 +73,7 @@ function MatafuegosUnifiedContent() {
   const [filtroSede, setFiltroSede] = useState("Todas");
   const [filtroMes, setFiltroMes] = useState("");
   const [filtroAnio, setFiltroAnio] = useState("");
+  const [filtroMant, setFiltroMant] = useState("Todos");
   const [viewMode, setViewMode] = useViewMode("matafuegos");
 
   const today = new Date();
@@ -200,10 +201,12 @@ function MatafuegosUnifiedContent() {
       const { marcaOtro, capacidadOtro, ...restDatosTecnicos } = dt;
       const resolvedData = {
         ...data,
+        mantenimientoPor: data.mantenimientoPor || MANTENIMIENTO_ARIFA,
+        empresaMantenimiento: data.mantenimientoPor === MANTENIMIENTO_OTRA ? (data.empresaMantenimiento || "").trim() : "",
         datosTecnicos: {
           ...restDatosTecnicos,
-          marca: dt.marca === "Otro" ? (marcaOtro || "") : dt.marca,
-          capacidad: dt.capacidad === "Otro" ? (capacidadOtro || "") : dt.capacidad,
+          marca: resolverOtro(dt.marca || "", marcaOtro),
+          capacidad: resolverOtro(dt.capacidad || "", capacidadOtro),
         }
       };
       await updateDoc(doc(db, "matafuegos_activos", id), {
@@ -249,8 +252,10 @@ function MatafuegosUnifiedContent() {
     const matchesSearch =
       m.nroTarjeta?.toLowerCase().includes(search.toLowerCase()) ||
       m.clienteNombre?.toLowerCase().includes(search.toLowerCase()) ||
-      m.clienteEmpresa?.toLowerCase().includes(search.toLowerCase());
+      m.clienteEmpresa?.toLowerCase().includes(search.toLowerCase()) ||
+      m.empresaMantenimiento?.toLowerCase().includes(search.toLowerCase());
     const matchesSede = filtroSede === "Todas" || m.sedeNombre === filtroSede;
+    const matchesMant = filtroMant === "Todos" || (m.mantenimientoPor || MANTENIMIENTO_ARIFA) === filtroMant;
 
     let matchesVenc = true;
     if (filtroMes || filtroAnio) {
@@ -259,8 +264,18 @@ function MatafuegosUnifiedContent() {
       if (filtroAnio && anio !== filtroAnio) matchesVenc = false;
     }
 
-    return matchesSearch && matchesSede && matchesVenc;
+    return matchesSearch && matchesSede && matchesMant && matchesVenc;
   });
+
+  const mantBadge = (m: any) => {
+    const otra = m.mantenimientoPor === MANTENIMIENTO_OTRA;
+    return (
+      <span style={{ fontSize: '0.62rem', fontWeight: 900, padding: '2px 8px', borderRadius: '6px', textTransform: 'uppercase', marginLeft: '6px',
+        background: otra ? '#ffedd5' : '#dbeafe', color: otra ? '#9a3412' : '#1e40af' }}>
+        {otra ? `Otra: ${m.empresaMantenimiento || "s/d"}` : "ARIFA"}
+      </span>
+    );
+  };
 
   const stats = {
     total: filteredMatafuegos.length,
@@ -491,6 +506,18 @@ function MatafuegosUnifiedContent() {
 
         {activeTab === "inventario" && (
           <>
+            <div style={{ width: "170px" }}>
+              <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Mantenimiento</label>
+              <select
+                value={filtroMant}
+                onChange={e => setFiltroMant(e.target.value)}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", border: "1px solid #ddd", outline: "none", fontSize: "0.85rem", background: "#fff" }}
+              >
+                <option value="Todos">Todos</option>
+                <option value={MANTENIMIENTO_ARIFA}>ARIFA</option>
+                <option value={MANTENIMIENTO_OTRA}>Otra empresa</option>
+              </select>
+            </div>
             <div style={{ width: "140px" }}>
               <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", marginBottom: "5px", textTransform: "uppercase" }}>Mes Venc.</label>
               <select 
@@ -526,7 +553,7 @@ function MatafuegosUnifiedContent() {
           </>
         )}
 
-        <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); setFiltroMes(""); setFiltroAnio(""); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
+        <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setFiltroSede("Todas"); setFiltroMes(""); setFiltroAnio(""); setFiltroMant("Todos"); }} style={{ padding: "10px 15px", background: "none", border: "1px solid #ddd", borderRadius: "8px", cursor: "pointer", fontSize: "0.82rem", fontWeight: 600, color: "#666" }}>Limpiar</button>
         <ViewToggle mode={viewMode} onChange={setViewMode} />
       </div>
 
@@ -759,6 +786,7 @@ function MatafuegosUnifiedContent() {
                         color: m.datosTecnicos?.agente === 'CO2' ? '#fff' : m.datosTecnicos?.agente === 'Agua' ? '#1e40af' : '#854d0e' }}>
                         {m.datosTecnicos?.agente}
                       </span>
+                      {mantBadge(m)}
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "12px", background: "#f8fafc", padding: "10px", borderRadius: "8px" }}>
                       <div>
@@ -877,6 +905,7 @@ function MatafuegosUnifiedContent() {
                       }}>
                         {m.datosTecnicos?.agente}
                       </span>
+                      {mantBadge(m)}
                     </td>
                     <td style={{ padding: '15px', fontWeight: 700, color: '#64748b' }}>
                       {m.datosTecnicos?.anioFab || m.anioFab || "-"}
@@ -1041,6 +1070,26 @@ function MatafuegosUnifiedContent() {
                   />
                 </div>
                 <div>
+                  <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Mantenimiento por</label>
+                  <select
+                    value={editInventory.mantenimientoPor || MANTENIMIENTO_ARIFA}
+                    onChange={e => setEditInventory({ ...editInventory, mantenimientoPor: e.target.value })}
+                    style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
+                  >
+                    <option value={MANTENIMIENTO_ARIFA}>ARIFA</option>
+                    <option value={MANTENIMIENTO_OTRA}>Otra empresa</option>
+                  </select>
+                  {editInventory.mantenimientoPor === MANTENIMIENTO_OTRA && (
+                    <input
+                      type="text"
+                      placeholder="Nombre de la empresa"
+                      value={editInventory.empresaMantenimiento || ""}
+                      onChange={e => setEditInventory({ ...editInventory, empresaMantenimiento: e.target.value })}
+                      style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #ddd", marginTop: "5px", fontSize: "0.8rem" }}
+                    />
+                  )}
+                </div>
+                <div>
                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Marca</label>
                   <select
                     value={editInventory.datosTecnicos?.marca || ""}
@@ -1048,11 +1097,7 @@ function MatafuegosUnifiedContent() {
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
                   >
                     <option value="">-- Seleccionar --</option>
-                    {Array.from(new Set([
-                      ...MARCAS_DISPONIBLES.filter(m => m !== "Otro"),
-                      ...(editInventory.datosTecnicos?.marca ? [editInventory.datosTecnicos.marca] : [])
-                    ])).map(m => <option key={m} value={m}>{m}</option>)}
-                    <option value="Otro">Otro</option>
+                    {opcionesConValor(MARCAS_DISPONIBLES, editInventory.datosTecnicos?.marca).map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
                   {editInventory.datosTecnicos?.marca === "Otro" && (
                     <input
@@ -1087,11 +1132,7 @@ function MatafuegosUnifiedContent() {
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
                   >
                     <option value="">-- Seleccionar --</option>
-                    {Array.from(new Set([
-                      ...CAPACIDADES_DISPONIBLES.filter(c => c !== "Otro"),
-                      ...(editInventory.datosTecnicos?.capacidad ? [editInventory.datosTecnicos.capacidad] : [])
-                    ])).map(c => <option key={c} value={c}>{c}</option>)}
-                    <option value="Otro">Otro</option>
+                    {opcionesConValor(CAPACIDADES_DISPONIBLES, editInventory.datosTecnicos?.capacidad).map(c => <option key={c} value={c}>{c}</option>)}
                   </select>
                   {editInventory.datosTecnicos?.capacidad === "Otro" && (
                     <input

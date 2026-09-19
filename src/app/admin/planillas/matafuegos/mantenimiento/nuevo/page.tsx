@@ -2,7 +2,8 @@
 import { useEffect, useState, Suspense } from "react";
 import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
-import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES } from "@/lib/matafuegosConstants";
+import { MARCAS_DISPONIBLES, CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
+import { renumerarAuto, reservarTarjetas } from "@/lib/tarjetas";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
@@ -24,6 +25,9 @@ import {
 interface MantenimientoItem {
   id: string;
   nroTarjeta: string;
+  tarjetaAuto?: boolean; // número asignado automáticamente (se confirma al guardar)
+  mantenimientoPor?: string; // "ARIFA" | "Otra empresa"
+  empresaMantenimiento?: string;
   sector: string;
   agente: string;
   base: string;
@@ -150,13 +154,15 @@ function FichaFormContent() {
             // Mapear equipos a items de mantenimiento
             const newItems: MantenimientoItem[] = rem.equipos.map((eq: any) => ({
               id: Math.random().toString(36).substr(2, 9),
-              nroTarjeta: eq.id || "",
+              nroTarjeta: eq.nroTarjeta || "",
+              mantenimientoPor: MANTENIMIENTO_ARIFA,
+              empresaMantenimiento: "",
               sector: "",
               agente: eq.tipo || "ABC",
               base: "",
               capacidad: eq.capacidad || "",
               claseFuego: ["A", "B", "C"],
-              marca: "",
+              marca: eq.marca || "",
               marcaOtro: "",
               nroFabricacion: "",
               anioFab: "",
@@ -246,20 +252,25 @@ function FichaFormContent() {
   const agregarItem = () => {
     const nuevo: MantenimientoItem = {
       id: Math.random().toString(36).substr(2, 9),
-      nroTarjeta: "", sector: "", agente: "ABC", base: "", capacidad: "5kg", claseFuego: ["A", "B", "C"],
+      nroTarjeta: "", tarjetaAuto: true, mantenimientoPor: MANTENIMIENTO_ARIFA, empresaMantenimiento: "",
+      sector: "", agente: "ABC", base: "", capacidad: "5kg", claseFuego: ["A", "B", "C"],
       marca: "", marcaOtro: "", nroFabricacion: "", anioFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
       componentesReemplazados: [], agenteAdicional: "",
       presionInicial: "", presionFinal: "", pesoInicial: "", pesoFinal: "",
       marbeteColor: "", marbeteAnio: new Date().getFullYear().toString(),
       precintoColor: "", vencimientoCarga: "", ultimaPH: "", proximaPH: "", observaciones: ""
     };
-    setItems([...items, nuevo]);
+    setItems(renumerarAuto([...items, nuevo], proximaOblea));
+  };
+
+  const eliminarItem = (idx: number) => {
+    setItems(renumerarAuto(items.filter((_, i) => i !== idx), proximaOblea));
   };
 
   const updateItem = (idx: number, field: keyof MantenimientoItem, value: any) => {
     const newItems = [...items];
-    newItems[idx] = { ...newItems[idx], [field]: value };
-    setItems(newItems);
+    newItems[idx] = { ...newItems[idx], [field]: value, ...(field === 'nroTarjeta' ? { tarjetaAuto: false } : {}) };
+    setItems(field === 'nroTarjeta' ? renumerarAuto(newItems, proximaOblea) : newItems);
   };
 
   const toggleArrayItem = (idx: number, field: "claseFuego" | "componentesReemplazados", value: string) => {
@@ -292,6 +303,8 @@ function FichaFormContent() {
           agente: tec.agente || newItems[idx].agente,
           capacidad: tec.capacidad || newItems[idx].capacidad,
           marca: tec.marca || newItems[idx].marca,
+          mantenimientoPor: data.mantenimientoPor || newItems[idx].mantenimientoPor,
+          empresaMantenimiento: data.empresaMantenimiento || newItems[idx].empresaMantenimiento,
           anioFab: tec.anioFab || newItems[idx].anioFab,
           claseFuego: tec.claseFuego || newItems[idx].claseFuego,
           ultimaPH: hist.ultimaPH || newItems[idx].ultimaPH,
@@ -306,8 +319,7 @@ function FichaFormContent() {
   };
 
   const asignarProximaOblea = (idx: number) => {
-    updateItem(idx, 'nroTarjeta', proximaOblea.toString());
-    setProximaOblea(prev => prev + 1);
+    setItems(renumerarAuto(items.map((it, i) => i === idx ? { ...it, tarjetaAuto: true } : it), proximaOblea));
   };
 
   const handleSave = async () => {
@@ -321,6 +333,16 @@ function FichaFormContent() {
         const snap = await getDocs(collection(db, "mantenimiento_matafuegos"));
         numeroFicha = snap.size + 1;
       }
+
+      const reserva = await reservarTarjetas(items);
+      if (reserva.reasignadas) showToast("Se reasignaron números de tarjeta porque otro usuario cargó equipos al mismo tiempo. Revisá la ficha.", "info");
+      const itemsFinal = reserva.filas.map(({ tarjetaAuto, marcaOtro, capacidadOtro, ...it }) => ({
+        ...it,
+        marca: resolverOtro(it.marca, marcaOtro),
+        capacidad: resolverOtro(it.capacidad, capacidadOtro),
+        mantenimientoPor: it.mantenimientoPor || MANTENIMIENTO_ARIFA,
+        empresaMantenimiento: it.mantenimientoPor === MANTENIMIENTO_OTRA ? (it.empresaMantenimiento || "").trim() : "",
+      }));
 
       const payload = {
         numeroFicha,
@@ -336,7 +358,7 @@ function FichaFormContent() {
         tecnicoId: tecnico.uid || tecnico.id,
         tecnicoNombre: tecnico.nombre,
         tallerNombre,
-        items,
+        items: itemsFinal,
         firmaTecnico: firmaDataUrl || null,
         updatedAt: serverTimestamp()
       };
@@ -347,8 +369,9 @@ function FichaFormContent() {
         await addDoc(collection(db, "mantenimiento_matafuegos"), { ...payload, createdAt: serverTimestamp() });
       }
 
-      // 4. Sincronizar Matafuegos Activos e incrementar contador de obleas
-      const updates = items.map(async (it) => {
+      // 4. Sincronizar Matafuegos Activos
+      const updates = itemsFinal.map(async (it) => {
+        if (!it.nroTarjeta) return;
         const mfRef = doc(db, "matafuegos_activos", it.nroTarjeta);
         const mfData = {
           nroTarjeta: it.nroTarjeta,
@@ -357,10 +380,12 @@ function FichaFormContent() {
           clienteEmpresa: empresa,
           sedeId: sedeId || null,
           sedeNombre: sedeNombre || "",
+          mantenimientoPor: it.mantenimientoPor,
+          empresaMantenimiento: it.empresaMantenimiento,
           datosTecnicos: {
             agente: it.agente,
-            capacidad: it.capacidad === "Otro" ? it.capacidadOtro : it.capacidad,
-            marca: it.marca === "Otro" ? it.marcaOtro : it.marca,
+            capacidad: it.capacidad,
+            marca: it.marca,
             anioFab: it.anioFab,
             claseFuego: it.claseFuego
           },
@@ -377,15 +402,6 @@ function FichaFormContent() {
            await setDoc(mfRef, { ...mfData, createdAt: serverTimestamp() });
         });
       });
-
-      // Actualizar contador global si se usaron nuevas obleas
-      const maxObleaUsada = Math.max(...items.map(it => parseInt(it.nroTarjeta)).filter(n => !isNaN(n)));
-      if (maxObleaUsada >= proximaOblea) {
-        await updateDoc(doc(db, "configuracion", "matafuegos"), { proximaTarjeta: maxObleaUsada + 1 }).catch(async () => {
-          const { setDoc } = await import("firebase/firestore");
-          await setDoc(doc(db, "configuracion", "matafuegos"), { proximaTarjeta: maxObleaUsada + 1 });
-        });
-      }
 
       await Promise.all(updates);
       
@@ -614,7 +630,7 @@ function FichaFormContent() {
               <span style={{ fontWeight: 900, color: 'var(--primary-red)', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <ShieldCheck size={18} /> EXTINTOR #{idx + 1}
               </span>
-              <button onClick={() => setItems(items.filter((_, i) => i !== idx))} 
+              <button onClick={() => eliminarItem(idx)}
                 style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600 }}>
                 <Trash2 size={14} /> Eliminar
               </button>
@@ -634,7 +650,7 @@ function FichaFormContent() {
                   <button
                     onClick={() => asignarProximaOblea(idx)}
                     title="Asignar Siguiente Oblea Correlativa"
-                    style={{ padding: '0 10px', borderRadius: '8px', border: '1px solid #3b82f6', background: '#eff6ff', color: '#3b82f6', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}>
+                    style={{ padding: '0 10px', borderRadius: '8px', border: '1px solid #3b82f6', background: item.tarjetaAuto ? '#3b82f6' : '#eff6ff', color: item.tarjetaAuto ? '#fff' : '#3b82f6', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 700 }}>
                     AUTO
                   </button>
                 </div>
@@ -662,7 +678,7 @@ function FichaFormContent() {
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>CAPACIDAD</label>
                 <select value={item.capacidad} onChange={e => updateItem(idx, 'capacidad', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
                   <option value="">-- Seleccionar --</option>
-                  {CAPACIDADES_DISPONIBLES.map(c => <option key={c} value={c}>{c}</option>)}
+                  {opcionesConValor(CAPACIDADES_DISPONIBLES, item.capacidad).map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 {item.capacidad === "Otro" && (
                   <input
@@ -677,13 +693,28 @@ function FichaFormContent() {
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>MARCA</label>
                 <select value={item.marca} onChange={e => updateItem(idx, 'marca', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
                   <option value="">-- Seleccionar --</option>
-                  {MARCAS_DISPONIBLES.map(m => <option key={m} value={m}>{m}</option>)}
+                  {opcionesConValor(MARCAS_DISPONIBLES, item.marca).map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
                 {item.marca === "Otro" && (
                   <input
                     value={item.marcaOtro}
                     onChange={e => updateItem(idx, 'marcaOtro', e.target.value)}
                     placeholder="Especifique marca"
+                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
+                  />
+                )}
+              </div>
+              <div>
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>MANTENIMIENTO POR</label>
+                <select value={item.mantenimientoPor || MANTENIMIENTO_ARIFA} onChange={e => updateItem(idx, 'mantenimientoPor', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                  <option value={MANTENIMIENTO_ARIFA}>ARIFA</option>
+                  <option value={MANTENIMIENTO_OTRA}>Otra empresa</option>
+                </select>
+                {item.mantenimientoPor === MANTENIMIENTO_OTRA && (
+                  <input
+                    value={item.empresaMantenimiento || ""}
+                    onChange={e => updateItem(idx, 'empresaMantenimiento', e.target.value)}
+                    placeholder="Nombre de la empresa"
                     style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
                   />
                 )}

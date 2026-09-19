@@ -18,6 +18,11 @@ service cloud.firestore {
       return request.auth != null && getRole() in ['admin', 'superadmin', 'tecnico', 'secretaria', 'supervisor', 'tecnicoHyS'];
     }
 
+    // Personal con acceso a documentos con precios (presupuestos, estados de cuenta): excluye al técnico
+    function isDocStaff() {
+      return isStaffMember() && getRole() != 'tecnico';
+    }
+
     // --- REGLAS DE COLECCIONES ---
 
     // Usuarios
@@ -113,16 +118,16 @@ service cloud.firestore {
     // Presupuestos
     match /presupuestos/{id} {
       allow read: if request.auth != null && (
-        resource.data.clienteId == request.auth.uid || isStaffMember()
+        resource.data.clienteId == request.auth.uid || isDocStaff()
       );
-      allow create: if request.auth != null && isStaffMember();
-      allow update: if request.auth != null && isStaffMember();
+      allow create: if request.auth != null && isDocStaff();
+      allow update: if request.auth != null && isDocStaff();
       allow delete: if isAdmin();
     }
 
     match /configuracion/presupuestos {
-      allow read: if request.auth != null && isStaffMember();
-      allow write: if request.auth != null && isStaffMember();
+      allow read: if request.auth != null && isDocStaff();
+      allow write: if request.auth != null && isDocStaff();
     }
 
     // Recibos
@@ -156,13 +161,13 @@ service cloud.firestore {
 
     // Estados de Cuenta
     match /estados-cuenta/{id} {
-      allow read: if request.auth != null && (isStaffMember() || resource.data.clienteId == request.auth.uid);
-      allow create, update: if request.auth != null && isStaffMember();
+      allow read: if request.auth != null && (isDocStaff() || resource.data.clienteId == request.auth.uid);
+      allow create, update: if request.auth != null && isDocStaff();
       allow delete: if isAdmin();
     }
 
     match /configuracion/estados-cuenta {
-      allow read, write: if request.auth != null && isStaffMember();
+      allow read, write: if request.auth != null && isDocStaff();
     }
 
     // Consultas y Notificaciones

@@ -66,6 +66,7 @@ interface CollectionConfig {
   name: string;
   tipo: SearchTipo;
   scope: Scope;
+  hiddenFromRoles?: string[];
   map: (id: string, d: any) => Omit<SearchResult, "tipo" | "id">;
 }
 
@@ -92,6 +93,7 @@ const COLLECTIONS: CollectionConfig[] = [
     name: "presupuestos",
     tipo: "presupuesto",
     scope: "clienteId",
+    hiddenFromRoles: ["tecnico"],
     map: (id, p) => {
       const titulo = `P-${pad(p.numero, 5)}`;
       const cliente = [p.clienteNombre, p.clienteApellido].filter(Boolean).join(" ");
@@ -146,6 +148,7 @@ const COLLECTIONS: CollectionConfig[] = [
     name: "estados-cuenta",
     tipo: "estadoCuenta",
     scope: "clienteId",
+    hiddenFromRoles: ["tecnico"],
     map: (id, e) => {
       const titulo = `EC-${pad(e.numero, 5)}`;
       const cliente = [e.clienteNombre, e.clienteApellido].filter(Boolean).join(" ");
@@ -309,6 +312,7 @@ export async function buildSearchIndex(role: string | null, uid: string | null):
   await Promise.all(
     COLLECTIONS.map(async (cfg) => {
       if (isCliente && cfg.scope === "staffOnly") return;
+      if (role && cfg.hiddenFromRoles?.includes(role)) return;
       try {
         const q =
           isCliente && cfg.scope === "clienteId" && uid

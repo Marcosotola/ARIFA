@@ -22,6 +22,7 @@ interface Producto {
   precio: number;       // precio de costo
   porcentaje: number;   // margen de ganancia %
   precioVenta: number;  // calculado
+  stock?: number;       // unidades disponibles (ajuste manual)
   activo: boolean;
   imagenes?: string[];  // URLs de las imágenes
   slug?: string;        // URL amigable
@@ -58,7 +59,7 @@ const labelSt: React.CSSProperties = {
 
 const EMPTY: Omit<Producto, "id" | "createdAt" | "updatedAt"> = {
   titulo: "", descripcion: "", categoria: "", proveedor: "",
-  precio: 0, porcentaje: 30, precioVenta: 0, activo: true,
+  precio: 0, porcentaje: 30, precioVenta: 0, stock: 0, activo: true,
   imagenes: [],
   slug: "",
 };
@@ -133,7 +134,7 @@ export default function AdminProductos() {
     setForm({
       titulo: p.titulo, descripcion: p.descripcion, categoria: p.categoria,
       proveedor: p.proveedor, precio: p.precio, porcentaje: p.porcentaje,
-      precioVenta: p.precioVenta, activo: p.activo,
+      precioVenta: p.precioVenta, stock: p.stock ?? 0, activo: p.activo,
       imagenes: p.imagenes || [],
       slug: p.slug || "",
     });
@@ -178,6 +179,7 @@ export default function AdminProductos() {
         precio: Number(form.precio),
         porcentaje: Number(form.porcentaje),
         precioVenta: calcVenta(Number(form.precio), Number(form.porcentaje)),
+        stock: Math.max(0, Math.floor(Number(form.stock) || 0)),
         updatedAt: serverTimestamp(),
       };
       
@@ -310,6 +312,11 @@ export default function AdminProductos() {
                     </div>
                     <span style={{ background: "#f0fdf4", color: "#16a34a", fontSize: "0.72rem", fontWeight: 800, padding: "3px 8px", borderRadius: "20px" }}>{p.porcentaje}%</span>
                   </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <span style={{ background: (p.stock ?? 0) > 0 ? "#eff6ff" : "#fee2e2", color: (p.stock ?? 0) > 0 ? "#1d4ed8" : "#dc2626", fontSize: "0.72rem", fontWeight: 800, padding: "3px 10px", borderRadius: "20px" }}>
+                      Stock: {p.stock ?? 0}
+                    </span>
+                  </div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
                     <button onClick={() => toggleActivo(p)} style={{ padding: "4px 10px", borderRadius: "20px", border: "none", cursor: "pointer", fontSize: "0.68rem", fontWeight: 900, background: p.activo ? "#dcfce7" : "#fee2e2", color: p.activo ? "#15803d" : "#dc2626" }}>
                       {p.activo ? "✓ Activo" : "✕ Inactivo"}
@@ -325,10 +332,10 @@ export default function AdminProductos() {
           </div>
         ) : (
         <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" } as React.CSSProperties}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "720px" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
             <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
               <tr>
-                {["Producto / Categoría", "Proveedor", "Costo", "Margen", "Precio Venta", "Estado", "Acciones"].map(h => (
+                {["Producto / Categoría", "Proveedor", "Costo", "Margen", "Precio Venta", "Stock", "Estado", "Acciones"].map(h => (
                   <th key={h} style={{ textAlign: "left", padding: "13px 16px", fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -370,6 +377,7 @@ export default function AdminProductos() {
                     <span style={{ background: "#f0fdf4", color: "#16a34a", fontSize: "0.75rem", fontWeight: 800, padding: "3px 8px", borderRadius: "20px" }}>{p.porcentaje}%</span>
                   </td>
                   <td style={{ padding: "13px 16px", fontSize: "0.92rem", fontWeight: 800, color: "var(--primary-red)" }}>{fmtPeso(p.precioVenta)}</td>
+                  <td style={{ padding: "13px 16px", fontSize: "0.9rem", fontWeight: 800, color: (p.stock ?? 0) > 0 ? "#1d4ed8" : "#dc2626" }}>{p.stock ?? 0}</td>
                   <td style={{ padding: "13px 16px" }}>
                     <button onClick={() => toggleActivo(p)} style={{ padding: "4px 10px", borderRadius: "20px", border: "none", cursor: "pointer", fontSize: "0.68rem", fontWeight: 900, background: p.activo ? "#dcfce7" : "#fee2e2", color: p.activo ? "#15803d" : "#dc2626" }}>
                       {p.activo ? "✓ Activo" : "✕ Inactivo"}
@@ -471,6 +479,11 @@ export default function AdminProductos() {
                   <label style={labelSt}>Margen (%)</label>
                   <input style={inputSt} type="number" step="0.1" value={form.porcentaje || ""} onChange={e => setField("porcentaje", e.target.value)} />
                 </div>
+              </div>
+
+              <div>
+                <label style={labelSt}>Stock (unidades)</label>
+                <input style={inputSt} type="number" min="0" step="1" value={form.stock ?? ""} onChange={e => setField("stock", e.target.value)} />
               </div>
 
               <div style={{ background: "#f0fdf4", padding: "20px", borderRadius: "12px", border: "1px solid #bbf7d0" }}>

@@ -108,6 +108,7 @@ function NuevoEstadoCuentaContent() {
         const userData = userDoc.exists() ? userDoc.data() : {};
         const r = userData.rol || "cliente";
         if (r === "cliente") { router.push("/admin/documentos/estado-cuenta"); return; }
+        if (r === "tecnico") { router.push("/admin"); return; }
         
         setCurrentUser({ uid: u.uid, ...userData });
         setClientes(clientsSnap.docs.map(d => ({ id: d.id, ...d.data() })));

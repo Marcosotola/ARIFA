@@ -133,6 +133,7 @@ function NuevoPresupuestoContent() {
           getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente"))),
         ]);
         const userData = userDoc.exists() ? userDoc.data() : {};
+        if (userData.rol === "tecnico") { router.push("/admin"); return; }
         setCurrentUser({ uid: u.uid, ...userData });
         setClientes(clientsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
