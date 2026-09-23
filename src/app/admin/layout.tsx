@@ -68,6 +68,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
 
     // 2. Subscription Status (Real-time)
+    // En iOS (PWA) Firestore puede no responder en el arranque en frío: no dejamos la pantalla trabada.
+    const loadingTimeout = setTimeout(() => setLoading(false), 4000);
     const unsubSub = onSnapshot(doc(db, "configuracion", "suscripcion"), (docSnap) => {
       if (docSnap.exists()) {
         setSubscription(docSnap.data());
@@ -79,10 +81,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           vencimiento: null
         });
       }
+      clearTimeout(loadingTimeout);
+      setLoading(false);
+    }, (error) => {
+      console.warn("Subscription check failed:", error);
+      clearTimeout(loadingTimeout);
       setLoading(false);
     });
 
     return () => {
+      clearTimeout(loadingTimeout);
       unsubAuth();
       unsubSub();
     };

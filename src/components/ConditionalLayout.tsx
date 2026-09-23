@@ -32,18 +32,24 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
     });
 
     // 2. Subscription Check
-    const unsubSub = onSnapshot(doc(db, "configuracion", "suscripcion"), 
+    // En iOS (PWA instalada) Firestore a veces tarda o nunca responde en el arranque en frío:
+    // si no hay respuesta a tiempo mostramos el sitio igual (el overlay aparece si llega después).
+    const checkTimeout = setTimeout(() => setChecking(false), 2500);
+    const unsubSub = onSnapshot(doc(db, "configuracion", "suscripcion"),
       (docSnap) => {
         if (docSnap.exists()) setSubscription(docSnap.data());
+        clearTimeout(checkTimeout);
         setChecking(false); // Ya tenemos respuesta
       },
       (error) => {
         console.warn("Subscription check inhibited by permissions.");
+        clearTimeout(checkTimeout);
         setChecking(false); // Aun con error, dejamos de bloquear la carga
       }
     );
 
     return () => {
+      clearTimeout(checkTimeout);
       unsubAuth();
       unsubSub();
     };
