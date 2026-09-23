@@ -17,6 +17,7 @@ export default function SuscripcionPage() {
   const [pagos, setPagos] = useState<any[]>([]);
   const [showMpEmailModal, setShowMpEmailModal] = useState(false);
   const [mpEmail, setMpEmail] = useState("");
+  const [showCambiarMedio, setShowCambiarMedio] = useState(false);
 
   // Superadmin editable fields
   const [costo, setCosto] = useState(120000);
@@ -159,6 +160,9 @@ export default function SuscripcionPage() {
   const isSuperAdmin = role === "superadmin";
   const isExpired = subscription?.estado === "vencido" || (subscription?.vencimiento && subscription.vencimiento.toDate() < new Date());
   const isMaintenance = subscription?.estado === "mantenimiento";
+  // Con una suscripción recurrente vigente, MP cobra solo: "Pagar" crearía un segundo Preapproval.
+  // Si está vencida (ej. rechazos de la tarjeta), se vuelve a ofrecer el pago.
+  const hasRecurringSub = !!subscription?.subId && !isExpired;
 
   const statusDotClass = isMaintenance
     ? styles.statusDotMaintenance
@@ -207,7 +211,39 @@ export default function SuscripcionPage() {
             </div>
           </div>
 
-          {!isSuperAdmin && (
+          {!isSuperAdmin && hasRecurringSub && (
+            <div className={styles.paymentSection}>
+              <button
+                className={`btn-blue ${styles.fullWidthBtn}`}
+                onClick={() => setShowCambiarMedio(!showCambiarMedio)}
+              >
+                Cambiar medio de pago
+              </button>
+              {showCambiarMedio && (
+                <div className={styles.cambiarMedioBox}>
+                  <p>La suscripción se cobra automáticamente todos los meses. Para usar otra tarjeta, cambiala directamente en Mercado Pago; se mantienen el monto y la fecha de cobro.</p>
+                  <ol>
+                    <li>Ingresá a Mercado Pago con el correo con el que te suscribiste.</li>
+                    <li>Andá a <strong>Suscripciones</strong> y abrí &quot;Suscripción Mensual ARIFA&quot;.</li>
+                    <li>Tocá <strong>Modificar medio de pago</strong> y elegí el nuevo.</li>
+                  </ol>
+                  <a
+                    href="https://www.mercadopago.com.ar/subscriptions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.cambiarMedioLink}
+                  >
+                    Ir a mis suscripciones en Mercado Pago →
+                  </a>
+                </div>
+              )}
+              <p className={styles.paymentNote}>
+                No vuelvas a suscribirte desde acá: se crearía una segunda suscripción y se cobraría dos veces.
+              </p>
+            </div>
+          )}
+
+          {!isSuperAdmin && !hasRecurringSub && (
             <div className={styles.paymentSection}>
               <button
                 className={`btn-red ${styles.fullWidthBtn}`}
