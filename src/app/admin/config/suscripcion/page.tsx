@@ -43,7 +43,9 @@ export default function SuscripcionPage() {
             if (data.vencimiento) {
               try {
                 const date = typeof data.vencimiento.toDate === 'function' ? data.vencimiento.toDate() : new Date(data.vencimiento);
-                setVencimientoStr(date.toISOString().split('T')[0]);
+                // Fecha local (no toISOString, que es UTC): el vencimiento se guarda a las 23:59
+                // hora argentina, que en UTC ya es el día siguiente.
+                setVencimientoStr(date.toLocaleDateString('en-CA'));
               } catch (e) {
                 console.error("Error parsing date:", e);
               }
