@@ -25,6 +25,8 @@ interface Presupuesto {
   total: number;
   estado: "pendiente" | "aceptado" | "cancelado";
   createdAt: any;
+  creadoPorId?: string;
+  creadoPorNombre?: string;
 }
 
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
@@ -70,24 +72,27 @@ export default function PresupuestosPage() {
   }, [router]);
 
   const isStaff = (r: string) => ["admin", "superadmin", "secretaria"].includes(r);
+  const isTecnicoTaller = (r: string) => r === "tecnicoTaller";
 
   const fetchPresupuestos = async (r: string, uid: string) => {
     try {
       let snap;
-      const baseQuery = isStaff(r)
-        ? query(collection(db, "presupuestos"), orderBy("createdAt", "desc"))
-        : query(collection(db, "presupuestos"), where("clienteId", "==", uid), orderBy("createdAt", "desc"));
+      const filtro = isStaff(r) ? null : isTecnicoTaller(r) ? "creadoPorId" : "clienteId";
+      const baseQuery = filtro
+        ? query(collection(db, "presupuestos"), where(filtro, "==", uid), orderBy("createdAt", "desc"))
+        : query(collection(db, "presupuestos"), orderBy("createdAt", "desc"));
       try {
         snap = await getDocs(baseQuery);
       } catch {
         snap = await getDocs(
-          isStaff(r)
-            ? collection(db, "presupuestos")
-            : query(collection(db, "presupuestos"), where("clienteId", "==", uid))
+          filtro
+            ? query(collection(db, "presupuestos"), where(filtro, "==", uid))
+            : collection(db, "presupuestos")
         );
       }
       let docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Presupuesto));
-      if (!isStaff(r)) docs = docs.filter(p => p.clienteId === uid);
+      if (isTecnicoTaller(r)) docs = docs.filter(p => p.creadoPorId === uid);
+      else if (!isStaff(r)) docs = docs.filter(p => p.clienteId === uid);
       docs.sort((a, b) => {
         const ts = (o: any) => o.createdAt?.seconds ?? 0;
         return ts(b) - ts(a);

@@ -38,7 +38,13 @@ export default function VerPresupuestoPage() {
         if (r === "tecnico") { router.push("/admin"); return; }
         setRole(r);
         if (presDoc.exists()) {
-          setPres({ id: presDoc.id, ...presDoc.data() });
+          const data = presDoc.data();
+          if (r === "tecnicoTaller" && data.creadoPorId !== u.uid) {
+            alert("No tenés acceso a este presupuesto.");
+            router.push("/admin/documentos/presupuestos");
+            return;
+          }
+          setPres({ id: presDoc.id, ...data });
         } else {
           alert("Presupuesto no encontrado.");
           router.push("/admin/documentos/presupuestos");

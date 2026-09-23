@@ -15,12 +15,17 @@ service cloud.firestore {
     }
     
     function isStaffMember() {
-      return request.auth != null && getRole() in ['admin', 'superadmin', 'tecnico', 'secretaria', 'supervisor', 'tecnicoHyS'];
+      return request.auth != null && getRole() in ['admin', 'superadmin', 'tecnico', 'tecnicoTaller', 'secretaria', 'supervisor', 'tecnicoHyS'];
     }
 
-    // Personal con acceso a documentos con precios (presupuestos, estados de cuenta): excluye al técnico
+    // Personal con acceso general a documentos con precios (presupuestos, estados de cuenta):
+    // excluye al técnico y al técnico de taller, que solo ven lo propio (ver reglas de cada colección).
     function isDocStaff() {
-      return isStaffMember() && getRole() != 'tecnico';
+      return isStaffMember() && getRole() != 'tecnico' && getRole() != 'tecnicoTaller';
+    }
+
+    function isTecnicoTaller() {
+      return request.auth != null && getRole() == 'tecnicoTaller';
     }
 
     // --- REGLAS DE COLECCIONES ---
@@ -73,6 +78,11 @@ service cloud.firestore {
       allow create, update, delete: if isStaffMember();
     }
 
+    // Extintores backup/préstamo (equipos propios de ARIFA que se dejan en el cliente mientras se recarga el suyo)
+    match /matafuegos_backup/{id} {
+      allow read, create, update, delete: if isStaffMember();
+    }
+
     // Higiene y Seguridad (HyS)
     match /hys_documentos/{id} {
       allow read: if request.auth != null && (resource.data.clienteId == request.auth.uid || isStaffMember());
@@ -109,25 +119,34 @@ service cloud.firestore {
       allow write: if request.auth != null && getRole() == 'superadmin';
     }
 
-    // Productos
+    // Productos — el técnico de taller no gestiona el catálogo (no ve costos/márgenes),
+    // pero el stock se descuenta desde su propia carga de ventas en libro_contable.
     match /productos/{prodId} {
       allow read: if true;
-      allow write: if isStaffMember();
+      allow write: if isStaffMember() && getRole() != 'tecnicoTaller';
+      allow update: if isTecnicoTaller() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt']);
     }
 
-    // Presupuestos
+    // Presupuestos — el técnico de taller solo puede leer/crear/editar los que él mismo creó
     match /presupuestos/{id} {
       allow read: if request.auth != null && (
-        resource.data.clienteId == request.auth.uid || isDocStaff()
+        resource.data.clienteId == request.auth.uid || isDocStaff() ||
+        (isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid)
       );
-      allow create: if request.auth != null && isDocStaff();
-      allow update: if request.auth != null && isDocStaff();
+      allow create: if request.auth != null && (
+        isDocStaff() || (isTecnicoTaller() && request.resource.data.creadoPorId == request.auth.uid)
+      );
+      allow update: if request.auth != null && (
+        isDocStaff() ||
+        (isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid && request.resource.data.creadoPorId == resource.data.creadoPorId)
+      );
       allow delete: if isAdmin();
     }
 
     match /configuracion/presupuestos {
-      allow read: if request.auth != null && isDocStaff();
-      allow write: if request.auth != null && isDocStaff();
+      allow read: if request.auth != null && (isDocStaff() || isTecnicoTaller());
+      allow write: if request.auth != null && (isDocStaff() || isTecnicoTaller());
     }
 
     // Recibos
@@ -170,9 +189,15 @@ service cloud.firestore {
       allow read, write: if request.auth != null && isDocStaff();
     }
 
-    // Libro contable (ingresos y egresos del local): solo admin
+    // Libro contable (ingresos y egresos del local): admin ve todo; el técnico de taller solo lo propio
     match /libro_contable/{id} {
-      allow read, create, update, delete: if isAdmin();
+      allow read: if isAdmin() || (isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid);
+      allow create: if isAdmin() || (isTecnicoTaller() && request.resource.data.creadoPorId == request.auth.uid);
+      allow update: if isAdmin() || (
+        isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid &&
+        request.resource.data.creadoPorId == resource.data.creadoPorId
+      );
+      allow delete: if isAdmin() || (isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid);
     }
 
     // Consultas y Notificaciones

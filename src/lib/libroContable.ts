@@ -12,6 +12,9 @@ export interface Movimiento {
   telefono: string;
   concepto: string;
   categorias: string[];
+  productoId?: string;
+  productoNombre?: string;
+  cantidadVendida?: number;
   creadoPorId?: string;
   creadoPorNombre?: string;
 }

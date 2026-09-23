@@ -21,7 +21,8 @@ import {
   Sparkles,
   ShieldCheck,
   FolderOpen,
-  Building2
+  Building2,
+  BookOpen
 } from "lucide-react";
 
 // ─── Module definitions ───────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ const MODULES = [
     description: "Inspecciones en campo, checklists de detección, extinción y registros fotográficos.",
     href: "/admin/planillas",
     color: "#2b6cb0",
-    roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente", "supervisor"],
+    roles: ["admin", "tecnico", "superadmin", "secretaria", "cliente", "supervisor", "tecnicotaller"],
     clientLabel: "Mis Inspecciones",
     clientDescription: "Inspecciones técnicas de tus instalaciones.",
   },
@@ -52,7 +53,7 @@ const MODULES = [
     description: "Gestión de remitos de logística y fichas técnicas de taller.",
     href: "/admin/planillas/matafuegos",
     color: "#c2410c",
-    roles: ["admin", "tecnico", "superadmin", "cliente", "secretaria", "supervisor"],
+    roles: ["admin", "tecnico", "superadmin", "cliente", "secretaria", "supervisor", "tecnicotaller"],
     clientLabel: "Mis Matafuegos",
     clientDescription: "Estado de mantenimiento y remitos de tus extintores.",
   },
@@ -126,6 +127,22 @@ const MODULES = [
     clientLabel: "Mis Documentos",
     clientDescription: "Presupuestos y documentación de tus servicios.",
   },
+  {
+    icon: <FolderOpen size={24} />,
+    label: "Mis Presupuestos",
+    description: "Presupuestos de recarga que generaste vos.",
+    href: "/admin/documentos/presupuestos",
+    color: "#0d9488",
+    roles: ["tecnicotaller"],
+  },
+  {
+    icon: <BookOpen size={24} />,
+    label: "Libro Contable",
+    description: "Ingresos y egresos del local de extintores.",
+    href: "/admin/libro-contable",
+    color: "#15803d",
+    roles: ["admin", "superadmin", "tecnicotaller"],
+  },
 ];
 
 export default function AdminDashboard() {
@@ -195,6 +212,8 @@ export default function AdminDashboard() {
               ? "Panel de Cliente · ARIFA Seguridad"
               : role?.toLowerCase() === "tecnico"
               ? "Panel de Técnico · Gestión de OT y Matafuegos"
+              : role?.toLowerCase() === "tecnicotaller"
+              ? "Panel de Técnico de Taller · Matafuegos, Presupuestos y Caja"
               : role?.toLowerCase() === "tecnichys"
               ? "Panel de Técnico HyS · Higiene y Seguridad"
               : role?.toLowerCase() === "supervisor"

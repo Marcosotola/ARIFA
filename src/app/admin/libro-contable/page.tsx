@@ -5,7 +5,9 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, serverTimestamp } from "firebase/firestore";
 import { useToast, Toast } from "@/components/Toast";
-import { Plus, Download, Pencil, Trash2, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { ajustarStock } from "@/lib/stock";
+import Link from "next/link";
+import { Plus, Download, Pencil, Trash2, TrendingUp, TrendingDown, Wallet, FileUp } from "lucide-react";
 import {
   MEDIOS_PAGO, CATEGORIAS_INGRESO, MESES, Movimiento,
   fmtPeso, fmtFecha, rangoPeriodo, totales, porMedioPago, porCategoria, porMes, movimientosCsv,
@@ -14,11 +16,15 @@ import {
 interface FormMov {
   fecha: string; tipo: "ingreso" | "egreso"; monto: string; medioPago: string;
   cliente: string; telefono: string; concepto: string; categorias: string[];
+  productoId: string; cantidadVendida: string;
 }
+
+interface ProductoStock { id: string; titulo: string; stock: number; }
 
 const hoy = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
 const formVacio = (tipo: "ingreso" | "egreso" = "ingreso"): FormMov => ({
   fecha: hoy(), tipo, monto: "", medioPago: "Efectivo", cliente: "", telefono: "", concepto: "", categorias: [],
+  productoId: "", cantidadVendida: "1",
 });
 
 const inputSt: React.CSSProperties = { width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1.5px solid #ddd", fontSize: "0.92rem", outline: "none", boxSizing: "border-box" };
@@ -30,9 +36,11 @@ export default function LibroContablePage() {
   const router = useRouter();
   const { toast, showToast } = useToast();
   const [currentUser, setCurrentUser] = useState<{ uid: string; nombre: string } | null>(null);
+  const [soloPropio, setSoloPropio] = useState(false);
   const [autorizado, setAutorizado] = useState(false);
   const [movs, setMovs] = useState<Movimiento[]>([]);
   const [loading, setLoading] = useState(true);
+  const [productos, setProductos] = useState<ProductoStock[]>([]);
 
   const [anio, setAnio] = useState(new Date().getFullYear());
   const [mes, setMes] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
@@ -51,7 +59,10 @@ export default function LibroContablePage() {
       if (!u) { router.push("/login"); return; }
       const snap = await getDoc(doc(db, "usuarios", u.uid));
       const data = snap.exists() ? snap.data() : {};
-      if (data.rol !== "admin" && data.rol !== "superadmin") { router.push("/admin"); return; }
+      const esAdmin = data.rol === "admin" || data.rol === "superadmin";
+      const esTecnicoTaller = data.rol === "tecnicoTaller";
+      if (!esAdmin && !esTecnicoTaller) { router.push("/admin"); return; }
+      setSoloPropio(esTecnicoTaller);
       setCurrentUser({ uid: u.uid, nombre: data.nombre || u.email || "" });
       setAutorizado(true);
     });
@@ -59,13 +70,13 @@ export default function LibroContablePage() {
   }, [router]);
 
   const cargar = useCallback(async () => {
+    if (!currentUser) return;
     setLoading(true);
     try {
       const { desde, hasta } = rangoPeriodo(anio, mes);
-      const snap = await getDocs(query(
-        collection(db, "libro_contable"),
-        where("fecha", ">=", desde), where("fecha", "<=", hasta), orderBy("fecha", "desc")
-      ));
+      const filtros = [where("fecha", ">=", desde), where("fecha", "<=", hasta)];
+      if (soloPropio) filtros.push(where("creadoPorId", "==", currentUser.uid));
+      const snap = await getDocs(query(collection(db, "libro_contable"), ...filtros, orderBy("fecha", "desc")));
       setMovs(snap.docs.map(d => ({ id: d.id, ...d.data() } as Movimiento)));
     } catch (e) {
       console.error(e);
@@ -73,9 +84,16 @@ export default function LibroContablePage() {
     } finally {
       setLoading(false);
     }
-  }, [anio, mes, showToast]);
+  }, [anio, mes, showToast, soloPropio, currentUser]);
 
   useEffect(() => { if (autorizado) cargar(); }, [autorizado, cargar]);
+
+  useEffect(() => {
+    if (!autorizado) return;
+    getDocs(query(collection(db, "productos"), where("activo", "==", true)))
+      .then(snap => setProductos(snap.docs.map(d => ({ id: d.id, titulo: d.data().titulo, stock: Number(d.data().stock) || 0 }))))
+      .catch(console.error);
+  }, [autorizado]);
 
   const visibles = movs.filter(m =>
     (filtroTipo === "todos" || m.tipo === filtroTipo) &&
@@ -93,6 +111,7 @@ export default function LibroContablePage() {
     setForm({
       fecha: m.fecha, tipo: m.tipo, monto: String(m.monto), medioPago: m.medioPago || "Efectivo",
       cliente: m.cliente || "", telefono: m.telefono || "", concepto: m.concepto || "", categorias: m.categorias || [],
+      productoId: m.productoId || "", cantidadVendida: String(m.cantidadVendida || 1),
     });
     setModal(true);
   };
@@ -100,26 +119,42 @@ export default function LibroContablePage() {
   const toggleCategoria = (c: string) =>
     setForm(prev => ({ ...prev, categorias: prev.categorias.includes(c) ? prev.categorias.filter(x => x !== c) : [...prev.categorias, c] }));
 
+  const esVenta = form.tipo === "ingreso" && form.categorias.includes("Venta");
+
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
     const monto = Number(form.monto.replace(",", "."));
     if (!form.fecha) { showToast("Ingresá la fecha.", "error"); return; }
     if (!(monto > 0)) { showToast("El monto tiene que ser mayor a cero.", "error"); return; }
     if (!currentUser) return;
+    const cantidad = esVenta && form.productoId ? Math.max(1, Math.floor(Number(form.cantidadVendida) || 0)) : 0;
+    if (esVenta && form.productoId && cantidad < 1) { showToast("La cantidad vendida tiene que ser al menos 1.", "error"); return; }
     setSaving(true);
     try {
+      const productoNombre = form.productoId ? productos.find(p => p.id === form.productoId)?.titulo : undefined;
       const payload = {
         fecha: form.fecha, tipo: form.tipo, monto, medioPago: form.medioPago,
         cliente: form.cliente.trim(), telefono: form.telefono.trim(), concepto: form.concepto.trim(),
         categorias: form.tipo === "ingreso" ? form.categorias : [],
+        productoId: esVenta ? (form.productoId || null) : null,
+        productoNombre: esVenta ? (productoNombre || null) : null,
+        cantidadVendida: esVenta && form.productoId ? cantidad : null,
         updatedAt: serverTimestamp(),
       };
+      const anterior = editId ? movs.find(m => m.id === editId) : null;
       if (editId) {
         await updateDoc(doc(db, "libro_contable", editId), payload);
       } else {
         await addDoc(collection(db, "libro_contable"), {
           ...payload, creadoPorId: currentUser.uid, creadoPorNombre: currentUser.nombre, createdAt: serverTimestamp(),
         });
+      }
+      // Ajusta el stock: devuelve lo que tenía reservado el movimiento anterior y descuenta lo nuevo.
+      if (anterior?.productoId && anterior.cantidadVendida) {
+        await ajustarStock(anterior.productoId, anterior.cantidadVendida).catch(console.error);
+      }
+      if (payload.productoId && payload.cantidadVendida) {
+        await ajustarStock(payload.productoId, -payload.cantidadVendida).catch(console.error);
       }
       setModal(false);
       showToast(editId ? "Movimiento actualizado" : "Movimiento registrado", "success");
@@ -135,7 +170,11 @@ export default function LibroContablePage() {
   const eliminar = async () => {
     if (!borrarId) return;
     try {
+      const m = movs.find(x => x.id === borrarId);
       await deleteDoc(doc(db, "libro_contable", borrarId));
+      if (m?.productoId && m.cantidadVendida) {
+        await ajustarStock(m.productoId, m.cantidadVendida).catch(console.error);
+      }
       setMovs(prev => prev.filter(m => m.id !== borrarId));
       showToast("Movimiento eliminado", "success");
     } catch (err) {
@@ -162,10 +201,15 @@ export default function LibroContablePage() {
     <div style={{ maxWidth: "1100px", margin: "0 auto", paddingBottom: "80px" }}>
       <header style={{ marginBottom: "24px", display: "flex", justifyContent: "space-between", alignItems: "flex-end", flexWrap: "wrap", gap: "15px" }}>
         <div>
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)", margin: 0 }}>Libro Contable</h1>
-          <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>Ingresos y egresos del local de extintores.</p>
+          <h1 style={{ fontSize: "1.8rem", fontWeight: 800, color: "var(--primary-blue)", margin: 0 }}>{soloPropio ? "Mis Movimientos" : "Libro Contable"}</h1>
+          <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>{soloPropio ? "Tus ingresos y egresos cargados en el local." : "Ingresos y egresos del local de extintores."}</p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          {!soloPropio && (
+            <Link href="/admin/libro-contable/importar" style={{ padding: "10px 16px", borderRadius: "10px", border: "1px solid #ddd", background: "#fff", fontWeight: 700, display: "flex", alignItems: "center", gap: "8px", textDecoration: "none", color: "inherit" }}>
+              <FileUp size={16} /> Importar histórico
+            </Link>
+          )}
           <button onClick={exportar} disabled={visibles.length === 0} style={{ padding: "10px 16px", borderRadius: "10px", border: "1px solid #ddd", background: "#fff", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
             <Download size={16} /> Exportar a Excel
           </button>
@@ -317,6 +361,7 @@ export default function LibroContablePage() {
                     <td style={{ padding: "12px 14px", fontSize: "0.85rem" }}>
                       {m.concepto || "—"}
                       {m.categorias?.length > 0 && <div style={{ fontSize: "0.68rem", fontWeight: 800, color: "#0369a1", textTransform: "uppercase", marginTop: "2px" }}>{m.categorias.join(" + ")}</div>}
+                      {m.productoNombre && <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "#15803d", marginTop: "2px" }}>📦 -{m.cantidadVendida} {m.productoNombre}</div>}
                     </td>
                     <td style={{ padding: "12px 14px", fontSize: "0.82rem" }}>{m.medioPago}</td>
                     <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", whiteSpace: "nowrap" }}>{m.tipo === "ingreso" ? fmtPeso(m.monto) : ""}</td>
@@ -383,6 +428,22 @@ export default function LibroContablePage() {
                       {c}
                     </button>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {esVenta && (
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "14px", marginBottom: "14px", background: "#f0fdf4", padding: "14px", borderRadius: "10px", border: "1px solid #bbf7d0" }}>
+                <div>
+                  <label style={labelSt}>Producto (descuenta stock)</label>
+                  <select value={form.productoId} onChange={e => setCampo("productoId", e.target.value)} style={{ ...inputSt, background: "#fff" }}>
+                    <option value="">-- No descontar stock --</option>
+                    {productos.map(p => <option key={p.id} value={p.id}>{p.titulo} (stock: {p.stock})</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={labelSt}>Cantidad</label>
+                  <input type="number" min="1" step="1" value={form.cantidadVendida} onChange={e => setCampo("cantidadVendida", e.target.value)} style={inputSt} disabled={!form.productoId} />
                 </div>
               </div>
             )}

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc, arrayUnion } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
@@ -31,7 +31,15 @@ interface EquipoRemito {
   cantidad: string;
   marca: string;
   esPrestamo: boolean;
+  nroBackup?: string;
   estado: "bueno" | "malo" | "recarga";
+}
+
+interface Backup {
+  id: string;
+  numero: string;
+  estado: "deposito" | "prestado";
+  clienteId?: string | null;
 }
 
 export default function NuevoRemitoPage() {
@@ -69,6 +77,7 @@ export default function NuevoRemitoPage() {
   const [numeroExistente, setNumeroExistente] = useState<number | null>(null);
   const [proximaOblea, setProximaOblea] = useState<number>(1);
   const [marcasUsadas, setMarcasUsadas] = useState<string[]>([]);
+  const [backups, setBackups] = useState<Backup[]>([]);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [newClientData, setNewClientData] = useState({ 
     nombre: "", 
@@ -87,15 +96,17 @@ export default function NuevoRemitoPage() {
       if (!u) { router.push("/login"); return; }
       
       try {
-        const [userDoc, clientsSnap] = await Promise.all([
+        const [userDoc, clientsSnap, backupsSnap] = await Promise.all([
           getDoc(doc(db, "usuarios", u.uid)),
-          getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente")))
+          getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente"))),
+          getDocs(collection(db, "matafuegos_backup")),
         ]);
 
         const tecnicoData = { uid: u.uid, nombre: userDoc.exists() ? userDoc.data().nombre || u.email : u.email };
         setTecnico(tecnicoData);
         const allClients = clientsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setClientes(allClients);
+        setBackups(backupsSnap.docs.map(d => ({ id: d.id, ...d.data() } as Backup)));
 
         // Cargar configuración de obleas
         const configDoc = await getDoc(doc(db, "configuracion", "matafuegos"));
@@ -290,6 +301,32 @@ export default function NuevoRemitoPage() {
 
       await Promise.all(updates);
       registrarMarcas(equiposFinal.map(e => e.marca)).catch(console.error);
+
+      // Actualizar el inventario de backups según qué equipos de préstamo se entregaron o devolvieron
+      const hoy = new Date().toISOString().split("T")[0];
+      const backupUpdates = equiposFinal
+        .filter(eq => eq.esPrestamo && eq.nroBackup)
+        .map(async (eq) => {
+          const b = backups.find(x => x.numero === eq.nroBackup);
+          if (!b) return;
+          if (tipoMovimiento === "entrega") {
+            await updateDoc(doc(db, "matafuegos_backup", b.id), {
+              estado: "prestado",
+              clienteId: clienteSeleccionado?.id || null,
+              clienteNombre: nombre,
+              sedeNombre: sedeNombre || "",
+              historial: arrayUnion({ fecha: hoy, accion: "prestado", clienteNombre: nombre, sedeNombre: sedeNombre || "" }),
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            await updateDoc(doc(db, "matafuegos_backup", b.id), {
+              estado: "deposito", clienteId: null, clienteNombre: "", sedeNombre: "",
+              historial: arrayUnion({ fecha: hoy, accion: "devuelto", clienteNombre: nombre, sedeNombre: sedeNombre || "" }),
+              updatedAt: serverTimestamp(),
+            });
+          }
+        });
+      await Promise.all(backupUpdates).catch(console.error);
 
       showToast(editId ? "Remito actualizado correctamente" : "Remito generado con éxito", "success");
       setTimeout(() => router.push("/admin/planillas/matafuegos?tab=remitos"), 1200);
@@ -521,6 +558,21 @@ export default function NuevoRemitoPage() {
                       <Trash2 size={14} /> Eliminar
                     </button>
                   </div>
+                  {eq.esPrestamo && (
+                    <div style={{ marginTop: '10px' }}>
+                      <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>
+                        {tipoMovimiento === "entrega" ? "QUÉ BACKUP SE ENTREGA" : "QUÉ BACKUP SE DEVUELVE"}
+                      </label>
+                      <select value={eq.nroBackup || ""} onChange={(e) => updateEquipo(idx, 'nroBackup', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #fdba74', background: '#fff7ed' }}>
+                        <option value="">-- No vincular con el inventario de backups --</option>
+                        {backups
+                          .filter(b => tipoMovimiento === "entrega"
+                            ? (b.estado === "deposito" || b.numero === eq.nroBackup)
+                            : (b.estado === "prestado" && (!clienteSeleccionado || b.clienteId === clienteSeleccionado.id)))
+                          .map(b => <option key={b.id} value={b.numero}>N° {b.numero}</option>)}
+                      </select>
+                    </div>
+                  )}
               </div>
           ))
         )}

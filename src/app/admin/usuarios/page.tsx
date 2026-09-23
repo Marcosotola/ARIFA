@@ -141,6 +141,7 @@ export default function UsuariosPage() {
     if (r === "superadmin") return { bg: "var(--primary-blue)", color: "#fff" };
     if (r === "admin") return { bg: "rgba(163,31,29,0.1)", color: "var(--primary-red)" };
     if (r === "tecnico") return { bg: "rgba(0,34,68,0.08)", color: "var(--primary-blue)" };
+    if (r === "tecnicotaller") return { bg: "rgba(21,128,61,0.1)", color: "#15803d" };
     if (r === "secretaria") return { bg: "rgba(245,158,11,0.12)", color: "#b45309" };
     return { bg: "rgba(0,0,0,0.05)", color: "#666" };
   };
@@ -510,6 +511,7 @@ export default function UsuariosPage() {
                   <select style={{ ...inputSt, paddingLeft: '38px', background: "#fff" }} value={editingUser.rol} onChange={e => setEditingUser({ ...editingUser, rol: e.target.value })}>
                     <option value="cliente">Cliente</option>
                     <option value="tecnico">Técnico</option>
+                    <option value="tecnicoTaller">Técnico de Taller</option>
                     <option value="tecnicoHyS">Técnico HyS</option>
                     <option value="supervisor">Supervisor</option>
                     <option value="secretaria">Secretaria</option>

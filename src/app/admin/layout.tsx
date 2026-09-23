@@ -99,6 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isClient = r === "cliente";
   const isSecretaria = r === "secretaria";
   const isTecnicoHyS = r === "tecnichys";
+  const isTecnicoTaller = r === "tecnicotaller";
   const isSupervisor = r === "supervisor";
   const isStaff = ["admin", "superadmin", "tecnico", "secretaria"].includes(r || "");
 
@@ -188,8 +189,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // Matafuegos — admin, tecnico, secretaria, supervisor (gestionan) y cliente (consulta)
-  if (isAdmin || isTecnico || isSecretaria || isClient || isSupervisor) {
+  // Matafuegos — admin, tecnico, tecnicoTaller, secretaria, supervisor (gestionan) y cliente (consulta)
+  if (isAdmin || isTecnico || isTecnicoTaller || isSecretaria || isClient || isSupervisor) {
     sidebarLinks.push({ label: "Matafuegos", href: "/admin/planillas/matafuegos", icon: <Flame size={20} />, color: "#c2410c" });
   }
 
@@ -223,7 +224,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // Productos — admin, tecnico y secretaria
+  // Productos — admin, tecnico y secretaria (tecnicoTaller no ve costos/márgenes; usa el selector de producto al cargar una venta)
   if (isAdmin || isTecnico || isSecretaria) {
     sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: <ShoppingCart size={20} />, color: "#b45309" });
   }
@@ -239,8 +240,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }
 
-  // Libro contable — solo admin (incluye retiros de caja y totales)
-  if (isAdmin) {
+  // Mis Presupuestos — tecnicoTaller (solo los que él mismo crea; no ve el resto de Documentos)
+  if (isTecnicoTaller) {
+    sidebarLinks.push({
+      label: "Mis Presupuestos",
+      href: "/admin/documentos/presupuestos",
+      icon: <FolderOpen size={20} />,
+      color: "#0d9488",
+      matchChildren: true,
+    });
+  }
+
+  // Libro contable — admin (todo) y tecnicoTaller (solo sus propios movimientos)
+  if (isAdmin || isTecnicoTaller) {
     sidebarLinks.push({ label: "Libro Contable", href: "/admin/libro-contable", icon: <BookOpen size={20} />, color: "#15803d" });
   }
 
@@ -286,7 +298,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <img src="/logos/logoFondoTransparente.svg" alt="ARIFA" style={{ height: '60px' }} />
           <span style={{ fontSize: '0.6rem', fontWeight: 400, opacity: 0.8, textTransform: 'uppercase', letterSpacing: '1px' }}>
-            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : isSupervisor ? "SUPERVISOR" : "PANEL"}
+            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoTaller ? "TÉC. TALLER" : isTecnicoHyS ? "TÉC. HyS" : isSupervisor ? "SUPERVISOR" : "PANEL"}
           </span>
         </div>
         <div style={{ width: '40px' }}></div>
@@ -326,7 +338,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div style={{ marginBottom: "40px", textAlign: "center", display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
           <img src="/logos/logoFondoTransparente.svg" alt="ARIFA Logo" style={{ height: '90px' }} />
           <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.7, letterSpacing: '2px', textTransform: 'uppercase' }}>
-            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoHyS ? "TÉC. HyS" : isSupervisor ? "SUPERVISOR" : "PANEL"}
+            {isClient ? "CLIENTE" : isTecnico ? "TÉCNICO" : isTecnicoTaller ? "TÉC. TALLER" : isTecnicoHyS ? "TÉC. HyS" : isSupervisor ? "SUPERVISOR" : "PANEL"}
           </span>
         </div>
 

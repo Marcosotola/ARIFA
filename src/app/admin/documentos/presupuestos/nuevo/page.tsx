@@ -141,6 +141,7 @@ function NuevoPresupuestoContent() {
           const presDoc = await getDoc(doc(db, "presupuestos", editId));
           if (presDoc.exists()) {
             const d = presDoc.data();
+            if (userData.rol === "tecnicoTaller" && d.creadoPorId !== u.uid) { router.push("/admin/documentos/presupuestos"); return; }
             setNumero(d.numero || "");
             setFecha(d.fecha || "");
             setValidezDias(d.validezDias || 15);
