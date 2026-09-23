@@ -115,6 +115,27 @@
   margin-top: 12px;
 }
 
+.cambiarMedioBox {
+  margin-top: 16px;
+  padding: 16px;
+  background: #F5F7FA;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.cambiarMedioBox ol {
+  margin: 10px 0;
+  padding-left: 20px;
+}
+
+.cambiarMedioLink {
+  color: var(--primary-blue);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .fullWidthBtn {
   width: 100%;
   padding: 15px;
