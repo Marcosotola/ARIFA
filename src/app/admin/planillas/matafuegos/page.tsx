@@ -9,6 +9,7 @@ import Link from "next/link";
 import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";
 import { CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
 import { normalizarMarca, sugerenciasMarcas, registrarMarcas } from "@/lib/marcas";
+import { MESES } from "@/lib/libroContable";
 import { 
   Package, 
   Settings, 
@@ -392,6 +393,16 @@ function MatafuegosUnifiedContent() {
           }}>
           <ShieldCheck size={18} strokeWidth={2.5} /> Inventario Equipos
         </button>
+        {isStaff && (
+          <Link href="/admin/planillas/matafuegos/backups"
+            style={{
+              padding: '10px 18px', borderRadius: '10px', border: '1.5px solid #fdba74',
+              background: '#fff7ed', fontWeight: 800, color: '#c2410c', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none', transition: '0.3s',
+            }}>
+            <Package size={18} strokeWidth={2.5} /> Backups
+          </Link>
+        )}
       </div>
 
       {/* ESPACIO PARA ESTADÍSTICAS SI ES INVENTARIO */}
@@ -1141,13 +1152,24 @@ function MatafuegosUnifiedContent() {
                   )}
                 </div>
                  <div>
-                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Año Fab.</label>
-                   <input 
-                     type="text" 
-                     value={editInventory.datosTecnicos?.anioFab || ""} 
-                     onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, anioFab: e.target.value } })}
-                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
-                   />
+                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Fabricación (Mes / Año)</label>
+                   <div style={{ display: "flex", gap: "5px" }}>
+                     <select
+                       value={editInventory.datosTecnicos?.mesFab || ""}
+                       onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, mesFab: e.target.value } })}
+                       style={{ width: "90px", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
+                     >
+                       <option value="">Mes</option>
+                       {MESES.map((n, i) => <option key={n} value={String(i + 1).padStart(2, "0")}>{n}</option>)}
+                     </select>
+                     <input
+                       type="text"
+                       placeholder="Año"
+                       value={editInventory.datosTecnicos?.anioFab || ""}
+                       onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, anioFab: e.target.value } })}
+                       style={{ flex: 1, padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
+                     />
+                   </div>
                  </div>
               </div>
 

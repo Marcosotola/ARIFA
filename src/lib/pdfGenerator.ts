@@ -1,4 +1,4 @@
-import { AGENTES_NOMBRE, OBLEA_EMISOR, MANTENIMIENTO_ARIFA } from "./matafuegosConstants";
+import { AGENTES_NOMBRE, OBLEA_EMISOR, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA } from "./matafuegosConstants";
 
 export const generateMantenimientoPDF = async (ficha: any) => {
     const { default: jsPDF } = await import("jspdf");
@@ -117,9 +117,11 @@ export const generateMantenimientoPDF = async (ficha: any) => {
         "Fec. Mant.",
         "Vence Mant.",
         "Estado",
+        "Mant. Por",
       ]],
       body: ficha.items.map((item: any, idx: number) => {
         const marcaDisplay = item.marca === "Otro" ? (item.marcaOtro || "-") : (item.marca || "-");
+        const mantPor = item.mantenimientoPor === MANTENIMIENTO_OTRA ? (item.empresaMantenimiento || "Otra") : MANTENIMIENTO_ARIFA;
         const nroFab = item.nroFabricacion || "-";
         const fechaPH = item.ultimaPH ? new Date(item.ultimaPH + "T12:00:00").toLocaleDateString("es-AR") : "-";
         const venceMant = item.vencimientoCarga
@@ -138,6 +140,7 @@ export const generateMantenimientoPDF = async (ficha: any) => {
           fecStr,
           venceMant,
           (item.estadoCilindro || "-").toUpperCase(),
+          mantPor,
         ];
       }),
       theme: "grid",
@@ -150,6 +153,7 @@ export const generateMantenimientoPDF = async (ficha: any) => {
         9: { halign: "center" },
         10: { halign: "center" },
         11: { halign: "center", cellWidth: 22 },
+        12: { halign: "center", cellWidth: 22 },
       },
       didParseCell: (data: any) => {
         if (data.section === 'body' && data.column.index === 11) {
@@ -174,7 +178,12 @@ export const generateMantenimientoPDF = async (ficha: any) => {
     pdf.text("La vigencia de las cargas es de 1 año a partir de la fecha de servicio. Se recomienda control mensual.", ML, y + 5);
     pdf.setFont("helvetica", "bold");
     pdf.setTextColor(0, 34, 68);
-    pdf.text("EMPRESA QUE REALIZÓ EL MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2: ARIFA", ML, y + 12);
+    const empresasMant = Array.from(new Set(ficha.items.map((it: any) =>
+      it.mantenimientoPor === MANTENIMIENTO_OTRA ? (it.empresaMantenimiento || "Otra empresa") : MANTENIMIENTO_ARIFA)));
+    const textoEmpresa = empresasMant.length === 1
+      ? `EMPRESA QUE REALIZÓ EL MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2: ${empresasMant[0]}`
+      : `MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2 — VER EMPRESA POR EQUIPO EN LA COLUMNA "MANT. POR"`;
+    pdf.text(textoEmpresa, ML, y + 12);
 
     y += 40;
     if (y > 185) { pdf.addPage(); y = 40; }
@@ -1315,7 +1324,7 @@ const datosOblea = (ficha: any, item: any): ObleaDatos => {
     capacidad: item.capacidad === "Otro" ? (item.capacidadOtro || "") : (item.capacidad || ""),
     agente: AGENTES_NOMBRE[item.agente] || item.agente || "",
     nroFabricacion: item.nroFabricacion || "",
-    fechaFabricacion: item.anioFab || "",
+    fechaFabricacion: item.mesFab && item.anioFab ? `${item.mesFab}/${item.anioFab}` : (item.anioFab || ""),
     cargaMes: carga.mes, cargaAnio: carga.anio,
     vencCargaMes: vencCarga.mes, vencCargaAnio: vencCarga.anio,
     phMes: ph.mes, phAnio: ph.anio,

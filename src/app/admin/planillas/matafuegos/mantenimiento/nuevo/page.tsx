@@ -4,6 +4,7 @@ import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
 import { CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
 import { normalizarMarca, sugerenciasMarcas, registrarMarcas } from "@/lib/marcas";
+import { MESES } from "@/lib/libroContable";
 import { renumerarAuto, reservarTarjetas } from "@/lib/tarjetas";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
@@ -38,6 +39,7 @@ interface MantenimientoItem {
   marca: string;
   nroFabricacion: string;
   anioFab: string;
+  mesFab: string;
   estadoCilindro: "aprobado" | "rechazado";
   inspeccionVisual: "ok" | "nok" | "observaciones";
   componentesReemplazados: string[];
@@ -167,6 +169,7 @@ function FichaFormContent() {
               marca: eq.marca || "",
               nroFabricacion: "",
               anioFab: "",
+              mesFab: "",
               estadoCilindro: "aprobado",
               inspeccionVisual: "ok",
               componentesReemplazados: [],
@@ -255,7 +258,7 @@ function FichaFormContent() {
       id: Math.random().toString(36).substr(2, 9),
       nroTarjeta: "", tarjetaAuto: true, mantenimientoPor: MANTENIMIENTO_ARIFA, empresaMantenimiento: "",
       sector: "", agente: "ABC", base: "", capacidad: "5kg", claseFuego: ["A", "B", "C"],
-      marca: "", nroFabricacion: "", anioFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
+      marca: "", nroFabricacion: "", anioFab: "", mesFab: "", estadoCilindro: "aprobado", inspeccionVisual: "ok",
       componentesReemplazados: [], agenteAdicional: "",
       presionInicial: "", presionFinal: "", pesoInicial: "", pesoFinal: "",
       marbeteColor: "", marbeteAnio: new Date().getFullYear().toString(),
@@ -307,6 +310,7 @@ function FichaFormContent() {
           mantenimientoPor: data.mantenimientoPor || newItems[idx].mantenimientoPor,
           empresaMantenimiento: data.empresaMantenimiento || newItems[idx].empresaMantenimiento,
           anioFab: tec.anioFab || newItems[idx].anioFab,
+          mesFab: tec.mesFab || newItems[idx].mesFab,
           claseFuego: tec.claseFuego || newItems[idx].claseFuego,
           ultimaPH: hist.ultimaPH || newItems[idx].ultimaPH,
           proximaPH: hist.proximaPH || newItems[idx].proximaPH,
@@ -388,6 +392,7 @@ function FichaFormContent() {
             capacidad: it.capacidad,
             marca: it.marca,
             anioFab: it.anioFab,
+            mesFab: it.mesFab,
             claseFuego: it.claseFuego
           },
           historial: {
@@ -719,8 +724,14 @@ function FichaFormContent() {
                 <input value={item.nroFabricacion} onChange={e => updateItem(idx, 'nroFabricacion', e.target.value)} placeholder="Serie del cilindro" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
               </div>
               <div>
-                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>AÑO FABRICACIÓN</label>
-                <input value={item.anioFab} onChange={e => updateItem(idx, 'anioFab', e.target.value)} placeholder="Ej: 2020" style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>FABRICACIÓN (MES / AÑO)</label>
+                <div style={{ display: 'flex', gap: '5px' }}>
+                  <select value={item.mesFab} onChange={e => updateItem(idx, 'mesFab', e.target.value)} style={{ width: '90px', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
+                    <option value="">Mes</option>
+                    {MESES.map((n, i) => <option key={n} value={String(i + 1).padStart(2, "0")}>{n}</option>)}
+                  </select>
+                  <input value={item.anioFab} onChange={e => updateItem(idx, 'anioFab', e.target.value)} placeholder="Año, ej: 2020" style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }} />
+                </div>
               </div>
             </div>
 
