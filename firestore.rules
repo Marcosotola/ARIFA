@@ -232,15 +232,26 @@ service cloud.firestore {
       allow read, write: if request.auth != null && isDocStaff();
     }
 
-    // Libro contable (ingresos y egresos del local): admin ve todo; el técnico de taller solo lo propio
+    // Cuenta corriente de clientes (facturas, pagos y ajustes): de acá se calcula el estado de cuenta
+    match /cuenta_corriente/{id} {
+      allow read: if request.auth != null && (isDocStaff() || resource.data.clienteId == request.auth.uid);
+      allow create, update: if request.auth != null && isDocStaff();
+      allow delete: if isAdmin();
+    }
+
+    // Libro contable (ingresos y egresos del local): admin ve todo; el técnico de taller solo lo propio.
+    // El personal de documentos puede manejar solo los cobros que se cargan desde la cuenta corriente.
     match /libro_contable/{id} {
-      allow read: if isAdmin() || (isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid);
-      allow create: if isAdmin() || (isTecnicoTaller() && request.resource.data.creadoPorId == request.auth.uid);
+      allow read: if isAdmin() || (isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid)
+        || (isDocStaff() && resource.data.origen == 'cuenta_corriente');
+      allow create: if isAdmin() || (isTecnicoTaller() && request.resource.data.creadoPorId == request.auth.uid)
+        || (isDocStaff() && request.resource.data.origen == 'cuenta_corriente');
       allow update: if isAdmin() || (
         isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid &&
         request.resource.data.creadoPorId == resource.data.creadoPorId
-      );
-      allow delete: if isAdmin() || (isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid);
+      ) || (isDocStaff() && resource.data.origen == 'cuenta_corriente' && request.resource.data.origen == 'cuenta_corriente');
+      allow delete: if isAdmin() || (isTecnicoTaller() && resource.data.creadoPorId == request.auth.uid)
+        || (isDocStaff() && resource.data.origen == 'cuenta_corriente');
     }
 
     // Consultas y Notificaciones

@@ -70,7 +70,7 @@ export default function DocumentosPage() {
             icon: <FileText size={26} color="#2563eb" strokeWidth={2} />,
             iconBg: "rgba(37,99,235,0.1)",
             title: "Estado de Cuenta",
-            desc: "Seguimiento de costos e ingresos de obra",
+            desc: "Facturas, pagos y saldo de cada cliente",
             hoverShadow: "0 8px 30px rgba(37,99,235,0.12)",
           },
         ].map(item => (

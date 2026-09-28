@@ -1,4 +1,4 @@
-export const MEDIOS_PAGO = ["Efectivo", "Transferencia", "QR", "Débito", "Crédito"];
+export const MEDIOS_PAGO = ["Efectivo", "Transferencia", "QR", "Débito", "Crédito", "E-Cheq", "Cheque", "Otro"];
 export const CATEGORIAS_INGRESO = ["Venta", "Recarga", "Prueba hidráulica", "Servicio", "Producto", "Otro"];
 export const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -17,6 +17,8 @@ export interface Movimiento {
   cantidadVendida?: number;
   creadoPorId?: string;
   creadoPorNombre?: string;
+  origen?: "cuenta_corriente"; // cobro cargado desde el estado de cuenta de un cliente: se edita desde ahí
+  cuentaMovId?: string;
 }
 
 export const fmtPeso = (n: number) =>

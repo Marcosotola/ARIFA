@@ -367,8 +367,17 @@ export default function LibroContablePage() {
                     <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#15803d", whiteSpace: "nowrap" }}>{m.tipo === "ingreso" ? fmtPeso(m.monto) : ""}</td>
                     <td style={{ padding: "12px 14px", textAlign: "right", fontWeight: 800, color: "#b91c1c", whiteSpace: "nowrap" }}>{m.tipo === "egreso" ? fmtPeso(m.monto) : ""}</td>
                     <td style={{ padding: "12px 14px", whiteSpace: "nowrap" }}>
-                      <button onClick={() => abrirEditar(m)} title="Editar" style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}><Pencil size={16} /></button>
-                      <button onClick={() => setBorrarId(m.id)} title="Eliminar" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", marginLeft: "6px" }}><Trash2 size={16} /></button>
+                      {m.origen === "cuenta_corriente" ? (
+                        <Link href="/admin/documentos/estado-cuenta" title="Cobro de cuenta corriente: se edita desde el Estado de Cuenta del cliente"
+                          style={{ fontSize: "0.68rem", fontWeight: 800, color: "#2563eb", textDecoration: "none", textTransform: "uppercase" }}>
+                          Cta. cte.
+                        </Link>
+                      ) : (
+                        <>
+                          <button onClick={() => abrirEditar(m)} title="Editar" style={{ background: "none", border: "none", cursor: "pointer", color: "#64748b" }}><Pencil size={16} /></button>
+                          <button onClick={() => setBorrarId(m.id)} title="Eliminar" style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", marginLeft: "6px" }}><Trash2 size={16} /></button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
