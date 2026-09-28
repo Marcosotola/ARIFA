@@ -37,9 +37,18 @@ export default function ImportarLibroPage() {
   const onArchivo = (file: File) => {
     setNombreArchivo(file.name);
     setImportado(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const { filas: parsed, columnasFaltantes } = parseLibroCsv(String(reader.result || ""));
+    const leer = (encoding: string) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const texto = String(reader.result || "");
+        // Excel en Windows suele guardar el CSV en ANSI: si los acentos no se leen como UTF-8, se relee en windows-1252.
+        if (encoding === "utf-8" && texto.includes("�")) { leer("windows-1252"); return; }
+        procesar(texto);
+      };
+      reader.readAsText(file, encoding);
+    };
+    const procesar = (texto: string) => {
+      const { filas: parsed, columnasFaltantes } = parseLibroCsv(texto);
       if (columnasFaltantes.length > 0) {
         showToast(columnasFaltantes.join(" "), "error");
         setFilas([]);
@@ -47,7 +56,7 @@ export default function ImportarLibroPage() {
       }
       setFilas(parsed);
     };
-    reader.readAsText(file, "utf-8");
+    leer("utf-8");
   };
 
   const actualizarFila = (idx: number, cambios: Partial<FilaImportada>) => {

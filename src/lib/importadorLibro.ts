@@ -27,10 +27,24 @@ const MEDIOS_CONOCIDOS: Record<string, string> = {
   "débito": "Débito",
   credito: "Crédito",
   "crédito": "Crédito",
+  cheque: "Cheque",
+  echeq: "E-Cheq",
+  "e-cheq": "E-Cheq",
+  "e-cheque": "E-Cheq",
+  otro: "Otro",
 };
+
+// Excel en español exporta el CSV separado por ";" (la coma es el separador decimal); Google Sheets usa ",".
+function detectarSeparador(t: string): string {
+  const muestra = t.split(/\r?\n/).slice(0, 10).join("\n");
+  const pc = (muestra.match(/;/g) || []).length;
+  const c = (muestra.match(/,/g) || []).length;
+  return pc > c ? ";" : ",";
+}
 
 export function parseCsv(texto: string): string[][] {
   const t = texto.replace(/^﻿/, "");
+  const sep = detectarSeparador(t);
   const filas: string[][] = [];
   let fila: string[] = [];
   let campo = "";
@@ -43,7 +57,7 @@ export function parseCsv(texto: string): string[][] {
       else campo += ch;
     } else if (ch === '"') {
       entreComillas = true;
-    } else if (ch === ",") {
+    } else if (ch === sep) {
       fila.push(campo); campo = "";
     } else if (ch === "\n" || ch === "\r") {
       if (ch === "\r" && t[i + 1] === "\n") i++;
@@ -56,8 +70,12 @@ export function parseCsv(texto: string): string[][] {
   return filas;
 }
 
+// Acepta "15000", "15000.5", "15.000", "15.000,50" y "15000,50" (formato argentino de Excel).
 function normalizarNumero(s: string): number {
-  const n = Number(String(s || "").replace(/[^\d.,-]/g, "").replace(",", "."));
+  let t = String(s || "").replace(/[^\d.,-]/g, "");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, "");
+  const n = Number(t);
   return isNaN(n) ? 0 : n;
 }
 
@@ -119,7 +137,7 @@ export function parseLibroCsv(texto: string): { filas: FilaImportada[]; columnas
     else if (ingreso && egreso) { tipo = "ingreso"; monto = ingreso; advertencias.push("Tiene monto en INGRESO y EGRESO a la vez; se tomó como ingreso. Revisala."); }
     else { advertencias.push("No tiene monto en INGRESO ni en EGRESO."); }
 
-    if (tipo === "ingreso" && /extrac|retiro de caja/i.test(get(iProd) + get(iServ))) {
+    if (tipo === "ingreso" && /extrac|retiro de caja|devoluci/i.test(get(iCliente) + " " + get(iProd) + " " + get(iServ))) {
       advertencias.push('El concepto menciona "extracción/retiro de caja" pero está cargado como ingreso. Probablemente sea un egreso: revisalo.');
     }
 
