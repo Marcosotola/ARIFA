@@ -306,7 +306,7 @@ function MatafuegosUnifiedContent() {
     stats.porTipo[tipo] = (stats.porTipo[tipo] || 0) + 1;
   });
 
-  const isStaff = role === "admin" || role === "tecnico" || role === "superadmin" || role === "supervisor";
+  const isStaff = role === "admin" || role === "tecnico" || role === "tecnicoTaller" || role === "superadmin" || role === "supervisor";
   const isAdmin = role === "admin" || role === "superadmin" || role === "supervisor";
   const isReadOnly = role === "cliente";
 

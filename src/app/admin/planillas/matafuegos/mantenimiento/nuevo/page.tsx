@@ -113,7 +113,7 @@ function FichaFormContent() {
         const [userDoc, clientsSnap, tecnicosSnap] = await Promise.all([
           getDoc(doc(db, "usuarios", u.uid)),
           getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente"))),
-          getDocs(query(collection(db, "usuarios"), where("rol", "==", "tecnico")))
+          getDocs(query(collection(db, "usuarios"), where("rol", "in", ["tecnico", "tecnicoTaller"])))
         ]);
         
         const tecs = tecnicosSnap.docs.map(d => ({ id: d.id, ...d.data() }));

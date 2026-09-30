@@ -85,7 +85,7 @@ export default function MantenimientoListPage() {
     return matchesSearch && matchesDate;
   });
 
-  const isStaff = role === "admin" || role === "tecnico" || role === "superadmin" || role === "supervisor";
+  const isStaff = role === "admin" || role === "tecnico" || role === "tecnicoTaller" || role === "superadmin" || role === "supervisor";
 
   return (
     <div style={{ maxWidth: "1100px", margin: "0 auto" }}>
