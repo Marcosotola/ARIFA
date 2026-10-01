@@ -74,10 +74,29 @@ export default function LibroContablePage() {
     setLoading(true);
     try {
       const { desde, hasta } = rangoPeriodo(anio, mes);
-      const filtros = [where("fecha", ">=", desde), where("fecha", "<=", hasta)];
-      if (soloPropio) filtros.push(where("creadoPorId", "==", currentUser.uid));
-      const snap = await getDocs(query(collection(db, "libro_contable"), ...filtros, orderBy("fecha", "desc")));
-      setMovs(snap.docs.map(d => ({ id: d.id, ...d.data() } as Movimiento)));
+      if (soloPropio) {
+        // Autor + rango de fechas usa el índice compuesto de firestore.indexes.json.
+        // Si el índice no está desplegado, se trae todo lo propio y se filtra/ordena acá.
+        const propios = collection(db, "libro_contable");
+        const porAutor = where("creadoPorId", "==", currentUser.uid);
+        try {
+          const snap = await getDocs(query(propios, porAutor,
+            where("fecha", ">=", desde), where("fecha", "<=", hasta), orderBy("fecha", "desc")));
+          setMovs(snap.docs.map(d => ({ id: d.id, ...d.data() } as Movimiento)));
+        } catch (e) {
+          if ((e as { code?: string }).code !== "failed-precondition") throw e;
+          console.warn("Falta el índice de libro_contable (creadoPorId + fecha); filtrando en el navegador.");
+          const snap = await getDocs(query(propios, porAutor));
+          setMovs(snap.docs
+            .map(d => ({ id: d.id, ...d.data() } as Movimiento))
+            .filter(m => m.fecha >= desde && m.fecha <= hasta)
+            .sort((a, b) => b.fecha.localeCompare(a.fecha)));
+        }
+      } else {
+        const snap = await getDocs(query(collection(db, "libro_contable"),
+          where("fecha", ">=", desde), where("fecha", "<=", hasta), orderBy("fecha", "desc")));
+        setMovs(snap.docs.map(d => ({ id: d.id, ...d.data() } as Movimiento)));
+      }
     } catch (e) {
       console.error(e);
       showToast("No se pudo cargar el libro. Intentá de nuevo.", "error");

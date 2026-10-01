@@ -448,6 +448,12 @@ function EstadoCuentaContent() {
                 ))}
               </div>
             )}
+            {busqueda.length >= 2 && sugerencias.length === 0 && resumenVisible.length === 0 && (
+              <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "#fff", border: "1px solid #ddd", borderRadius: "10px", zIndex: 50, boxShadow: "0 8px 24px rgba(0,0,0,0.1)", marginTop: "4px", padding: "12px 14px", fontSize: "0.85rem", color: "#555" }}>
+                No encontramos ese cliente. Primero registralo en Usuarios (rol Cliente) y después buscalo acá.{" "}
+                <span onClick={() => router.push("/admin/usuarios")} style={{ color: RED, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }}>Registrar cliente →</span>
+              </div>
+            )}
           </div>
           <div style={{ width: "190px" }}>
             <label style={labelSt}>Estado</label>
