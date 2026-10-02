@@ -65,7 +65,9 @@ export async function POST(request: Request) {
 
       const paymentData = await response.json();
 
-      if (paymentData.status === "approved") {
+      // card_validation es el cobro mínimo (y luego devuelto) con el que MP valida una tarjeta
+      // al cargarla o cambiarla: no es una mensualidad y no debe extender el vencimiento.
+      if (paymentData.status === "approved" && paymentData.operation_type !== "card_validation") {
         const nextMonth = new Date();
         nextMonth.setMonth(nextMonth.getMonth() + 1);
         let vencimiento = nextMonth;
