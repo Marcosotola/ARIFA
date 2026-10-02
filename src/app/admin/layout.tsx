@@ -46,14 +46,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     // 1. Auth and Role
+    // En iOS (PWA) el arranque en frío puede demorar: no dejamos la pantalla trabada.
+    const loadingTimeout = setTimeout(() => setLoading(false), 4000);
     const unsubAuth = onAuthStateChanged(auth, async (u) => {
       if (!u) {
-        if (!["/login", "/register"].includes(pathname)) {
+        if (!["/login", "/register"].includes(window.location.pathname)) {
           router.push("/login");
         }
         setLoading(false);
       } else {
         setUser(u);
+        // La sesión ya está confirmada: el panel se muestra sin esperar a Firestore.
+        setLoading(false);
         const userDoc = await getDoc(doc(db, "usuarios", u.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
@@ -68,8 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
 
     // 2. Subscription Status (Real-time)
-    // En iOS (PWA) Firestore puede no responder en el arranque en frío: no dejamos la pantalla trabada.
-    const loadingTimeout = setTimeout(() => setLoading(false), 4000);
+    // No bloquea la carga: si la suscripción está vencida, el bloqueo se aplica apenas llega.
     const unsubSub = onSnapshot(doc(db, "configuracion", "suscripcion"), (docSnap) => {
       if (docSnap.exists()) {
         setSubscription(docSnap.data());
@@ -81,12 +84,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           vencimiento: null
         });
       }
-      clearTimeout(loadingTimeout);
-      setLoading(false);
     }, (error) => {
       console.warn("Subscription check failed:", error);
-      clearTimeout(loadingTimeout);
-      setLoading(false);
     });
 
     return () => {
@@ -94,7 +93,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       unsubAuth();
       unsubSub();
     };
-  }, [pathname, router]);
+    // Solo al montar el panel: re-suscribir en cada navegación repetía las lecturas de
+    // usuario, rol y suscripción en cada cambio de página.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Close sidebar on navigation (mobile)
   useEffect(() => {

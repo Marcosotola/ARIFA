@@ -14,7 +14,6 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   const [subscription, setSubscription] = useState<any>(null);
   const [role, setRole] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [checking, setChecking] = useState(true); // Nuevo: Estado de verificación
 
   const isAdminPath = pathname.startsWith("/admin");
   const isLoginPage = pathname === "/login";
@@ -32,24 +31,18 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
     });
 
     // 2. Subscription Check
-    // En iOS (PWA instalada) Firestore a veces tarda o nunca responde en el arranque en frío:
-    // si no hay respuesta a tiempo mostramos el sitio igual (el overlay aparece si llega después).
-    const checkTimeout = setTimeout(() => setChecking(false), 2500);
+    // El sitio se muestra de entrada sin esperar a Firestore: si la suscripción está vencida,
+    // el overlay de mantenimiento aparece encima apenas llega la respuesta.
     const unsubSub = onSnapshot(doc(db, "configuracion", "suscripcion"),
       (docSnap) => {
         if (docSnap.exists()) setSubscription(docSnap.data());
-        clearTimeout(checkTimeout);
-        setChecking(false); // Ya tenemos respuesta
       },
-      (error) => {
+      () => {
         console.warn("Subscription check inhibited by permissions.");
-        clearTimeout(checkTimeout);
-        setChecking(false); // Aun con error, dejamos de bloquear la carga
       }
     );
 
     return () => {
-      clearTimeout(checkTimeout);
       unsubAuth();
       unsubSub();
     };
@@ -61,11 +54,6 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   
   // Solo bloqueamos si el componente está montado y se cumplen las condiciones
   const shouldBlockGlobal = mounted && (isExpired || isMaintenance) && !isSuperAdmin && !isLoginPage && !isAdminPath;
-
-  // Mientras está verificando con Firebase, no mostramos el sitio para evitar el "parpadeo"
-  if (mounted && checking && !isLoginPage && !isAdminPath) {
-    return <div style={{ background: '#fff', minHeight: '100vh' }} />;
-  }
 
   return (
     <>
