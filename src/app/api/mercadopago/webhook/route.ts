@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
 import { adminDb } from "@/lib/firebase-admin";
 import * as admin from 'firebase-admin';
 
@@ -16,11 +17,45 @@ async function getPreapproval(subId: string) {
   return response.json();
 }
 
+// Valida el header x-signature que manda MP (HMAC SHA256 con la clave secreta del panel
+// de Webhooks). Sin MP_WEBHOOK_SECRET configurado no se puede validar y se deja pasar.
+function firmaValida(request: Request, dataId: string | null): boolean {
+  const secret = process.env.MP_WEBHOOK_SECRET;
+  if (!secret) {
+    console.warn("MP_WEBHOOK_SECRET no configurado, se omite la validación de firma");
+    return true;
+  }
+
+  const xSignature = request.headers.get("x-signature") || "";
+  const xRequestId = request.headers.get("x-request-id");
+  const partes = Object.fromEntries(
+    xSignature.split(",").map((p) => p.split("=").map((s) => s.trim()) as [string, string])
+  );
+  const { ts, v1 } = partes;
+  if (!ts || !v1) return false;
+
+  let manifest = "";
+  if (dataId) manifest += `id:${dataId.toLowerCase()};`;
+  if (xRequestId) manifest += `request-id:${xRequestId};`;
+  manifest += `ts:${ts};`;
+
+  const esperado = createHmac("sha256", secret).update(manifest).digest("hex");
+  return esperado.length === v1.length && timingSafeEqual(Buffer.from(esperado), Buffer.from(v1));
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const type = body.type || body.topic;
     const id = body.data?.id || body.id;
+
+    const dataIdQuery = new URL(request.url).searchParams.get("data.id");
+    if (!firmaValida(request, dataIdQuery)) {
+      console.warn("Webhook MP: firma inválida");
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const subRef = adminDb.collection("configuracion").doc("suscripcion");
 
     if (type === "payment" && id) {
       const accessToken = process.env.MP_ACCESS_TOKEN;
@@ -38,7 +73,7 @@ export async function POST(request: Request) {
         // Si hay suscripción recurrente, el vencimiento sigue el ciclo de MP (ej. todos los 5)
         // aunque el cobro se acredite con demora. Si MP todavía no avanzó el próximo cobro
         // (menos de 7 días), se usa hoy + 1 mes como antes.
-        const subSnap = await adminDb.collection("configuracion").doc("suscripcion").get();
+        const subSnap = await subRef.get();
         const subId = subSnap.data()?.subId;
         if (subId) {
           try {
@@ -54,12 +89,12 @@ export async function POST(request: Request) {
           }
         }
 
-        await adminDb.collection("configuracion").doc("suscripcion").update({
+        await subRef.update({
           estado: "activo",
           vencimiento: admin.firestore.Timestamp.fromDate(vencimiento),
           ultimoPago: admin.firestore.Timestamp.now(),
           lastPaymentId: id,
-          tipoPago: paymentData.operation_type 
+          tipoPago: paymentData.operation_type
         });
 
         await adminDb.collection("pagos_suscripcion").add({
@@ -74,14 +109,21 @@ export async function POST(request: Request) {
       }
     } else if ((type === "subscription_preapproval" || body.entity === "preapproval") && id) {
       // Manejo de Suscripciones (Preapproval). MP también notifica acá cuando se modifica
-      // la suscripción (cambio de monto o de medio de pago), así que el vencimiento se toma
-      // del próximo cobro real y no de "hoy + 1 mes", para no correr el ciclo.
+      // la suscripción (cambio de monto o de medio de pago) o cuando se cancela, así que el
+      // vencimiento se toma del próximo cobro real y no de "hoy + 1 mes", para no correr el ciclo.
       const subData = await getPreapproval(id);
+      const sub = (await subRef.get()).data();
 
-      if (subData.status === "authorized") {
+      // Es la suscripción vigente, o una nueva creada desde el último plan que generamos.
+      const esLaVigente = sub?.subId === id;
+      const esDeNuestroPlan = !!sub?.planId && subData.preapproval_plan_id === sub.planId;
+
+      if (subData.status === "authorized" && (esLaVigente || esDeNuestroPlan || !sub?.subId)) {
         const update: Record<string, unknown> = {
           estado: "activo",
           subId: id,
+          mpStatus: "authorized",
+          payerEmail: subData.payer_email || sub?.payerEmail || null,
           updatedAt: admin.firestore.Timestamp.now()
         };
         if (subData.next_payment_date) {
@@ -91,8 +133,16 @@ export async function POST(request: Request) {
           }
         }
 
-        await adminDb.collection("configuracion").doc("suscripcion").update(update);
+        await subRef.update(update);
         console.log("Subscription updated via preapproval:", id);
+      } else if (esLaVigente && subData.status) {
+        // Cancelada o pausada: se registra para que la página deje renovar. El acceso sigue
+        // hasta el vencimiento ya pagado (el layout bloquea por fecha).
+        await subRef.update({
+          mpStatus: subData.status,
+          updatedAt: admin.firestore.Timestamp.now()
+        });
+        console.log(`Subscription ${id} status: ${subData.status}`);
       }
     }
 

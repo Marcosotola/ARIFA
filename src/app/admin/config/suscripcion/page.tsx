@@ -15,8 +15,6 @@ export default function SuscripcionPage() {
   const { toast, showToast } = useToast();
   const [message, setMessage] = useState("");
   const [pagos, setPagos] = useState<any[]>([]);
-  const [showMpEmailModal, setShowMpEmailModal] = useState(false);
-  const [mpEmail, setMpEmail] = useState("");
   const [showCambiarMedio, setShowCambiarMedio] = useState(false);
 
   // Superadmin editable fields
@@ -119,26 +117,13 @@ export default function SuscripcionPage() {
     }
   };
 
-  const handleOpenPayment = () => {
-    setMpEmail(user.email || "");
-    setShowMpEmailModal(true);
-  };
-
   const handlePayment = async () => {
-    if (!mpEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mpEmail)) {
-      showToast("Ingresá un correo electrónico válido.", "error");
-      return;
-    }
-    setShowMpEmailModal(false);
     setSaving(true);
     try {
+      const token = await user.getIdToken();
       const res = await fetch("/api/mercadopago/preference", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          costo: subscription.costo,
-          email: mpEmail
-        })
+        headers: { "Authorization": `Bearer ${token}` }
       });
       const data = await res.json();
       if (data.init_point) {
@@ -161,8 +146,9 @@ export default function SuscripcionPage() {
   const isExpired = subscription?.estado === "vencido" || (subscription?.vencimiento && subscription.vencimiento.toDate() < new Date());
   const isMaintenance = subscription?.estado === "mantenimiento";
   // Con una suscripción recurrente vigente, MP cobra solo: "Pagar" crearía un segundo Preapproval.
-  // Si está vencida (ej. rechazos de la tarjeta), se vuelve a ofrecer el pago.
-  const hasRecurringSub = !!subscription?.subId && !isExpired;
+  // Si está vencida (ej. rechazos de la tarjeta) o se canceló en MP, se vuelve a ofrecer el pago.
+  const subCancelada = subscription?.mpStatus === "cancelled" || subscription?.mpStatus === "paused";
+  const hasRecurringSub = !!subscription?.subId && !isExpired && !subCancelada;
 
   const statusDotClass = isMaintenance
     ? styles.statusDotMaintenance
@@ -243,17 +229,32 @@ export default function SuscripcionPage() {
             </div>
           )}
 
+          {subCancelada && (
+            <div className={styles.cambiarMedioBox}>
+              <p>
+                {subscription?.mpStatus === "paused" ? "La suscripción está pausada en Mercado Pago" : "La suscripción fue cancelada en Mercado Pago"}
+                {isExpired ? "." : ": el servicio sigue activo hasta la fecha de vencimiento."}
+              </p>
+              {!isSuperAdmin && (
+                <p>
+                  Para volver a suscribirte con otra tarjeta usá el botón de abajo.
+                  {!isExpired && " Si lo hacés antes del vencimiento, el primer cobro es inmediato y el nuevo vencimiento pasa a ser dentro de un mes."}
+                </p>
+              )}
+            </div>
+          )}
+
           {!isSuperAdmin && !hasRecurringSub && (
             <div className={styles.paymentSection}>
               <button
                 className={`btn-red ${styles.fullWidthBtn}`}
-                onClick={handleOpenPayment}
+                onClick={handlePayment}
                 disabled={saving}
               >
-                {saving ? "Procesando..." : (isExpired ? "Renovar Suscripción" : "Pagar Próximo Mes")}
+                {saving ? "Procesando..." : (isExpired || subCancelada ? "Renovar Suscripción" : "Pagar Próximo Mes")}
               </button>
               <p className={styles.paymentNote}>
-                El pago se procesa de forma segura a través de Mercado Pago.
+                El pago se procesa de forma segura a través de Mercado Pago. Podés autorizarlo con cualquier cuenta de Mercado Pago y cualquier tarjeta.
               </p>
             </div>
           )}
@@ -372,48 +373,6 @@ export default function SuscripcionPage() {
           </table>
         </div>
       </div>
-
-      {/* Modal email Mercado Pago */}
-      {showMpEmailModal && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalBox}>
-            <h3 className={styles.modalTitle}>Confirmar correo de Mercado Pago</h3>
-            <p className={styles.modalDescription}>
-              Ingresá el correo asociado a tu cuenta de Mercado Pago. Puede ser diferente al correo con el que iniciás sesión en la app.
-            </p>
-            <label htmlFor="mp-email-input" className={styles.modalLabel}>
-              Correo de Mercado Pago
-            </label>
-            <input
-              id="mp-email-input"
-              type="email"
-              value={mpEmail}
-              onChange={(e) => setMpEmail(e.target.value)}
-              placeholder="tu@correo-mercadopago.com"
-              title="Correo de Mercado Pago"
-              className={styles.modalInput}
-              autoFocus
-              onKeyDown={(e) => e.key === "Enter" && handlePayment()}
-            />
-            <div className={styles.modalActions}>
-              <button
-                type="button"
-                onClick={() => setShowMpEmailModal(false)}
-                className={styles.cancelBtn}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className={`btn-red ${styles.confirmBtn}`}
-                onClick={handlePayment}
-              >
-                Continuar al pago
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Info Section */}
       <div className={styles.infoSection}>
