@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot } from "firebase/firestore";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -58,16 +58,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setUser(u);
         // La sesión ya está confirmada: el panel se muestra sin esperar a Firestore.
         setLoading(false);
+        // Mismo caché de rol que el dashboard: el menú aparece sin esperar a Firestore.
+        const cacheKey = `arifa_rol_${u.uid}`;
+        try {
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) setRole(cached);
+        } catch { /* ok */ }
         const userDoc = await getDoc(doc(db, "usuarios", u.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setRole(userData.rol);
+          try { localStorage.setItem(cacheKey, userData.rol); } catch { /* ok */ }
         }
-        
-        // Fetch unread count
-        const q = query(collection(db, "consultas"), where("estado", "==", "nueva"));
-        const snapshot = await getDocs(q);
-        setUnreadCount(snapshot.size);
+
+        // Fetch unread count (solo el número, sin bajar los documentos)
+        try {
+          const q = query(collection(db, "consultas"), where("estado", "==", "nueva"));
+          const snapshot = await getCountFromServer(q);
+          setUnreadCount(snapshot.data().count);
+        } catch { /* ok */ }
       }
     });
 

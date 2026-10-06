@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, getDocs, where, doc, getDoc, orderBy, limit } from "firebase/firestore";
+import { collection, query, getCountFromServer, where, doc, getDoc } from "firebase/firestore";
 import Link from "next/link";
 import {
   Mail,
@@ -162,19 +162,36 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      if (u) {
-        setUser(u);
+      if (!u) {
+        setLoading(false);
+        return;
+      }
+      setUser(u);
+      // El rol de la visita anterior muestra los accesos al instante (en iPhone la primera
+      // lectura de Firestore puede tardar varios segundos); después se confirma con Firestore.
+      const cacheKey = `arifa_rol_${u.uid}`;
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          setRole(cached);
+          setLoading(false);
+        }
+      } catch { /* ok */ }
+
+      try {
         const userDoc = await getDoc(doc(db, "usuarios", u.uid));
         const roleData = userDoc.exists() ? userDoc.data().rol : "cliente";
         setRole(roleData);
-
-        // Fetch unread consultas count
-        try {
-          const snap = await getDocs(query(collection(db, "consultas"), where("estado", "==", "nueva")));
-          setUnread(snap.size);
-        } catch { /* ok */ }
+        try { localStorage.setItem(cacheKey, roleData); } catch { /* ok */ }
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
+
+      // El contador no frena la carga y solo pide el número, no los documentos.
+      try {
+        const snap = await getCountFromServer(query(collection(db, "consultas"), where("estado", "==", "nueva")));
+        setUnread(snap.data().count);
+      } catch { /* ok */ }
     });
     return () => unsub();
   }, []);
