@@ -100,7 +100,7 @@ const MODULES = [
     description: "Catálogo de precios y gestión de stock.",
     href: "/admin/productos",
     color: "#b45309",
-    roles: ["admin", "superadmin", "tecnico", "secretaria"],
+    roles: ["admin", "superadmin", "tecnico", "secretaria", "tecnicotaller"],
   },
   {
     icon: <Users size={24} />,

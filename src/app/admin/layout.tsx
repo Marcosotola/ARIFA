@@ -247,8 +247,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Capacitaciones — todos los roles
   sidebarLinks.push({ label: "Capacitaciones", href: "/admin/capacitaciones", icon: <GraduationCap size={20} />, color: "#059669" });
 
-  // Productos — admin, tecnico y secretaria (tecnicoTaller no ve costos/márgenes; usa el selector de producto al cargar una venta)
-  if (isAdmin || isTecnico || isSecretaria) {
+  // Productos — admin, tecnico, tecnicoTaller y secretaria
+  if (isAdmin || isTecnico || isTecnicoTaller || isSecretaria) {
     sidebarLinks.push({ label: "Productos", href: "/admin/productos", icon: <ShoppingCart size={20} />, color: "#b45309" });
   }
 

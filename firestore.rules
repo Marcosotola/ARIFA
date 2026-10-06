@@ -166,9 +166,7 @@ service cloud.firestore {
     // pero el stock se descuenta desde su propia carga de ventas en libro_contable.
     match /productos/{prodId} {
       allow read: if true;
-      allow write: if isStaffMember() && getRole() != 'tecnicoTaller';
-      allow update: if isTecnicoTaller() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['stock', 'updatedAt']);
+      allow write: if isStaffMember();
     }
 
     // Presupuestos — el técnico de taller solo puede leer/crear/editar los que él mismo creó

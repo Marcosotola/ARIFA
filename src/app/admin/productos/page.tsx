@@ -104,7 +104,9 @@ export default function AdminProductos() {
     return () => unsub();
   }, [fetch]);
 
-  const isAllowed = role === "admin" || role === "tecnico" || role === "superadmin";
+  const isAllowed = role === "admin" || role === "tecnico" || role === "tecnicoTaller" || role === "secretaria" || role === "superadmin";
+  // El técnico de taller gestiona el precio de venta pero no ve costo ni margen
+  const ocultarCostos = role === "tecnicoTaller";
 
   const setField = (field: string, value: any) => {
     setForm(prev => {
@@ -173,12 +175,19 @@ export default function AdminProductos() {
         }
       }
 
+      // Si se cargó el precio de venta a mano (técnico de taller), el costo no cambia y el margen se recalcula
+      const precio = Number(form.precio) || 0;
+      const precioVenta = Math.round((Number(form.precioVenta) || 0) * 100) / 100;
+      const porcentaje = ocultarCostos && precio > 0
+        ? Math.round((precioVenta / precio - 1) * 10000) / 100
+        : Number(form.porcentaje) || 0;
+
       const payload = {
         ...form,
         imagenes: finalImages,
-        precio: Number(form.precio),
-        porcentaje: Number(form.porcentaje),
-        precioVenta: calcVenta(Number(form.precio), Number(form.porcentaje)),
+        precio,
+        porcentaje,
+        precioVenta,
         stock: Math.max(0, Math.floor(Number(form.stock) || 0)),
         updatedAt: serverTimestamp(),
       };
@@ -307,10 +316,10 @@ export default function AdminProductos() {
                   <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: "10px" }}>{p.proveedor || "—"}</div>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                     <div>
-                      <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{fmtPeso(p.precio)}</div>
+                      {!ocultarCostos && <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{fmtPeso(p.precio)}</div>}
                       <div style={{ fontSize: "1rem", fontWeight: 800, color: "var(--primary-red)" }}>{fmtPeso(p.precioVenta)}</div>
                     </div>
-                    <span style={{ background: "#f0fdf4", color: "#16a34a", fontSize: "0.72rem", fontWeight: 800, padding: "3px 8px", borderRadius: "20px" }}>{p.porcentaje}%</span>
+                    {!ocultarCostos && <span style={{ background: "#f0fdf4", color: "#16a34a", fontSize: "0.72rem", fontWeight: 800, padding: "3px 8px", borderRadius: "20px" }}>{p.porcentaje}%</span>}
                   </div>
                   <div style={{ marginBottom: "12px" }}>
                     <span style={{ background: (p.stock ?? 0) > 0 ? "#eff6ff" : "#fee2e2", color: (p.stock ?? 0) > 0 ? "#1d4ed8" : "#dc2626", fontSize: "0.72rem", fontWeight: 800, padding: "3px 10px", borderRadius: "20px" }}>
@@ -335,7 +344,7 @@ export default function AdminProductos() {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
             <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
               <tr>
-                {["Producto / Categoría", "Proveedor", "Costo", "Margen", "Precio Venta", "Stock", "Estado", "Acciones"].map(h => (
+                {["Producto / Categoría", "Proveedor", ...(ocultarCostos ? [] : ["Costo", "Margen"]), "Precio Venta", "Stock", "Estado", "Acciones"].map(h => (
                   <th key={h} style={{ textAlign: "left", padding: "13px 16px", fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -372,10 +381,12 @@ export default function AdminProductos() {
                     </div>
                   </td>
                   <td style={{ padding: "13px 16px", fontSize: "0.85rem", color: "#555" }}>{p.proveedor || "—"}</td>
-                  <td style={{ padding: "13px 16px", fontSize: "0.88rem", fontWeight: 600 }}>{fmtPeso(p.precio)}</td>
-                  <td style={{ padding: "13px 16px" }}>
-                    <span style={{ background: "#f0fdf4", color: "#16a34a", fontSize: "0.75rem", fontWeight: 800, padding: "3px 8px", borderRadius: "20px" }}>{p.porcentaje}%</span>
-                  </td>
+                  {!ocultarCostos && <>
+                    <td style={{ padding: "13px 16px", fontSize: "0.88rem", fontWeight: 600 }}>{fmtPeso(p.precio)}</td>
+                    <td style={{ padding: "13px 16px" }}>
+                      <span style={{ background: "#f0fdf4", color: "#16a34a", fontSize: "0.75rem", fontWeight: 800, padding: "3px 8px", borderRadius: "20px" }}>{p.porcentaje}%</span>
+                    </td>
+                  </>}
                   <td style={{ padding: "13px 16px", fontSize: "0.92rem", fontWeight: 800, color: "var(--primary-red)" }}>{fmtPeso(p.precioVenta)}</td>
                   <td style={{ padding: "13px 16px", fontSize: "0.9rem", fontWeight: 800, color: (p.stock ?? 0) > 0 ? "#1d4ed8" : "#dc2626" }}>{p.stock ?? 0}</td>
                   <td style={{ padding: "13px 16px" }}>
@@ -470,6 +481,12 @@ export default function AdminProductos() {
                   <input style={inputSt} value={form.proveedor} onChange={e => setField("proveedor", e.target.value)} />
                 </div>
               </div>
+              {ocultarCostos ? (
+                <div>
+                  <label style={labelSt}>Precio de Venta ($)</label>
+                  <input style={inputSt} type="number" min="0" step="0.01" value={form.precioVenta || ""} onChange={e => setField("precioVenta", e.target.value)} />
+                </div>
+              ) : (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
                 <div>
                   <label style={labelSt}>Precio Costo ($)</label>
@@ -480,16 +497,19 @@ export default function AdminProductos() {
                   <input style={inputSt} type="number" step="0.1" value={form.porcentaje || ""} onChange={e => setField("porcentaje", e.target.value)} />
                 </div>
               </div>
+              )}
 
               <div>
                 <label style={labelSt}>Stock (unidades)</label>
                 <input style={inputSt} type="number" min="0" step="1" value={form.stock ?? ""} onChange={e => setField("stock", e.target.value)} />
               </div>
 
+              {!ocultarCostos && (
               <div style={{ background: "#f0fdf4", padding: "20px", borderRadius: "12px", border: "1px solid #bbf7d0" }}>
                 <div style={{ fontSize: "0.7rem", fontWeight: 800, color: "#16a34a", textTransform: "uppercase", marginBottom: "5px" }}>Precio de Venta Sugerido</div>
-                <div style={{ fontSize: "1.8rem", fontWeight: 900, color: "#15803d" }}>{fmtPeso(calcVenta(Number(form.precio), Number(form.porcentaje)))}</div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 900, color: "#15803d" }}>{fmtPeso(Number(form.precioVenta))}</div>
               </div>
+              )}
 
               <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", fontSize: "0.9rem", fontWeight: 600 }}>
                 <input type="checkbox" checked={form.activo} onChange={e => setField("activo", e.target.checked)} style={{ width: "18px", height: "18px" }} />
