@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import {
   MovCuenta, TipoMovCuenta, MEDIOS_PAGO_CUENTA, TIPO_LABEL, calcularEstado, resumenPorCliente,
-  claveCliente, nombreCliente, fmtMonto, fmtFechaCuenta, hoyIso, libroDesdePago, ordenarMovs,
+  claveCliente, nombreCliente, normalizarTexto, fmtMonto, fmtFechaCuenta, hoyIso, libroDesdePago, ordenarMovs,
 } from "@/lib/cuentaCorriente";
 import { generateEstadoCuentaPDF, EstadoCuentaPdfData } from "@/lib/pdfGenerator";
 
@@ -149,16 +149,28 @@ function EstadoCuentaContent() {
 
   // ── Resumen de todos los clientes ──
   const resumen = useMemo(() => resumenPorCliente(movs), [movs]);
+  const clientesPorId = useMemo(() => new Map(clientes.map(c => [c.id, c])), [clientes]);
+
+  // El resumen muestra la empresa; se busca también por el nombre de la persona, email y CUIT
+  // (con o sin puntos y guiones), sin importar acentos ni mayúsculas.
+  const textoCliente = (c?: Cliente) => c ? `${nombreCliente(c)} ${c.nombre || ""} ${c.apellido || ""} ${c.email || ""} ${c.dniCuit || ""}` : "";
+  const buscado = normalizarTexto(busqueda.trim());
+  const buscadoDigitos = /^[\d.\-\s]+$/.test(buscado) ? buscado.replace(/\D/g, "") : "";
+  const coincide = (texto: string) => {
+    const t = normalizarTexto(texto);
+    return t.includes(buscado) || (buscadoDigitos.length >= 2 && t.replace(/\D/g, "").includes(buscadoDigitos));
+  };
+
   const resumenVisible = resumen.filter(r =>
     (filtroEstado === "todos" || (filtroEstado === "deuda" ? r.saldo > 0.009 : r.saldo <= 0.009)) &&
-    (!busqueda || `${r.nombre} ${r.cuit}`.toLowerCase().includes(busqueda.toLowerCase()))
+    (!buscado || coincide(`${r.nombre} ${r.cuit} ${textoCliente(clientesPorId.get(r.clienteKey))}`))
   );
   const deudaTotal = resumen.reduce((a, r) => a + Math.max(0, r.saldo), 0);
   const clientesConDeuda = resumen.filter(r => r.saldo > 0.009).length;
 
-  const sugerencias = busqueda.length < 2 ? [] : clientes
+  const sugerencias = buscado.length < 2 ? [] : clientes
     .filter(c => !resumen.some(r => r.clienteKey === c.id))
-    .filter(c => `${nombreCliente(c)} ${c.nombre || ""} ${c.apellido || ""} ${c.email || ""} ${c.dniCuit || ""}`.toLowerCase().includes(busqueda.toLowerCase()))
+    .filter(c => coincide(textoCliente(c)))
     .slice(0, 8);
 
   const abrirCliente = (key: string) => router.push(`/admin/documentos/estado-cuenta?c=${encodeURIComponent(key)}`);

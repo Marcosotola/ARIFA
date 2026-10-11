@@ -193,10 +193,12 @@ function ImageCropper({ src, onConfirm, onCancel }: { src: string; onConfirm: (b
     const sy = (crop.y / 100) * img.naturalHeight;
     const sw = (crop.w / 100) * img.naturalWidth;
     const sh = (crop.h / 100) * img.naturalHeight;
-    canvas.width = sw;
-    canvas.height = sh;
+    // Por si la foto no se pudo achicar antes: el recorte nunca sale más grande que MAX_CROP_DIM.
+    const escala = escalaMax(sw, sh);
+    canvas.width = Math.round(sw * escala);
+    canvas.height = Math.round(sh * escala);
     const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
     canvas.toBlob(blob => { if (blob) onConfirm(blob); }, "image/jpeg", 0.92);
   };
 
@@ -264,24 +266,34 @@ function ImageCropper({ src, onConfirm, onCancel }: { src: string; onConfirm: (b
 // Fotos de cámara a resolución completa (12-50MP) pueden quedarse sin memoria al
 // decodificarse en el <img> del recortador en celulares de gama baja, provocando
 // que el navegador se cierre ("This page couldn't load"). Se achica antes de mostrarla.
+// No se usa createImageBitmap({ resizeWidth }): Safari de iPhone ignora esa opción y
+// devolvía la foto entera, que además supera el máximo de canvas de iOS.
 const MAX_CROP_DIM = 1600;
 
+const escalaMax = (w: number, h: number) => Math.min(1, MAX_CROP_DIM / Math.max(w, h));
+
 async function prepareImageForCrop(file: File): Promise<string> {
-  if (typeof createImageBitmap !== "function" || file.size < 800_000) {
-    return URL.createObjectURL(file);
-  }
+  const original = URL.createObjectURL(file);
+  if (file.size < 800_000) return original;
   try {
-    const bitmap = await createImageBitmap(file, { resizeWidth: MAX_CROP_DIM, resizeQuality: "medium" });
+    const img = new Image();
+    img.src = original;
+    await img.decode();
+    const escala = escalaMax(img.naturalWidth, img.naturalHeight);
+    if (escala === 1) return original;
     const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext("2d")!.drawImage(bitmap, 0, 0);
-    bitmap.close();
-    return await new Promise<string>((resolve, reject) => {
-      canvas.toBlob(blob => (blob ? resolve(URL.createObjectURL(blob)) : reject(new Error("toBlob failed"))), "image/jpeg", 0.9);
+    canvas.width = Math.round(img.naturalWidth * escala);
+    canvas.height = Math.round(img.naturalHeight * escala);
+    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    img.src = "";
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(b => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.9);
     });
+    canvas.width = canvas.height = 0;
+    URL.revokeObjectURL(original);
+    return URL.createObjectURL(blob);
   } catch {
-    return URL.createObjectURL(file);
+    return original;
   }
 }
 

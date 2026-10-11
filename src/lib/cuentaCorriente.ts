@@ -35,9 +35,12 @@ export const fmtFechaCuenta = (f: string) => (f ? f.split("-").reverse().join("/
 
 export const hoyIso = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
 
+// Minúsculas y sin acentos, para buscar "nestor" y encontrar "Néstor".
+export const normalizarTexto = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
 export function claveCliente(clienteId: string | null | undefined, nombre: string) {
   if (clienteId) return clienteId;
-  return "n:" + nombre.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ");
+  return "n:" + normalizarTexto(nombre.trim()).replace(/\s+/g, " ");
 }
 
 // Nombre para mostrar de un usuario/cliente (empresa primero, que es lo que va en el estado de cuenta).
