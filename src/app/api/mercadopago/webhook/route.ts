@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import * as admin from 'firebase-admin';
-import { mpGet, registrarPagoAprobado, subRef as getSubRef } from "@/lib/suscripcionMP";
+import { limiteDelDiaDeCobro, mpGet, registrarPagoAprobado, subRef as getSubRef } from "@/lib/suscripcionMP";
 
 const getPreapproval = (subId: string) => mpGet(`/preapproval/${subId}`);
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
           updatedAt: admin.firestore.Timestamp.now()
         };
         if (subData.next_payment_date && new Date(subData.next_payment_date).getTime() > Date.now()) {
-          update.vencimiento = admin.firestore.Timestamp.fromDate(new Date(subData.next_payment_date));
+          update.vencimiento = admin.firestore.Timestamp.fromDate(limiteDelDiaDeCobro(new Date(subData.next_payment_date)));
         }
 
         await subRef.update(update);

@@ -27,13 +27,22 @@ function sumarUnMes(fecha: Date): Date {
   return resultado;
 }
 
-// El vencimiento es la fecha y hora exacta del próximo cobro de MP: si a esa hora no entró
-// el pago, la app se bloquea en el acto. Si MP todavía no avanzó el próximo cobro (queda a
-// menos de 7 días), se le suma un mes a ese mismo cobro para no correr el ciclo.
+// MP no siempre cobra a la hora programada (a veces se atrasa un rato): el bloqueo se corre
+// hasta las 21:00 (hora argentina) del día del cobro, para no cortarle la app al cliente por
+// una demora de MP. Si el cobro es más tarde que eso, vale su hora.
+export function limiteDelDiaDeCobro(fechaCobro: Date): Date {
+  const dia = fechaCobro.toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" });
+  const limite = new Date(`${dia}T21:00:00-03:00`);
+  return limite > fechaCobro ? limite : new Date(fechaCobro);
+}
+
+// El vencimiento es el límite del día del próximo cobro de MP: pasado eso sin pago, la app
+// se bloquea. Si MP todavía no avanzó el próximo cobro (queda a menos de 7 días), se le suma
+// un mes a ese mismo cobro para no correr el ciclo.
 export function vencimientoDesdeProximoCobro(nextPaymentDate?: string | null): Date {
   const proximo = nextPaymentDate ? new Date(nextPaymentDate) : null;
-  if (proximo && proximo.getTime() > Date.now() + 7 * 24 * 60 * 60 * 1000) return proximo;
-  return sumarUnMes(proximo || new Date());
+  if (proximo && proximo.getTime() > Date.now() + 7 * 24 * 60 * 60 * 1000) return limiteDelDiaDeCobro(proximo);
+  return limiteDelDiaDeCobro(sumarUnMes(proximo || new Date()));
 }
 
 export async function registrarPagoAprobado(paymentId: string, paymentData: any) {
