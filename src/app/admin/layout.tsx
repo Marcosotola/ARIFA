@@ -135,6 +135,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isMaintenance = subscription?.estado === "mantenimiento";
   const shouldBlock = (isExpired || isMaintenance) && !isSuperAdmin;
 
+  // Vencida por fecha con débito automático: antes de dar por bueno el bloqueo se le
+  // pregunta a MP si el cobro ya entró (si sí, el onSnapshot de arriba destraba solo).
+  const vencidaPorFecha = !!isExpired && subscription?.estado !== "vencido" && !!subscription?.subId;
+  useEffect(() => {
+    if (vencidaPorFecha) fetch("/api/mercadopago/verificar-cobro", { method: "POST" }).catch(() => {});
+  }, [vencidaPorFecha]);
+
   // Special case for Admin: Redirect to subscription page if blocked
   useEffect(() => {
     if (shouldBlock && isAdmin && pathname !== "/admin/config/suscripcion") {

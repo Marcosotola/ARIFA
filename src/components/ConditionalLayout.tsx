@@ -51,7 +51,14 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
   const isSuperAdmin = role?.toLowerCase() === "superadmin";
   const isExpired = subscription?.estado === "vencido" || (subscription?.vencimiento && subscription.vencimiento.toDate() < new Date());
   const isMaintenance = subscription?.estado === "mantenimiento";
-  
+
+  // Vencida por fecha con débito automático: antes de dar por bueno el bloqueo se le
+  // pregunta a MP si el cobro ya entró (si sí, el onSnapshot de arriba destraba solo).
+  const vencidaPorFecha = isExpired && subscription?.estado !== "vencido" && !!subscription?.subId;
+  useEffect(() => {
+    if (vencidaPorFecha) fetch("/api/mercadopago/verificar-cobro", { method: "POST" }).catch(() => {});
+  }, [vencidaPorFecha]);
+
   // Solo bloqueamos si el componente está montado y se cumplen las condiciones
   const shouldBlockGlobal = mounted && (isExpired || isMaintenance) && !isSuperAdmin && !isLoginPage && !isAdminPath;
 
