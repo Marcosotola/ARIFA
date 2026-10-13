@@ -9,6 +9,7 @@ import {
   query, orderBy, serverTimestamp, where
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { achicarFoto, nombreFoto } from "@/lib/achicarFoto";
 import dynamic from "next/dynamic";
 import {
   ClipboardList, Search, BarChart, FileText, Camera, PenTool,
@@ -373,8 +374,9 @@ function OTFormContent() {
   const handleFotoUpload = async (e: any) => {
     const files = Array.from(e.target.files || []);
     for (const file of files as File[]) {
-      const r = ref(storage, `ots/${Date.now()}_${file.name}`);
-      await uploadBytes(r, file);
+      const foto = await achicarFoto(file);
+      const r = ref(storage, `ots/${Date.now()}_${nombreFoto(file, foto)}`);
+      await uploadBytes(r, foto);
       const url = await getDownloadURL(r);
       setFotos(prev => [...prev, url]);
     }
@@ -1103,7 +1105,7 @@ function OTFormContent() {
               </button>
             )}
           </div>
-          <input type="file" multiple onChange={handleFotoUpload} />
+          <input type="file" accept="image/*" multiple onChange={handleFotoUpload} />
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginTop: '15px' }}>
             {fotos.map((f, i) => (
                 <div key={i} style={{ position: 'relative' }}>
