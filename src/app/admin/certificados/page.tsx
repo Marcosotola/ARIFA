@@ -220,6 +220,8 @@ export default function CertificadosPage() {
 
   const isStaff = role === "admin" || role === "tecnico" || role === "superadmin" || role === "supervisor";
   const isAdmin = role === "admin" || role === "superadmin" || role === "supervisor";
+  // Textos de memoria y certificadores: las reglas de Firestore solo dejan escribirlos a admin/superadmin.
+  const canEditConfig = role === "admin" || role === "superadmin";
   const isReadOnly = role === "cliente";
 
   const filteredCerts = certs.filter(c => {
@@ -268,11 +270,11 @@ export default function CertificadosPage() {
             <Link href="/admin/certificados/nuevo" className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px" }}>
               <Plus size={18} /> Nuevo Certificado
             </Link>
-          ) : activeTab === "textos" ? isAdmin && (
+          ) : activeTab === "textos" ? canEditConfig && (
             <button onClick={() => { setFormTexto({ titulo: "", contenido: "", id: "" }); setTextoModal("create"); }} className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", border: "none", cursor: "pointer" }}>
               <Plus size={18} /> Nuevo Texto
             </button>
-          ) : isAdmin && (
+          ) : canEditConfig && (
             <button onClick={() => { setFormCert({ nombre: "", titulo: "", matricula: "", id: "" }); setCertModal("create"); }} className="btn-red" style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", border: "none", cursor: "pointer" }}>
               <Plus size={18} /> Nuevo Certificador
             </button>
@@ -280,7 +282,7 @@ export default function CertificadosPage() {
         )}
       </header>
 
-      {isAdmin && !isReadOnly && (
+      {canEditConfig && !isReadOnly && (
         <div style={{ display: "flex", gap: "8px", background: "#f1f5f9", padding: "6px", borderRadius: "14px", marginBottom: "24px", width: "fit-content" }}>
           <button type="button"
             onClick={() => { setActiveTab("listado"); setSearch(""); }}
@@ -534,7 +536,7 @@ export default function CertificadosPage() {
                 <div key={t.id} style={{ background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", border: "1px solid #eee" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
                     <span style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "0.95rem" }}>{t.titulo}</span>
-                    {isAdmin && (
+                    {canEditConfig && (
                       <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "10px" }}>
                         <button type="button" onClick={() => { setFormTexto({ titulo: t.titulo, contenido: t.contenido, id: t.id }); setTextoModal("edit"); }} style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #ddd", background: "#f0f7ff", color: "#0061ff", cursor: "pointer", display: "flex" }}>
                           <Edit size={14} />
@@ -572,7 +574,7 @@ export default function CertificadosPage() {
                       {c.titulo && <div style={{ fontSize: "0.78rem", color: "#666", marginTop: "2px" }}>{c.titulo}</div>}
                       {c.matricula && <div style={{ fontSize: "0.75rem", color: "#7c3aed", fontWeight: 700, marginTop: "4px" }}>MP {c.matricula}</div>}
                     </div>
-                    {isAdmin && (
+                    {canEditConfig && (
                       <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "10px" }}>
                         <button type="button" onClick={() => { setFormCert({ nombre: c.nombre, titulo: c.titulo || "", matricula: c.matricula || "", id: c.id }); setCertModal("edit"); }} style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #ddd", background: "#f0f7ff", color: "#0061ff", cursor: "pointer", display: "flex" }}>
                           <Edit size={14} />
