@@ -5,6 +5,7 @@ import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, getDocs, addDoc, updateDoc, setDoc, doc, getDoc, query, orderBy, serverTimestamp, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { achicarFoto, nombreFoto } from "@/lib/achicarFoto";
 import dynamic from "next/dynamic";
 import { useToast, Toast } from "@/components/Toast";
 import { 
@@ -528,8 +529,9 @@ function CertificadosEditor() {
     try {
       const urls: string[] = [];
       for (const file of files) {
-        const r = ref(storage, `certificados/${Date.now()}_${file.name}`);
-        await uploadBytes(r, file);
+        const foto = await achicarFoto(file);
+        const r = ref(storage, `certificados/${Date.now()}_${nombreFoto(file, foto)}`);
+        await uploadBytes(r, foto);
         urls.push(await getDownloadURL(r));
       }
       setFotos(prev => [...prev, ...urls]);
