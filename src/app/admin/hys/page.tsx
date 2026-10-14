@@ -8,6 +8,7 @@ import {
   doc, query, orderBy, serverTimestamp, getDoc, where
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from "firebase/storage";
+import { achicarFoto } from "@/lib/achicarFoto";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";
 
@@ -263,38 +264,14 @@ function ImageCropper({ src, onConfirm, onCancel }: { src: string; onConfirm: (b
   );
 }
 
-// Fotos de cámara a resolución completa (12-50MP) pueden quedarse sin memoria al
-// decodificarse en el <img> del recortador en celulares de gama baja, provocando
-// que el navegador se cierre ("This page couldn't load"). Se achica antes de mostrarla.
-// No se usa createImageBitmap({ resizeWidth }): Safari de iPhone ignora esa opción y
-// devolvía la foto entera, que además supera el máximo de canvas de iOS.
+// Las fotos de cámara se achican antes de mostrarlas en el recortador (ver achicarFoto).
+// El recorte tampoco sale nunca más grande que MAX_CROP_DIM.
 const MAX_CROP_DIM = 1600;
 
 const escalaMax = (w: number, h: number) => Math.min(1, MAX_CROP_DIM / Math.max(w, h));
 
 async function prepareImageForCrop(file: File): Promise<string> {
-  const original = URL.createObjectURL(file);
-  if (file.size < 800_000) return original;
-  try {
-    const img = new Image();
-    img.src = original;
-    await img.decode();
-    const escala = escalaMax(img.naturalWidth, img.naturalHeight);
-    if (escala === 1) return original;
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(img.naturalWidth * escala);
-    canvas.height = Math.round(img.naturalHeight * escala);
-    canvas.getContext("2d")!.drawImage(img, 0, 0, canvas.width, canvas.height);
-    img.src = "";
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(b => (b ? resolve(b) : reject(new Error("toBlob failed"))), "image/jpeg", 0.9);
-    });
-    canvas.width = canvas.height = 0;
-    URL.revokeObjectURL(original);
-    return URL.createObjectURL(blob);
-  } catch {
-    return original;
-  }
+  return URL.createObjectURL(await achicarFoto(file));
 }
 
 export default function HySPage() {
@@ -313,6 +290,7 @@ export default function HySPage() {
   const [uploading, setUploading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [cropQueue, setCropQueue] = useState<{ src: string; file: File }[]>([]);
   const [cropCurrent, setCropCurrent] = useState<{ src: string; file: File } | null>(null);
 
@@ -457,7 +435,7 @@ export default function HySPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    e.target.value = "";
 
     const isPdfFile = (f: File) => f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
     const pdfs = files.filter(isPdfFile);
@@ -655,7 +633,7 @@ export default function HySPage() {
     }
     return (
       <div style={{ width: size, height: size, borderRadius: "6px", overflow: "hidden", cursor: "pointer", border: "2px solid #eee", flexShrink: 0 }}>
-        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <img src={url} alt="" loading="lazy" decoding="async" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       </div>
     );
   };
@@ -1002,6 +980,8 @@ export default function HySPage() {
                         <img
                           src={url}
                           alt={`Archivo ${i + 1}`}
+                          loading="lazy"
+                          decoding="async"
                           style={{ width: "100%", display: "block", maxHeight: "620px", objectFit: "contain", background: "#111", cursor: "zoom-in" }}
                           onClick={() => setLightbox(url)}
                         />
@@ -1423,11 +1403,20 @@ export default function HySPage() {
               {/* Archivos (imágenes + PDFs) */}
               <div>
                 <label style={labelSt}>Archivos adjuntos — imágenes y PDFs ({fImagenes.length})</label>
-                <input ref={fileInputRef} type="file" accept="image/*,application/pdf" multiple style={{ display: "none" }} onChange={handleFileUpload} />
-                <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-                  style={{ width: "100%", padding: "18px", borderRadius: "10px", border: "2px dashed #ddd", background: "#fafafa", cursor: "pointer", fontSize: "0.92rem", color: "#999", marginBottom: "12px", transition: "0.2s" }}>
-                  {uploading ? "⏳ Subiendo archivos..." : "📎 Agregar fotos, planillas o PDFs"}
-                </button>
+                {/* Fotos y PDFs van en inputs separados: con accept solo de imágenes iOS convierte
+                    las HEIC a JPEG; si el accept incluye PDF entrega la HEIC original. */}
+                <input ref={fileInputRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={handleFileUpload} />
+                <input ref={pdfInputRef} type="file" accept="application/pdf" multiple style={{ display: "none" }} onChange={handleFileUpload} />
+                <div style={{ display: "flex", gap: "10px", marginBottom: "12px" }}>
+                  <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+                    style={{ flex: 1, padding: "18px", borderRadius: "10px", border: "2px dashed #ddd", background: "#fafafa", cursor: "pointer", fontSize: "0.92rem", color: "#999", transition: "0.2s" }}>
+                    {uploading ? "⏳ Subiendo..." : "📷 Agregar fotos"}
+                  </button>
+                  <button onClick={() => pdfInputRef.current?.click()} disabled={uploading}
+                    style={{ flex: 1, padding: "18px", borderRadius: "10px", border: "2px dashed #ddd", background: "#fafafa", cursor: "pointer", fontSize: "0.92rem", color: "#999", transition: "0.2s" }}>
+                    {uploading ? "⏳ Subiendo..." : "📄 Agregar PDFs"}
+                  </button>
+                </div>
                 {fImagenes.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))", gap: "10px" }}>
                     {fImagenes.map((url, i) => (
