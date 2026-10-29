@@ -58,7 +58,7 @@ The whole app works without a connection. Keep it that way:
 - **Upload files with `subirArchivo(path, blob)` and delete them with `borrarArchivo(url)` from `@/lib/offline`**, not `uploadBytes`/`deleteObject`. Offline, the file goes to IndexedDB and gets a provisional `/offline-file/<id>` URL (served by the service worker); it is uploaded later and the URL is replaced in every Firestore doc that saved it. Use `esArchivoOffline(url)` where code checks `url.startsWith("http")`.
 - **Transactions don't work offline**: see `src/lib/stock.ts` for the `estaOffline()` fallback.
 - **`/admin/.../[id]` pages read the id with `useIdRuta()` (`src/hooks/useIdRuta.ts`)**, not `useParams()`: offline, the service worker serves one cached template (`/admin/certificados/_offline`) for any id.
-- `public/firebase-messaging-sw.js` caches pages and assets; `src/lib/precargaOffline.ts` downloads all pages (list built in `next.config.ts` from `src/app`) and the Firestore collections in `COLECCIONES`. Add new working collections there.
+- `public/firebase-messaging-sw.js` caches pages and assets; `src/lib/precargaOffline.ts` downloads all pages (list built in `next.config.ts` from `src/app`) and only the small lists the forms need to start offline (`LISTAS_FORMULARIOS`: clients, templates, config). Records are not bulk-downloaded on purpose: the ones opened online stay cached by Firestore.
 
 ### Storage Cleanup Rule
 

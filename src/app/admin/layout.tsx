@@ -33,9 +33,9 @@ import {
 import PWAInstallButton from "@/components/PWAInstallButton";
 import ShareAppButton from "@/components/ShareAppButton";
 import GlobalSearchBox from "@/components/admin/GlobalSearchBox";
-import { AvisoConexion, ModoOfflineSidebar } from "@/components/admin/EstadoConexion";
-import { iniciarModoOffline, actualizar as actualizarEstadoOffline } from "@/lib/offline";
-import { prepararModoOffline, fechaPreparacion } from "@/lib/precargaOffline";
+import { AvisoConexion } from "@/components/admin/EstadoConexion";
+import { iniciarModoOffline } from "@/lib/offline";
+import { prepararModoOffline } from "@/lib/precargaOffline";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
@@ -60,7 +60,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       } else {
         setUser(u);
         iniciarModoOffline();
-        actualizarEstadoOffline({ preparadoEn: fechaPreparacion(u.uid) });
         // La sesión ya está confirmada: el panel se muestra sin esperar a Firestore.
         setLoading(false);
         // Mismo caché de rol que el dashboard: el menú aparece sin esperar a Firestore.
@@ -113,10 +112,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Con señal, baja páginas y datos para poder trabajar sin conexión (espera a que la página cargue).
+  // Con señal, baja las páginas y las listas de los formularios para poder trabajar sin conexión (espera a que la página cargue).
   useEffect(() => {
     if (!user || !role) return;
-    const preparar = () => prepararModoOffline({ datos: role.toLowerCase() !== "cliente" });
+    const preparar = () => prepararModoOffline({ listas: role.toLowerCase() !== "cliente" });
     const t = setTimeout(preparar, 5000);
     window.addEventListener("online", preparar);
     return () => { clearTimeout(t); window.removeEventListener("online", preparar); };
@@ -528,8 +527,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div style={{ opacity: 0.6, fontSize: "0.75rem", textTransform: "uppercase", letterSpacing: '0.5px' }}>{role}</div>
             </div>
           </div>
-
-          <ModoOfflineSidebar datos={!isClient} />
 
           <div style={{ padding: '10px 0', borderTop: '1px solid rgba(255,255,255,0.1)', marginBottom: '10px' }}>
             <PWAInstallButton variant="sidebar" />

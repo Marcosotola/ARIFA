@@ -37,9 +37,6 @@ export interface EstadoOffline {
   escriturasPendientes: boolean;
   archivosPendientes: number;
   sincronizandoArchivos: boolean;
-  // Descarga de páginas y datos para usar sin conexión (ver precargaOffline.ts)
-  preparando: string | null;
-  preparadoEn: number | null;
 }
 
 let estado: EstadoOffline = {
@@ -47,12 +44,10 @@ let estado: EstadoOffline = {
   escriturasPendientes: false,
   archivosPendientes: 0,
   sincronizandoArchivos: false,
-  preparando: null,
-  preparadoEn: null,
 };
 const oyentes = new Set<(e: EstadoOffline) => void>();
 
-export function actualizar(cambios: Partial<EstadoOffline>) {
+function actualizar(cambios: Partial<EstadoOffline>) {
   estado = { ...estado, ...cambios };
   oyentes.forEach(fn => fn(estado));
 }
