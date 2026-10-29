@@ -11,6 +11,9 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 export const PREFIJO_ARCHIVO_OFFLINE = "/offline-file/";
 // Debe coincidir con CACHE_ARCHIVOS de public/firebase-messaging-sw.js
 const CACHE_ARCHIVOS = "arifa-archivos-v2";
+// Fotos que se guardan para verlas sin señal; las más viejas se borran solas.
+// Debe coincidir con MAX_ARCHIVOS de public/firebase-messaging-sw.js
+const MAX_FOTOS_GUARDADAS = 100;
 // Después de subido, el registro (sin la foto) se guarda un tiempo por si un formulario abierto
 // vuelve a guardar la URL provisoria: así se la sigue reemplazando.
 const RETENCION_MS = 30 * 24 * 60 * 60 * 1000;
@@ -129,6 +132,8 @@ async function guardarEnCacheDeImagenes(url: string, blob: Blob) {
     await cache.put(`/api/proxy-image?url=${encodeURIComponent(url)}`, new Response(blob, {
       headers: { "Content-Type": blob.type || "application/octet-stream" },
     }));
+    const claves = await cache.keys();
+    for (const clave of claves.slice(0, Math.max(0, claves.length - MAX_FOTOS_GUARDADAS))) await cache.delete(clave);
   } catch { /* ok */ }
 }
 

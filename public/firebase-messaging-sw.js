@@ -76,7 +76,7 @@ const CACHE_ARCHIVOS = 'arifa-archivos-v2'; // Debe coincidir con CACHE_ARCHIVOS
 const CACHE_META = 'arifa-meta-v2';
 const CACHES_VALIDOS = [CACHE_PAGINAS, CACHE_ESTATICOS, CACHE_ARCHIVOS, CACHE_META];
 const MAX_PAGINAS = 300;
-const MAX_ARCHIVOS = 400;
+const MAX_ARCHIVOS = 100; // Debe coincidir con MAX_FOTOS_GUARDADAS de src/lib/offline.ts
 const ESPERA_RED_MS = 5000;
 const PREFIJO_ARCHIVO_OFFLINE = '/offline-file/';
 
