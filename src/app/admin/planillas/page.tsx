@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Eye, Edit, Trash2, Plus, ClipboardList,
-  Folder, Search, Shield, Flame, Scroll, Settings, BookMarked, X
+  Folder, Search, Shield, Flame, Scroll, Settings, BookMarked, X, ListChecks
 } from "lucide-react";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";
@@ -44,7 +44,7 @@ interface Plantilla {
   id: string;
   codigo: string;
   nombre: string;
-  categoria: "deteccion" | "extincion" | "matafuegos" | "certificaciones";
+  categoria: "deteccion" | "extincion" | "matafuegos" | "certificaciones" | "checklist";
   frecuencia: "mensual" | "trimestral" | "semestral" | "anual";
   tipo: "checklist" | "tabla_piso";
   descripcion?: string;
@@ -256,6 +256,7 @@ const CATEGORIAS = [
   { value: "extincion", label: "Extinción", icon: <Shield size={18} strokeWidth={2.5} color="#f97316" /> },
   { value: "matafuegos", label: "Matafuegos", icon: <Flame size={18} strokeWidth={2.5} color="#ef4444" /> },
   { value: "certificaciones", label: "Certificaciones", icon: <Scroll size={18} strokeWidth={2.5} color="#7c3aed" /> },
+  { value: "checklist", label: "Check List", icon: <ListChecks size={18} strokeWidth={2.5} color="#0d9488" /> },
 ];
 
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
@@ -927,7 +928,7 @@ export default function OTUnifiedPage() {
                     <div style={{ display: "grid", gap: "6px", maxHeight: "220px", overflowY: "auto", padding: "4px" }}>
                       {plantillas.map(p => {
                         const sel = pcPlanillasSeleccionadas.includes(p.id);
-                        const catColors: Record<string, string> = { deteccion: "#3b82f6", extincion: "#f97316", matafuegos: "#ef4444", certificaciones: "#7c3aed" };
+                        const catColors: Record<string, string> = { deteccion: "#3b82f6", extincion: "#f97316", matafuegos: "#ef4444", certificaciones: "#7c3aed", checklist: "#0d9488" };
                         const c = catColors[p.categoria] || "#888";
                         return (
                           <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px", borderRadius: "8px", border: `1.5px solid ${sel ? c : "#eee"}`, background: sel ? `${c}10` : "#fafafa", cursor: "pointer" }}>
