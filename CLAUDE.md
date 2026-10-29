@@ -50,9 +50,19 @@ import { db, auth, storage } from "@/lib/firebase";
 
 `src/lib/firebase.ts` exports `auth`, `db`, `storage`, and `isFirebaseConfigured` (graceful degradation if env vars missing). Server-side operations use `src/lib/firebase-admin.ts`.
 
+### Offline Mode
+
+The whole app works without a connection. Keep it that way:
+
+- **Import Firestore from `@/lib/firestore`, never from `firebase/firestore`.** It re-exports everything, but `addDoc`/`setDoc`/`updateDoc`/`deleteDoc`/`writeBatch().commit()` resolve as soon as the write is saved on the device instead of hanging until the server answers. `src/lib/firebase.ts` enables the persistent local cache.
+- **Upload files with `subirArchivo(path, blob)` and delete them with `borrarArchivo(url)` from `@/lib/offline`**, not `uploadBytes`/`deleteObject`. Offline, the file goes to IndexedDB and gets a provisional `/offline-file/<id>` URL (served by the service worker); it is uploaded later and the URL is replaced in every Firestore doc that saved it. Use `esArchivoOffline(url)` where code checks `url.startsWith("http")`.
+- **Transactions don't work offline**: see `src/lib/stock.ts` for the `estaOffline()` fallback.
+- **`/admin/.../[id]` pages read the id with `useIdRuta()` (`src/hooks/useIdRuta.ts`)**, not `useParams()`: offline, the service worker serves one cached template (`/admin/certificados/_offline`) for any id.
+- `public/firebase-messaging-sw.js` caches pages and assets; `src/lib/precargaOffline.ts` downloads all pages (list built in `next.config.ts` from `src/app`) and the Firestore collections in `COLECCIONES`. Add new working collections there.
+
 ### Storage Cleanup Rule
 
-**When deleting a Firestore document that has uploaded files, always delete the Storage files first.** Iterate the URL array field, call `deleteObject(ref(storage, url))` per file in a try/catch, then call `deleteDoc`. See `src/app/admin/certificados/page.tsx` `handleDelete` for the canonical example.
+**When deleting a Firestore document that has uploaded files, always delete the Storage files first.** Iterate the URL array field, call `borrarArchivo(url)` per file in a try/catch, then call `deleteDoc`. See `src/app/admin/certificados/page.tsx` `handleDelete` for the canonical example.
 
 ### PDF Generation
 

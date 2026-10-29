@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useToast, Toast } from "@/components/Toast";
-import { db, auth, storage } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { 
   collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc,
   addDoc, serverTimestamp, updateDoc
-} from "firebase/firestore";
-import { ref, deleteObject } from "firebase/storage";
+} from "@/lib/firestore";
+import { borrarArchivo, esArchivoOffline } from "@/lib/offline";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -69,7 +69,7 @@ interface PlantillaCliente {
 
 const urlToBase64 = async (url: string) => {
   try {
-    if (!url || !url.startsWith("http")) return null;
+    if (!url || !(url.startsWith("http") || esArchivoOffline(url))) return null;
     const resp = await fetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
     if (!resp.ok) return null;
     const blob = await resp.blob();
@@ -393,7 +393,7 @@ export default function OTUnifiedPage() {
         if (docSnap.exists()) {
           const fotos = docSnap.data().fotos || [];
           for (const url of fotos) {
-            try { await deleteObject(ref(storage, url)); } catch {}
+            try { await borrarArchivo(url); } catch {}
           }
         }
         await deleteDoc(docRef);

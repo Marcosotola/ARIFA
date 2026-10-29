@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import { useRouter, useParams } from "next/navigation";
+import { doc, getDoc } from "@/lib/firestore";
+import { useRouter } from "next/navigation";
+import { useIdRuta } from "@/hooks/useIdRuta";
 import Link from "next/link";
 import { generatePresupuestoPDF } from "@/lib/pdfGenerator";
 import { ArrowLeft, Edit, Scroll } from "lucide-react";
@@ -23,8 +24,7 @@ export default function VerPresupuestoPage() {
   const [role, setRole] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
   const router = useRouter();
-  const params = useParams();
-  const id = params.id as string;
+  const id = useIdRuta();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {

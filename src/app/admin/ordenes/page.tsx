@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, addDoc, getDocs, orderBy, updateDoc, doc, serverTimestamp, where, getDoc } from "firebase/firestore";
+import { collection, query, addDoc, getDocs, orderBy, updateDoc, doc, serverTimestamp, where, getDoc } from "@/lib/firestore";
 import { ClipboardList, Folder, Plus, Search, MapPin, Calendar, User, Layout, ArrowLeft } from "lucide-react";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";

@@ -1,5 +1,6 @@
 import { db } from "./firebase";
-import { doc, runTransaction } from "firebase/firestore";
+import { doc, getDoc, runTransaction, setDoc } from "./firestore";
+import { estaOffline } from "./offline";
 
 interface FilaConTarjeta {
   nroTarjeta: string;
@@ -20,16 +21,26 @@ export function renumerarAuto<T extends FilaConTarjeta>(filas: T[], desde: numbe
 // Reserva los números automáticos contra el contador real de Firestore y lo deja actualizado.
 export async function reservarTarjetas<T extends FilaConTarjeta>(filas: T[]): Promise<{ filas: T[]; reasignadas: boolean }> {
   const ref = doc(db, "configuracion", "matafuegos");
-  return runTransaction(db, async (tx) => {
-    const snap = await tx.get(ref);
-    const actual: number = snap.exists() ? (snap.data().proximaTarjeta || 1) : 1;
+  const reservar = (actual: number) => {
     const resultado = renumerarAuto(filas, actual);
     // Solo los números que asignó el propio AUTO empujan el contador. Un número tipeado a mano
     // (por más grande o inválido que sea) nunca debe inflar el contador global para siempre.
     const usadosAuto = resultado.filter(f => f.tarjetaAuto).map(f => parseInt(f.nroTarjeta)).filter(n => !isNaN(n));
     const siguiente = usadosAuto.length ? Math.max(actual, ...usadosAuto.map(n => n + 1)) : actual;
-    tx.set(ref, { proximaTarjeta: siguiente }, { merge: true });
     const reasignadas = resultado.some((f, i) => f.tarjetaAuto && f.nroTarjeta !== filas[i].nroTarjeta);
-    return { filas: resultado, reasignadas };
+    return { filas: resultado, reasignadas, siguiente };
+  };
+  // Sin conexión no hay transacciones: se usa el contador guardado en el dispositivo.
+  if (estaOffline()) {
+    const snap = await getDoc(ref).catch(() => null);
+    const { siguiente, ...resto } = reservar(snap?.exists() ? (snap.data().proximaTarjeta || 1) : 1);
+    await setDoc(ref, { proximaTarjeta: siguiente }, { merge: true });
+    return resto;
+  }
+  return runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    const { siguiente, ...resto } = reservar(snap.exists() ? (snap.data().proximaTarjeta || 1) : 1);
+    tx.set(ref, { proximaTarjeta: siguiente }, { merge: true });
+    return resto;
   });
 }

@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getCountFromServer, onSnapshot } from "@/lib/firestore";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
@@ -33,6 +33,9 @@ import {
 import PWAInstallButton from "@/components/PWAInstallButton";
 import ShareAppButton from "@/components/ShareAppButton";
 import GlobalSearchBox from "@/components/admin/GlobalSearchBox";
+import { AvisoConexion, ModoOfflineSidebar } from "@/components/admin/EstadoConexion";
+import { iniciarModoOffline, actualizar as actualizarEstadoOffline } from "@/lib/offline";
+import { prepararModoOffline, fechaPreparacion } from "@/lib/precargaOffline";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
@@ -56,6 +59,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setLoading(false);
       } else {
         setUser(u);
+        iniciarModoOffline();
+        actualizarEstadoOffline({ preparadoEn: fechaPreparacion(u.uid) });
         // La sesión ya está confirmada: el panel se muestra sin esperar a Firestore.
         setLoading(false);
         // Mismo caché de rol que el dashboard: el menú aparece sin esperar a Firestore.
@@ -64,8 +69,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           const cached = localStorage.getItem(cacheKey);
           if (cached) setRole(cached);
         } catch { /* ok */ }
-        const userDoc = await getDoc(doc(db, "usuarios", u.uid));
-        if (userDoc.exists()) {
+        // Sin conexión sale del dispositivo; si nunca se descargó, queda el rol del caché de arriba.
+        const userDoc = await getDoc(doc(db, "usuarios", u.uid)).catch(() => null);
+        if (userDoc?.exists()) {
           const userData = userDoc.data();
           setRole(userData.rol);
           try { localStorage.setItem(cacheKey, userData.rol); } catch { /* ok */ }
@@ -106,6 +112,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // usuario, rol y suscripción en cada cambio de página.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Con señal, baja páginas y datos para poder trabajar sin conexión (espera a que la página cargue).
+  useEffect(() => {
+    if (!user || !role) return;
+    const preparar = () => prepararModoOffline({ datos: role.toLowerCase() !== "cliente" });
+    const t = setTimeout(preparar, 5000);
+    window.addEventListener("online", preparar);
+    return () => { clearTimeout(t); window.removeEventListener("online", preparar); };
+  }, [user, role]);
 
   // Close sidebar on navigation (mobile)
   useEffect(() => {
@@ -514,6 +529,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
+          <ModoOfflineSidebar datos={!isClient} />
+
           <div style={{ padding: '10px 0', borderTop: '1px solid rgba(255,255,255,0.1)', marginBottom: '10px' }}>
             <PWAInstallButton variant="sidebar" />
             <ShareAppButton variant="sidebar" />
@@ -567,6 +584,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* Main Content */}
       <main style={{ flex: 1, padding: "40px", width: '100%' }} className="admin-main">
+        <AvisoConexion />
         {children}
       </main>
 

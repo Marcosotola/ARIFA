@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { useToast, Toast } from "@/components/Toast";
-import { db, auth, storage } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
   doc, query, orderBy, where, serverTimestamp, getDoc
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+} from "@/lib/firestore";
+import { subirArchivo, borrarArchivo } from "@/lib/offline";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";
 import CopyLinkButton from "@/components/CopyLinkButton";
@@ -172,9 +172,7 @@ export default function AdminCapacitaciones() {
 
       const nuevos: ArchivoTema[] = [];
       for (const pf of pendingFiles) {
-        const fileRef = ref(storage, `capacitaciones/${temaId}/${Date.now()}_${pf.file.name}`);
-        const snap = await uploadBytes(fileRef, pf.file);
-        const url = await getDownloadURL(snap.ref);
+        const url = await subirArchivo(`capacitaciones/${temaId}/${Date.now()}_${pf.file.name}`, pf.file);
         nuevos.push({ url, nombre: pf.file.name, tipo: pf.tipo, mimeType: pf.file.type || "" });
       }
       const archivosFinal = [...keptFiles, ...nuevos];
@@ -191,7 +189,7 @@ export default function AdminCapacitaciones() {
         const original = temas.find(t => t.id === editId);
         const removidos = (original?.archivos || []).filter(f => !keptFiles.some(k => k.url === f.url));
         for (const f of removidos) {
-          try { await deleteObject(ref(storage, f.url)); } catch (err) { console.warn("Error borrando de storage", err); }
+          try { await borrarArchivo(f.url); } catch (err) { console.warn("Error borrando de storage", err); }
         }
         await updateDoc(doc(db, "capacitaciones_temas", editId), payload);
       } else {
@@ -219,7 +217,7 @@ export default function AdminCapacitaciones() {
       if (docSnap.exists()) {
         const archivos: ArchivoTema[] = docSnap.data().archivos || [];
         for (const a of archivos) {
-          try { await deleteObject(ref(storage, a.url)); } catch (err) { console.error("Error eliminando archivo de storage:", err); }
+          try { await borrarArchivo(a.url); } catch (err) { console.error("Error eliminando archivo de storage:", err); }
         }
       }
       await deleteDoc(docRef);

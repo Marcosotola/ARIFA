@@ -8,7 +8,7 @@ import { MESES } from "@/lib/libroContable";
 import { renumerarAuto, reservarTarjetas } from "@/lib/tarjetas";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc } from "@/lib/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -404,7 +404,7 @@ function FichaFormContent() {
         };
         await updateDoc(mfRef, mfData).catch(async () => {
            // Si no existe, lo creamos (el ID es el nroTarjeta para fácil acceso)
-           const { setDoc } = await import("firebase/firestore");
+           const { setDoc } = await import("@/lib/firestore");
            await setDoc(mfRef, { ...mfData, createdAt: serverTimestamp() });
         });
       });

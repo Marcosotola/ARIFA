@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { useToast, Toast } from "@/components/Toast";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, updateDoc, onSnapshot, setDoc, Timestamp, collection, query, orderBy, limit } from "firebase/firestore";
+import { doc, getDoc, updateDoc, onSnapshot, setDoc, Timestamp, collection, query, orderBy, limit } from "@/lib/firestore";
 import styles from "./page.module.css";
 
 export default function SuscripcionPage() {

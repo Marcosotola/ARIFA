@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, query, getDocs, orderBy, updateDoc, doc, deleteDoc, where, getDoc } from "firebase/firestore";
+import { collection, query, getDocs, orderBy, updateDoc, doc, deleteDoc, where, getDoc } from "@/lib/firestore";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";
 

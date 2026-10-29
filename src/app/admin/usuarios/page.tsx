@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
-import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy, addDoc } from "firebase/firestore";
+import { collection, getDocs, getDoc, doc, updateDoc, deleteDoc, query, orderBy, addDoc } from "@/lib/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   UserPlus,

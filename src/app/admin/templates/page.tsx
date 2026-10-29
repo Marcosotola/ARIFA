@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, orderBy, query
-} from "firebase/firestore";
+} from "@/lib/firestore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface PlantillaItem {

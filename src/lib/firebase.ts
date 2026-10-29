@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -14,6 +14,23 @@ const firebaseConfig = {
 
 const isFirebaseConfigured = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== "";
 
+// En el navegador los datos quedan guardados en el dispositivo (IndexedDB): la app se puede
+// usar sin conexión y lo que se guarda offline se sube solo cuando vuelve la señal.
+function iniciarFirestore(firebaseApp: any) {
+  if (typeof window === "undefined") return getFirestore(firebaseApp);
+  try {
+    return initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+        cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+      }),
+    });
+  } catch {
+    // Ya inicializado (recarga en caliente en desarrollo).
+    return getFirestore(firebaseApp);
+  }
+}
+
 // Initialize Firebase (Safely)
 let auth: any;
 let db: any;
@@ -23,8 +40,11 @@ let app: any;
 if (isFirebaseConfigured) {
   app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app);
+  db = iniciarFirestore(app);
   storage = getStorage(app);
+  // Sin señal no tiene sentido reintentar 10 minutos: a los 60 s la foto pasa a la cola offline.
+  storage.maxUploadRetryTime = 60000;
+  storage.maxOperationRetryTime = 30000;
 } else {
   // Mock objects or handle missing config gracefully
   console.warn("Firebase: API Key missing. Please check your .env.local file.");

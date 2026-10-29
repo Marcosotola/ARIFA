@@ -3,7 +3,7 @@ import { useEffect, useState, useCallback, Suspense } from "react";
 import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, updateDoc, serverTimestamp, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, updateDoc, serverTimestamp, addDoc } from "@/lib/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";

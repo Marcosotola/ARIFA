@@ -6,9 +6,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
   doc, query, orderBy, serverTimestamp, getDoc
-} from "firebase/firestore";
-import { storage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+} from "@/lib/firestore";
+import { subirArchivo, borrarArchivo, esArchivoOffline } from "@/lib/offline";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";
 
@@ -152,14 +151,11 @@ export default function AdminProductos() {
       // 1. Upload new files
       const newUrls: string[] = [];
       for (const file of imageFiles) {
-        const fileRef = ref(storage, `productos/${Date.now()}_${file.name}`);
-        const snap = await uploadBytes(fileRef, file);
-        const url = await getDownloadURL(snap.ref);
-        newUrls.push(url);
+        newUrls.push(await subirArchivo(`productos/${Date.now()}_${file.name}`, file));
       }
 
       // 2. Filter existing URLs that were kept
-      const keptUrls = previews.filter(p => p.startsWith("http"));
+      const keptUrls = previews.filter(p => p.startsWith("http") || esArchivoOffline(p));
       const finalImages = [...keptUrls, ...newUrls];
 
       // 3. Clean up deleted images from Storage if editing
@@ -168,7 +164,7 @@ export default function AdminProductos() {
         if (oldProd?.imagenes) {
           const removed = oldProd.imagenes.filter(url => !keptUrls.includes(url));
           for (const url of removed) {
-            try { await deleteObject(ref(storage, url)); } catch (e) { console.warn("Error deleting removed image", e); }
+            try { await borrarArchivo(url); } catch (e) { console.warn("Error deleting removed image", e); }
           }
         }
       }
@@ -205,7 +201,7 @@ export default function AdminProductos() {
       const prod = productos.find(p => p.id === id);
       if (prod?.imagenes && prod.imagenes.length > 0) {
         for (const url of prod.imagenes) {
-          try { await deleteObject(ref(storage, url)); } catch (e) { console.warn("Error deleting storage file", e); }
+          try { await borrarArchivo(url); } catch (e) { console.warn("Error deleting storage file", e); }
         }
       }
       await deleteDoc(doc(db, "productos", id));
@@ -416,9 +412,9 @@ export default function AdminProductos() {
                         <img src={src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         <button type="button" 
                           onClick={() => {
-                            const isUrl = src.startsWith("http");
+                            const isUrl = src.startsWith("http") || esArchivoOffline(src);
                             if (!isUrl) {
-                              const blobIdx = previews.slice(0, idx).filter(p => !p.startsWith("http")).length;
+                              const blobIdx = previews.slice(0, idx).filter(p => !p.startsWith("http") && !esArchivoOffline(p)).length;
                               setImageFiles(prev => prev.filter((_, i) => i !== blobIdx));
                             }
                             setPreviews(prev => prev.filter((_, i) => i !== idx));

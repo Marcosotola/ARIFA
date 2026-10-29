@@ -2,7 +2,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "@/lib/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Search, X as CloseIcon, SearchX } from "lucide-react";

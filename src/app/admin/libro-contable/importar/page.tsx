@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, doc, getDoc, writeBatch, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, writeBatch, serverTimestamp } from "@/lib/firestore";
 import { useToast, Toast } from "@/components/Toast";
 import { ArrowLeft, Upload, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { parseLibroCsv, FilaImportada } from "@/lib/importadorLibro";

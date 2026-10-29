@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "@/lib/firestore";
 
 export default function ContactoPage() {
   const [form, setForm] = useState({

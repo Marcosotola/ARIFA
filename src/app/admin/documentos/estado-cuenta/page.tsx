@@ -6,7 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, query, where, doc, getDoc, addDoc, updateDoc, deleteDoc,
   writeBatch, serverTimestamp,
-} from "firebase/firestore";
+} from "@/lib/firestore";
 import { useToast, Toast } from "@/components/Toast";
 import {
   ArrowLeft, Search, Plus, Pencil, Copy, Trash2, Download, ImageDown, Printer, Share2,

@@ -1,14 +1,16 @@
 "use client";
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useToast, Toast } from "@/components/Toast";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useIdRuta } from "@/hooks/useIdRuta";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, addDoc, updateDoc, doc, getDoc,
   query, orderBy, serverTimestamp, where
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+} from "@/lib/firestore";
+import { ref, getDownloadURL } from "firebase/storage";
+import { subirArchivo, esArchivoOffline } from "@/lib/offline";
 import { achicarFoto, nombreFoto } from "@/lib/achicarFoto";
 import dynamic from "next/dynamic";
 import {
@@ -68,7 +70,7 @@ function sanitize(obj: any): any {
 
 const urlToBase64 = async (url: string) => {
     try {
-        if (!url || !url.startsWith("http")) return null;
+        if (!url || !(url.startsWith("http") || esArchivoOffline(url))) return null;
         const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
         const resp = await fetch(proxyUrl);
         if (!resp.ok) throw new Error("Proxy error");
@@ -82,7 +84,7 @@ const urlToBase64 = async (url: string) => {
 };
 
 function OTFormContent() {
-  const params = useParams();
+  const params = { id: useIdRuta() };
   const router = useRouter();
   const isNueva = params.id === "nueva";
   const [role, setRole] = useState<string | null>(null);
@@ -375,9 +377,7 @@ function OTFormContent() {
     const files = Array.from(e.target.files || []);
     for (const file of files as File[]) {
       const foto = await achicarFoto(file);
-      const r = ref(storage, `ots/${Date.now()}_${nombreFoto(file, foto)}`);
-      await uploadBytes(r, foto);
-      const url = await getDownloadURL(r);
+      const url = await subirArchivo(`ots/${Date.now()}_${nombreFoto(file, foto)}`, foto);
       setFotos(prev => [...prev, url]);
     }
   };
