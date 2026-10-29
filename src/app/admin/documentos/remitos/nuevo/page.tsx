@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { useToast, Toast } from "@/components/Toast";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc, setDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc, setDoc } from "@/lib/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save, Plus, Trash2, User, Package, Hash, Calendar, PenLine } from "lucide-react";
 import { Suspense } from "react";

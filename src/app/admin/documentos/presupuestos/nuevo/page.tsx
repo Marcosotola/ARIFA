@@ -6,7 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, addDoc, getDocs, query, where, doc,
   getDoc, serverTimestamp, updateDoc, setDoc,
-} from "firebase/firestore";
+} from "@/lib/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Save, Plus, Trash2, User, FileText,

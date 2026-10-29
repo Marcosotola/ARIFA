@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase";
 import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
   doc, serverTimestamp, orderBy, query
-} from "firebase/firestore";
+} from "@/lib/firestore";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface PlantillaItem {
@@ -19,7 +19,7 @@ interface Plantilla {
   id: string;
   codigo: string;      // ARIFA-IPM-020
   nombre: string;
-  categoria: "deteccion" | "extincion" | "matafuegos" | "certificaciones";
+  categoria: "deteccion" | "extincion" | "matafuegos" | "certificaciones" | "checklist";
   frecuencia: "mensual" | "trimestral" | "semestral" | "anual";
   tipo: "checklist" | "tabla_piso";
   descripcion?: string;
@@ -37,6 +37,7 @@ const CATEGORIAS = [
   { value: "extincion", label: "Extinción", icon: "🧯" },
   { value: "matafuegos", label: "Matafuegos", icon: "🔥" },
   { value: "certificaciones", label: "Certificaciones", icon: "📜" },
+  { value: "checklist", label: "Check List", icon: "✅" },
 ];
 const FRECUENCIAS = ["mensual", "trimestral", "semestral", "anual"];
 

@@ -6,7 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { 
   collection, getDocs, addDoc, updateDoc, deleteDoc, 
   doc, query, orderBy, serverTimestamp, getDoc, where 
-} from "firebase/firestore";
+} from "@/lib/firestore";
 import { useRouter } from "next/navigation";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";

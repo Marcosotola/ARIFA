@@ -1,19 +1,21 @@
 "use client";
 import { useEffect, useState, useRef, Suspense } from "react";
 import { useToast, Toast } from "@/components/Toast";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useIdRuta } from "@/hooks/useIdRuta";
 import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, addDoc, updateDoc, doc, getDoc,
   query, orderBy, serverTimestamp, where
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+} from "@/lib/firestore";
+import { ref, getDownloadURL } from "firebase/storage";
+import { subirArchivo, esArchivoOffline } from "@/lib/offline";
 import { achicarFoto, nombreFoto } from "@/lib/achicarFoto";
 import dynamic from "next/dynamic";
 import {
   ClipboardList, Search, BarChart, FileText, Camera, PenTool,
-  ArrowLeft, Check, Save, Plus, X, Shield, Flame, ChevronRight, ChevronLeft, Download, BookMarked
+  ArrowLeft, Check, Save, Plus, X, Shield, Flame, Scroll, ListChecks, ChevronRight, ChevronLeft, Download, BookMarked
 } from "lucide-react";
 import type SignatureCanvasType from "react-signature-canvas";
 
@@ -66,9 +68,22 @@ function sanitize(obj: any): any {
   return obj === undefined ? null : obj;
 }
 
+const COLORES_CATEGORIA: Record<string, string> = {
+  deteccion: "#3b82f6", extincion: "#f97316", matafuegos: "#ef4444", certificaciones: "#7c3aed", checklist: "#0d9488",
+};
+
+const FILTROS_CATEGORIA = [
+  { value: "todos", label: "Todos", icon: null },
+  { value: "deteccion", label: "Detección", icon: <Search size={14} /> },
+  { value: "extincion", label: "Extinción", icon: <Shield size={14} /> },
+  { value: "matafuegos", label: "Matafuegos", icon: <Flame size={14} /> },
+  { value: "certificaciones", label: "Certificaciones", icon: <Scroll size={14} /> },
+  { value: "checklist", label: "Check List", icon: <ListChecks size={14} /> },
+];
+
 const urlToBase64 = async (url: string) => {
     try {
-        if (!url || !url.startsWith("http")) return null;
+        if (!url || !(url.startsWith("http") || esArchivoOffline(url))) return null;
         const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
         const resp = await fetch(proxyUrl);
         if (!resp.ok) throw new Error("Proxy error");
@@ -82,7 +97,7 @@ const urlToBase64 = async (url: string) => {
 };
 
 function OTFormContent() {
-  const params = useParams();
+  const params = { id: useIdRuta() };
   const router = useRouter();
   const isNueva = params.id === "nueva";
   const [role, setRole] = useState<string | null>(null);
@@ -117,7 +132,7 @@ function OTFormContent() {
   const [numeroExpediente, setNumeroExpediente] = useState("");
   const [estado, setEstado] = useState("borrador");
 
-  const [filtroCat, setFiltroCat] = useState<"Todos" | "Detección" | "Extinción" | "Matafuegos">("Todos");
+  const [filtroCat, setFiltroCat] = useState("todos");
   const [busquedaPlanilla, setBusquedaPlanilla] = useState("");
   const [planillasEnOT, setPlanillasEnOT] = useState<PlanillaEnOT[]>([]);
   const [nuevaObs, setNuevaObs] = useState("");
@@ -375,9 +390,7 @@ function OTFormContent() {
     const files = Array.from(e.target.files || []);
     for (const file of files as File[]) {
       const foto = await achicarFoto(file);
-      const r = ref(storage, `ots/${Date.now()}_${nombreFoto(file, foto)}`);
-      await uploadBytes(r, foto);
-      const url = await getDownloadURL(r);
+      const url = await subirArchivo(`ots/${Date.now()}_${nombreFoto(file, foto)}`, foto);
       setFotos(prev => [...prev, url]);
     }
   };
@@ -947,28 +960,29 @@ function OTFormContent() {
         <div style={cardSt}>
           <h2 style={{ fontWeight: 800, marginBottom: "15px" }}>Selección de Planillas</h2>
           <div style={{ display: "flex", gap: "8px", marginBottom: "20px", flexWrap: 'wrap' }}>
-            {["Todos", "Detección", "Extinción", "Matafuegos"].map((cat: any) => {
-              const colors: any = { Detección: "#3b82f6", Extinción: "#f97316", Matafuegos: "#ef4444", Todos: "#64748b" };
+            {FILTROS_CATEGORIA.map(cat => {
+              const activo = filtroCat === cat.value;
+              const color = cat.value === "todos" ? "#64748b" : COLORES_CATEGORIA[cat.value];
               return (
-                <button key={cat} onClick={() => setFiltroCat(cat)} style={{ 
+                <button key={cat.value} onClick={() => setFiltroCat(cat.value)} style={{ 
                   padding: "8px 16px", borderRadius: "20px", fontWeight: 800, fontSize: "0.7rem", cursor: 'pointer',
-                  border: filtroCat === cat ? `2px solid ${colors[cat]}` : "2px solid #eee", 
-                  background: filtroCat === cat ? colors[cat] : "#fff", 
-                  color: filtroCat === cat ? "#fff" : "#666" 
-                }}>{cat === "Detección" ? <Search size={14} /> : cat === "Extinción" ? <Shield size={14} /> : cat === "Matafuegos" ? <Flame size={14} /> : null} {cat.toUpperCase()}</button>
+                  border: activo ? `2px solid ${color}` : "2px solid #eee", 
+                  background: activo ? color : "#fff", 
+                  color: activo ? "#fff" : "#666" 
+                }}>{cat.icon} {cat.label.toUpperCase()}</button>
               );
             })}
           </div>
           <div style={{ display: "grid", gap: "10px" }}>
-            {plantillas.filter(p => filtroCat === "Todos" || p.categoria === (filtroCat === "Detección" ? "deteccion" : filtroCat === "Extinción" ? "extincion" : "matafuegos")).filter(p => p.nombre.toLowerCase().includes(busquedaPlanilla.toLowerCase())).map(p => {
+            {plantillas.filter(p => filtroCat === "todos" || p.categoria === filtroCat).filter(p => p.nombre.toLowerCase().includes(busquedaPlanilla.toLowerCase())).map(p => {
                 const sel = planillasEnOT.some(x => x.plantillaId === p.id);
-                const color = p.categoria === "deteccion" ? "#3b82f6" : p.categoria === "extincion" ? "#f97316" : "#ef4444";
+                const color = COLORES_CATEGORIA[p.categoria] || "#ef4444";
                 return (
                     <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "14px", borderRadius: "12px", border: `2px solid ${sel ? color : "#eee"}`, background: sel ? `${color}08` : "#fff", cursor: "pointer" }}>
                     <input type="checkbox" checked={sel} onChange={e => togglePlanilla(p, e.target.checked)} style={{ accentColor: color }} />
                     <div>
                         <div style={{ fontWeight: 800, color: sel ? color : "#334155" }}>{p.nombre}</div>
-                        <div style={{ fontSize: "0.6rem", color: color, fontWeight: 900 }}>{p.categoria.toUpperCase()}</div>
+                        <div style={{ fontSize: "0.6rem", color: color, fontWeight: 900 }}>{(FILTROS_CATEGORIA.find(c => c.value === p.categoria)?.label || p.categoria).toUpperCase()}</div>
                     </div>
                     </label>
                 );

@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, deleteDoc } from "firebase/firestore";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { doc, getDoc, deleteDoc } from "@/lib/firestore";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useIdRuta } from "@/hooks/useIdRuta";
 import Link from "next/link";
 import { 
   ArrowLeft, 
@@ -18,7 +19,7 @@ import {
 import { generateMantenimientoPDF, generateObleasPDF } from "@/lib/pdfGenerator";
 
 export default function DetalleMantenimientoPage() {
-  const { id } = useParams();
+  const id = useIdRuta();
   const router = useRouter();
   const searchParams = useSearchParams();
   const downloadParam = searchParams.get("download");

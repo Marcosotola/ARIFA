@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "@/lib/firestore";
 import { requestNotificationPermission, isPushSupported, isIOS } from "@/lib/firebase-messaging";
 import styles from "./page.module.css";
 

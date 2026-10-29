@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, doc, getDoc, serverTimestamp, updateDoc, arrayUnion } from "@/lib/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
@@ -294,7 +294,7 @@ export default function NuevoRemitoPage() {
           updatedAt: serverTimestamp()
         };
         await updateDoc(mfRef, mfData).catch(async () => {
-           const { setDoc } = await import("firebase/firestore");
+           const { setDoc } = await import("@/lib/firestore");
            await setDoc(mfRef, { ...mfData, createdAt: serverTimestamp() });
         });
       });

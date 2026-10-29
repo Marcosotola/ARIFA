@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy } from "@/lib/firestore";
 import { Building2, MapPin, QrCode, Download, ExternalLink, Search, CheckCircle2, AlertTriangle, XCircle, Clock, RefreshCw } from "lucide-react";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";

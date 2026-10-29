@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { db, auth, storage } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, addDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { ref, deleteObject } from "firebase/storage";
+import { collection, getDocs, query, orderBy, where, doc, getDoc, deleteDoc, addDoc, updateDoc, serverTimestamp } from "@/lib/firestore";
+import { borrarArchivo } from "@/lib/offline";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Plus, Eye, Edit, Download, Trash2, Scroll, BookText, ClipboardList, UserCheck } from "lucide-react";
@@ -192,8 +192,7 @@ export default function CertificadosPage() {
         const fotos = data.fotos || [];
         for (const url of fotos) {
           try {
-            const picRef = ref(storage, url);
-            await deleteObject(picRef);
+            await borrarArchivo(url);
           } catch (err) {
             console.error("Error eliminando imagen de storage:", err);
           }

@@ -2,7 +2,7 @@
 // TIPOS DE DATOS — Diseñados para Firebase/Firestore
 // ============================================================
 import { db } from "./firebase";
-import { collection, getDocs, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, where, orderBy, limit } from "@/lib/firestore";
 
 export interface Categoria {
   id: string;

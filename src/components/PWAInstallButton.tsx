@@ -87,7 +87,7 @@ export default function PWAInstallButton({ variant = "header" }: Props) {
       if (token) {
         const { auth, db } = await import("@/lib/firebase");
         if (auth.currentUser) {
-          const { updateDoc, doc } = await import("firebase/firestore");
+          const { updateDoc, doc } = await import("@/lib/firestore");
           await updateDoc(doc(db, "usuarios", auth.currentUser.uid), { fcmToken: token });
         }
       }

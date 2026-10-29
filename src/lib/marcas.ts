@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { doc, setDoc, arrayUnion } from "firebase/firestore";
+import { doc, setDoc, arrayUnion } from "@/lib/firestore";
 import { MARCAS_DISPONIBLES } from "./matafuegosConstants";
 
 // La marca se guarda siempre en mayúsculas y sin espacios de más, para que "Georgia" y "GEORGIA " no sean dos marcas.

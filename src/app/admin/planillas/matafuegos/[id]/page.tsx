@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useIdRuta } from "@/hooks/useIdRuta";
 import { db, auth } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "@/lib/firestore";
 import Link from "next/link";
 import { 
   ArrowLeft, 
@@ -46,7 +47,7 @@ interface Remito {
 }
 
 export default function DetalleRemitoPage() {
-  const params = useParams();
+  const params = { id: useIdRuta() };
   const router = useRouter();
   const searchParams = useSearchParams();
   const downloadParam = searchParams.get("download");

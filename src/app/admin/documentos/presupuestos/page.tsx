@@ -5,7 +5,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, query, orderBy, where,
   doc, getDoc, deleteDoc, updateDoc, serverTimestamp,
-} from "firebase/firestore";
+} from "@/lib/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { generatePresupuestoPDF } from "@/lib/pdfGenerator";

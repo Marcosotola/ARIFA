@@ -6,8 +6,9 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
   doc, query, orderBy, serverTimestamp, getDoc, where
-} from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject, getBlob } from "firebase/storage";
+} from "@/lib/firestore";
+import { ref, getBlob } from "firebase/storage";
+import { subirArchivo, borrarArchivo } from "@/lib/offline";
 import { achicarFoto } from "@/lib/achicarFoto";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";
@@ -427,9 +428,7 @@ export default function HySPage() {
   };
 
   const uploadBlob = async (blob: Blob, name: string) => {
-    const storageRef = ref(storage, `hys/${Date.now()}_${name}`);
-    await uploadBytes(storageRef, blob);
-    return getDownloadURL(storageRef);
+    return subirArchivo(`hys/${Date.now()}_${name}`, blob);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -557,7 +556,7 @@ export default function HySPage() {
       if (docSnap.exists()) {
         const imagenes: string[] = docSnap.data().imagenes || [];
         for (const url of imagenes) {
-          try { await deleteObject(ref(storage, url)); } catch {}
+          try { await borrarArchivo(url); } catch {}
         }
       }
       await deleteDoc(doc(db, "hys_documentos", id));

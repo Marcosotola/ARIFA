@@ -1,16 +1,17 @@
 "use client";
 import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useIdRuta } from "@/hooks/useIdRuta";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "@/lib/firestore";
 import { claveCliente, nombreCliente } from "@/lib/cuentaCorriente";
 
 // Los estados de cuenta ya no son documentos cargados a mano: los links viejos (buscador, favoritos)
 // llevan al estado de cuenta calculado del cliente.
 export default function EstadoCuentaViejoRedirect() {
   const router = useRouter();
-  const { id } = useParams() as { id: string };
+  const id = useIdRuta();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {

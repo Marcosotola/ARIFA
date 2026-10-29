@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc } from "@/lib/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FileText, ChevronRight, Package } from "lucide-react";

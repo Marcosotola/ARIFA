@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useState, useRef, Suspense } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { db, auth, storage } from "@/lib/firebase";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useIdRuta } from "@/hooks/useIdRuta";
+import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, addDoc, updateDoc, setDoc, doc, getDoc, query, orderBy, serverTimestamp, where } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, getDocs, addDoc, updateDoc, setDoc, doc, getDoc, query, orderBy, serverTimestamp, where } from "@/lib/firestore";
+import { subirArchivo } from "@/lib/offline";
 import { achicarFoto, nombreFoto } from "@/lib/achicarFoto";
 import dynamic from "next/dynamic";
 import { useToast, Toast } from "@/components/Toast";
@@ -204,7 +205,7 @@ const appendOTPagesToDoc = async (pdf: any, autoTable: any, otId: string, logoPn
 };
 
 function CertificadosEditor() {
-  const params = useParams();
+  const params = { id: useIdRuta() };
   const router = useRouter();
   const searchParams = useSearchParams();
   const isNuevo = params.id === "nuevo";
@@ -530,9 +531,7 @@ function CertificadosEditor() {
       const urls: string[] = [];
       for (const file of files) {
         const foto = await achicarFoto(file);
-        const r = ref(storage, `certificados/${Date.now()}_${nombreFoto(file, foto)}`);
-        await uploadBytes(r, foto);
-        urls.push(await getDownloadURL(r));
+        urls.push(await subirArchivo(`certificados/${Date.now()}_${nombreFoto(file, foto)}`, foto));
       }
       setFotos(prev => [...prev, ...urls]);
     } catch { showToast("Error al subir la foto. Intentá de nuevo.", "error"); }

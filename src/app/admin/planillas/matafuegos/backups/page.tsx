@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { collection, getDocs, query, orderBy, doc, setDoc, updateDoc, deleteDoc, getDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, doc, setDoc, updateDoc, deleteDoc, getDoc, serverTimestamp, arrayUnion } from "@/lib/firestore";
 import { useRouter } from "next/navigation";
 import { useToast, Toast } from "@/components/Toast";
 import { ArrowLeft, Plus, Trash2, PackageCheck, PackageX } from "lucide-react";

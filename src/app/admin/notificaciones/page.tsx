@@ -9,7 +9,7 @@ import {
   orderBy,
   query,
   limit,
-} from "firebase/firestore";
+} from "@/lib/firestore";
 import { 
   Bell, 
   Megaphone, 
