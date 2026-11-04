@@ -5,7 +5,7 @@ import { db, auth, storage } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, addDoc, updateDoc, deleteDoc,
-  doc, query, orderBy, serverTimestamp, getDoc, where
+  doc, query, orderBy, serverTimestamp, getDoc, where, arrayUnion
 } from "@/lib/firestore";
 import { ref, getBlob } from "firebase/storage";
 import { subirArchivo, borrarArchivo } from "@/lib/offline";
@@ -338,6 +338,7 @@ export default function HySPage() {
   const [fDireccion, setFDireccion] = useState("");
 
   const [filteredSedes, setFilteredSedes] = useState<any[]>([]);
+  const [nuevaSede, setNuevaSede] = useState<{ nombre: string; direccion: string; razonSocial: string } | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -405,7 +406,7 @@ export default function HySPage() {
   const openCreate = () => {
     setFCliente(""); setFClienteId(""); setFSedeId(""); setFSedeNombre(""); setFSedeRazonSocial(""); setFFecha(new Date().toISOString().split("T")[0]);
     setFDniCuit(""); setFTelefono(""); setFDireccion("");
-    setFTipos([]); setFDescripcion(""); setFImagenes([]); setFilteredSedes([]);
+    setFTipos([]); setFDescripcion(""); setFImagenes([]); setFilteredSedes([]); setNuevaSede(null);
     setFFechaVencimiento(""); setFSubtipoMedicion(""); setFCapacitaciones([]);
     setFNroExpediente(""); setFFechaEntrega(""); setFFechaInspeccion(""); setFFechaEntregaAnexos("");
     setSelectedDoc(null); setModal("create");
@@ -423,6 +424,7 @@ export default function HySPage() {
     setFFechaInspeccion(d.fechaInspeccion || ""); setFFechaEntregaAnexos(d.fechaEntregaAnexos || "");
     const u = usuarios.find(x => x.id === d.clienteId);
     setFilteredSedes(u?.sedes || []);
+    setNuevaSede(null);
     setSelectedDoc(d); setModal("edit");
     setShowSuggestions(false);
   };
@@ -501,6 +503,9 @@ export default function HySPage() {
   const handleSave = async () => {
     if (!fCliente.trim()) { showToast("El campo cliente es obligatorio.", "error"); return; }
     if (!fFecha) { showToast("La fecha es obligatoria.", "error"); return; }
+    // La sede sale del cliente registrado: sin cliente de la lista no hay sedes para elegir.
+    if (!fClienteId) { showToast("Elegí el cliente de la lista (o creá uno nuevo) para poder indicar la sede.", "error"); return; }
+    if (!fSedeId) { showToast("La sede / ubicación es obligatoria.", "error"); return; }
     setSaving(true);
     try {
       const hasExpediente = fTipos.includes("Expediente CIEC") || fTipos.includes("Expediente Bomberos");
@@ -573,13 +578,38 @@ export default function HySPage() {
     setFDireccion(u.direccion || u.domicilio || "");
     setFilteredSedes(u.sedes || []);
     setFSedeId(""); setFSedeNombre(""); setFSedeRazonSocial("");
+    setNuevaSede(null);
     setShowSuggestions(false);
+  };
+
+  // Agrega la sede al cliente (usuarios/{id}.sedes) y la deja elegida en el documento.
+  const handleCrearSede = async () => {
+    if (!nuevaSede || !fClienteId) return;
+    const nombre = nuevaSede.nombre.trim();
+    if (!nombre) { showToast("El nombre de la sede es obligatorio.", "error"); return; }
+    const sede = {
+      id: Math.random().toString(36).substr(2, 9),
+      nombre,
+      direccion: nuevaSede.direccion.trim(),
+      razonSocial: nuevaSede.razonSocial.trim(),
+    };
+    try {
+      await updateDoc(doc(db, "usuarios", fClienteId), { sedes: arrayUnion(sede) });
+      setUsuarios(prev => prev.map(u => u.id === fClienteId ? { ...u, sedes: [...(u.sedes || []), sede] } : u));
+      setFilteredSedes(prev => [...prev, sede]);
+      setFSedeId(sede.id); setFSedeNombre(sede.nombre); setFSedeRazonSocial(sede.razonSocial);
+      setNuevaSede(null);
+      showToast("Sede creada.", "success");
+    } catch {
+      showToast("Error al crear la sede. Intentá de nuevo.", "error");
+    }
   };
 
   const handleClearCliente = () => {
     setFClienteId(""); setFCliente("");
     setFDniCuit(""); setFTelefono(""); setFDireccion("");
     setFilteredSedes([]); setFSedeId(""); setFSedeNombre(""); setFSedeRazonSocial("");
+    setNuevaSede(null);
     setShowSuggestions(true);
   };
 
@@ -1254,16 +1284,36 @@ export default function HySPage() {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                 <div>
-                  <label style={labelSt}>Sede / Ubicación</label>
-                  <select style={inputSt} value={fSedeId} onChange={e => {
+                  <label style={labelSt}>Sede / Ubicación *</label>
+                  <select style={inputSt} value={fSedeId} disabled={!fClienteId} onChange={e => {
                     const s = filteredSedes.find(x => x.id === e.target.value);
                     setFSedeId(e.target.value);
                     setFSedeNombre(s ? s.nombre : "");
                     setFSedeRazonSocial(s ? (s.razonSocial || "") : "");
                   }}>
-                    <option value="">-- Seleccionar Sede --</option>
-                    {filteredSedes.map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.direccion})</option>)}
+                    <option value="">{fClienteId ? "-- Seleccionar Sede --" : "-- Primero elegí el cliente --"}</option>
+                    {filteredSedes.map(s => <option key={s.id} value={s.id}>{s.nombre}{s.direccion ? ` (${s.direccion})` : ""}</option>)}
                   </select>
+                  {fClienteId && !nuevaSede && (
+                    <button type="button" onClick={() => setNuevaSede({ nombre: "", direccion: "", razonSocial: "" })}
+                      style={{ marginTop: "6px", background: "none", border: "none", padding: 0, color: "var(--primary-blue)", fontWeight: 700, fontSize: "0.8rem", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <Plus size={14} /> Nueva sede
+                    </button>
+                  )}
+                  {fClienteId && nuevaSede && (
+                    <div style={{ marginTop: "8px", padding: "10px", border: "1px solid #ddd", borderRadius: "8px", background: "#f8fafc", display: "grid", gap: "6px" }}>
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Nombre de la sede *" value={nuevaSede.nombre} autoFocus
+                        onChange={e => setNuevaSede({ ...nuevaSede, nombre: e.target.value })} />
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Dirección" value={nuevaSede.direccion}
+                        onChange={e => setNuevaSede({ ...nuevaSede, direccion: e.target.value })} />
+                      <input style={{ ...inputSt, padding: "8px" }} placeholder="Razón social (si es distinta)" value={nuevaSede.razonSocial}
+                        onChange={e => setNuevaSede({ ...nuevaSede, razonSocial: e.target.value })} />
+                      <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                        <button type="button" onClick={() => setNuevaSede(null)} style={{ padding: "6px 12px", borderRadius: "6px", border: "1px solid #ddd", background: "#fff", cursor: "pointer", fontSize: "0.8rem" }}>Cancelar</button>
+                        <button type="button" onClick={handleCrearSede} style={{ padding: "6px 12px", borderRadius: "6px", border: "none", background: "var(--primary-blue)", color: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem" }}>Crear sede</button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div>
