@@ -7,7 +7,8 @@ import { collection, query, where, orderBy, getDocs, addDoc, updateDoc, deleteDo
 import { useToast, Toast } from "@/components/Toast";
 import { ajustarStock } from "@/lib/stock";
 import Link from "next/link";
-import { Plus, Download, Pencil, Trash2, TrendingUp, TrendingDown, Wallet, FileUp } from "lucide-react";
+import { Plus, Download, Pencil, Trash2, TrendingUp, TrendingDown, Wallet, FileUp, ScanBarcode } from "lucide-react";
+import EscanerCodigo, { normalizarCodigo } from "@/components/admin/EscanerCodigo";
 import {
   MEDIOS_PAGO, CATEGORIAS_INGRESO, MESES, Movimiento,
   fmtPeso, fmtFecha, rangoPeriodo, totales, porMedioPago, porCategoria, porMes, movimientosCsv,
@@ -19,7 +20,7 @@ interface FormMov {
   productoId: string; cantidadVendida: string;
 }
 
-interface ProductoStock { id: string; titulo: string; stock: number; }
+interface ProductoStock { id: string; titulo: string; stock: number; codigo: string; precioVenta: number; }
 
 const hoy = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
 const formVacio = (tipo: "ingreso" | "egreso" = "ingreso"): FormMov => ({
@@ -53,6 +54,10 @@ export default function LibroContablePage() {
   const [form, setForm] = useState<FormMov>(formVacio());
   const [saving, setSaving] = useState(false);
   const [borrarId, setBorrarId] = useState<string | null>(null);
+  const [escaner, setEscaner] = useState(false);
+  const [codigoNoEncontrado, setCodigoNoEncontrado] = useState<string | null>(null);
+  // El monto lo completó la app con el precio del producto: se recalcula si cambia la cantidad.
+  const [montoAuto, setMontoAuto] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -110,7 +115,10 @@ export default function LibroContablePage() {
   useEffect(() => {
     if (!autorizado) return;
     getDocs(query(collection(db, "productos"), where("activo", "==", true)))
-      .then(snap => setProductos(snap.docs.map(d => ({ id: d.id, titulo: d.data().titulo, stock: Number(d.data().stock) || 0 }))))
+      .then(snap => setProductos(snap.docs.map(d => ({
+        id: d.id, titulo: d.data().titulo, stock: Number(d.data().stock) || 0,
+        codigo: d.data().codigo || "", precioVenta: Number(d.data().precioVenta) || 0,
+      }))))
       .catch(console.error);
   }, [autorizado]);
 
@@ -124,9 +132,13 @@ export default function LibroContablePage() {
   const rubros = porCategoria(visibles);
   const meses = porMes(visibles);
 
-  const abrirNuevo = (tipo: "ingreso" | "egreso") => { setEditId(null); setForm(formVacio(tipo)); setModal(true); };
+  const abrirNuevo = (tipo: "ingreso" | "egreso") => {
+    setEditId(null); setForm(formVacio(tipo)); setMontoAuto(false); setCodigoNoEncontrado(null); setModal(true);
+  };
   const abrirEditar = (m: Movimiento) => {
     setEditId(m.id);
+    setMontoAuto(false);
+    setCodigoNoEncontrado(null);
     setForm({
       fecha: m.fecha, tipo: m.tipo, monto: String(m.monto), medioPago: m.medioPago || "Efectivo",
       cliente: m.cliente || "", telefono: m.telefono || "", concepto: m.concepto || "", categorias: m.categorias || [],
@@ -139,6 +151,47 @@ export default function LibroContablePage() {
     setForm(prev => ({ ...prev, categorias: prev.categorias.includes(c) ? prev.categorias.filter(x => x !== c) : [...prev.categorias, c] }));
 
   const esVenta = form.tipo === "ingreso" && form.categorias.includes("Venta");
+
+  const montoDe = (p: ProductoStock | undefined, cantidad: number) =>
+    p && p.precioVenta > 0 ? String(Math.round(p.precioVenta * cantidad * 100) / 100) : "";
+
+  // Código leído con la cámara: busca el producto y completa la venta. Si es el mismo producto, suma 1.
+  const aplicarCodigo = (codigo: string) => {
+    setEscaner(false);
+    const p = productos.find(x => x.codigo && normalizarCodigo(x.codigo) === normalizarCodigo(codigo));
+    if (!p) { setCodigoNoEncontrado(codigo); return; }
+    setCodigoNoEncontrado(null);
+    const cantidad = form.productoId === p.id ? (Math.floor(Number(form.cantidadVendida)) || 0) + 1 : 1;
+    const monto = montoDe(p, cantidad);
+    setForm(prev => ({
+      ...prev,
+      tipo: "ingreso",
+      categorias: prev.categorias.includes("Venta") ? prev.categorias : [...prev.categorias, "Venta"],
+      productoId: p.id,
+      cantidadVendida: String(cantidad),
+      // El concepto se completa con el nombre del producto, salvo que lo hayan escrito a mano.
+      concepto: !prev.concepto.trim() || prev.concepto === productos.find(x => x.id === prev.productoId)?.titulo ? p.titulo : prev.concepto,
+      monto: monto || prev.monto,
+    }));
+    setMontoAuto(!!monto);
+    if (p.stock < cantidad) showToast(`Ojo: "${p.titulo}" tiene stock ${p.stock}.`, "error");
+    else showToast(cantidad > 1 ? `${p.titulo} × ${cantidad}` : p.titulo, "success");
+  };
+
+  const elegirProducto = (id: string) => {
+    const p = productos.find(x => x.id === id);
+    const cantidad = Math.max(1, Math.floor(Number(form.cantidadVendida)) || 1);
+    const monto = montoDe(p, cantidad);
+    const completar = !!monto && (montoAuto || !form.monto);
+    setForm(prev => ({ ...prev, productoId: id, ...(completar ? { monto } : {}) }));
+    if (completar) setMontoAuto(true);
+  };
+
+  const cambiarCantidad = (valor: string) => {
+    const p = productos.find(x => x.id === form.productoId);
+    const monto = montoAuto ? montoDe(p, Math.max(1, Math.floor(Number(valor)) || 1)) : "";
+    setForm(prev => ({ ...prev, cantidadVendida: valor, ...(monto ? { monto } : {}) }));
+  };
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -423,9 +476,33 @@ export default function LibroContablePage() {
               ))}
             </div>
 
+            {form.tipo === "ingreso" && (
+              <div style={{ marginBottom: "16px" }}>
+                <button type="button" onClick={() => setEscaner(true)}
+                  style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1.5px dashed var(--primary-blue)", background: "#f0f6ff", color: "var(--primary-blue)", fontWeight: 800, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontSize: "0.95rem" }}>
+                  <ScanBarcode size={20} /> {form.productoId ? "Escanear otra unidad" : "Escanear producto"}
+                </button>
+                {codigoNoEncontrado && (
+                  <div style={{ marginTop: "10px", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: "10px", padding: "12px", fontSize: "0.85rem" }}>
+                    <div style={{ fontWeight: 700, color: "#9a3412" }}>No hay ningún producto activo con el código <span style={{ fontFamily: "monospace" }}>{codigoNoEncontrado}</span>.</div>
+                    <div style={{ display: "flex", gap: "8px", marginTop: "8px", flexWrap: "wrap" }}>
+                      <Link href={`/admin/productos?nuevoCodigo=${encodeURIComponent(codigoNoEncontrado)}`}
+                        style={{ padding: "7px 12px", borderRadius: "8px", background: "var(--primary-blue)", color: "#fff", fontWeight: 700, textDecoration: "none", fontSize: "0.8rem" }}>
+                        Crear producto con este código
+                      </Link>
+                      <button type="button" onClick={() => setCodigoNoEncontrado(null)}
+                        style={{ padding: "7px 12px", borderRadius: "8px", border: "1px solid #ddd", background: "#fff", fontWeight: 700, cursor: "pointer", fontSize: "0.8rem" }}>
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px", marginBottom: "14px" }}>
               <div><label style={labelSt}>Fecha</label><input type="date" value={form.fecha} onChange={e => setCampo("fecha", e.target.value)} style={inputSt} /></div>
-              <div><label style={labelSt}>Monto ($)</label><input type="number" min="0" step="0.01" inputMode="decimal" value={form.monto} onChange={e => setCampo("monto", e.target.value)} placeholder="0" style={inputSt} autoFocus /></div>
+              <div><label style={labelSt}>Monto ($)</label><input type="number" min="0" step="0.01" inputMode="decimal" value={form.monto} onChange={e => { setCampo("monto", e.target.value); setMontoAuto(false); }} placeholder="0" style={inputSt} autoFocus /></div>
               <div>
                 <label style={labelSt}>Medio de pago</label>
                 <select value={form.medioPago} onChange={e => setCampo("medioPago", e.target.value)} style={{ ...inputSt, background: "#fff" }}>
@@ -464,14 +541,14 @@ export default function LibroContablePage() {
               <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "14px", marginBottom: "14px", background: "#f0fdf4", padding: "14px", borderRadius: "10px", border: "1px solid #bbf7d0" }}>
                 <div>
                   <label style={labelSt}>Producto (descuenta stock)</label>
-                  <select value={form.productoId} onChange={e => setCampo("productoId", e.target.value)} style={{ ...inputSt, background: "#fff" }}>
+                  <select value={form.productoId} onChange={e => elegirProducto(e.target.value)} style={{ ...inputSt, background: "#fff" }}>
                     <option value="">-- No descontar stock --</option>
                     {productos.map(p => <option key={p.id} value={p.id}>{p.titulo} (stock: {p.stock})</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={labelSt}>Cantidad</label>
-                  <input type="number" min="1" step="1" value={form.cantidadVendida} onChange={e => setCampo("cantidadVendida", e.target.value)} style={inputSt} disabled={!form.productoId} />
+                  <input type="number" min="1" step="1" value={form.cantidadVendida} onChange={e => cambiarCantidad(e.target.value)} style={inputSt} disabled={!form.productoId} />
                 </div>
               </div>
             )}
@@ -483,6 +560,8 @@ export default function LibroContablePage() {
           </form>
         </div>
       )}
+
+      {escaner && <EscanerCodigo titulo="Escanear producto vendido" onDetectado={aplicarCodigo} onCerrar={() => setEscaner(false)} />}
 
       {/* CONFIRMAR ELIMINAR */}
       {borrarId && (

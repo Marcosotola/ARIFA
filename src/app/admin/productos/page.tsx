@@ -10,6 +10,8 @@ import {
 import { subirArchivo, borrarArchivo, esArchivoOffline } from "@/lib/offline";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";
+import EscanerCodigo, { normalizarCodigo } from "@/components/admin/EscanerCodigo";
+import { ScanBarcode } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Producto {
@@ -18,6 +20,7 @@ interface Producto {
   descripcion: string;
   categoria: string;
   proveedor: string;
+  codigo?: string;      // SKU o código de barras
   precio: number;       // precio de costo
   porcentaje: number;   // margen de ganancia %
   precioVenta: number;  // calculado
@@ -57,7 +60,7 @@ const labelSt: React.CSSProperties = {
 };
 
 const EMPTY: Omit<Producto, "id" | "createdAt" | "updatedAt"> = {
-  titulo: "", descripcion: "", categoria: "", proveedor: "",
+  titulo: "", descripcion: "", categoria: "", proveedor: "", codigo: "",
   precio: 0, porcentaje: 30, precioVenta: 0, stock: 0, activo: true,
   imagenes: [],
   slug: "",
@@ -82,6 +85,7 @@ export default function AdminProductos() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [viewMode, setViewMode] = useViewMode("productos");
+  const [escaner, setEscaner] = useState<"form" | "buscar" | null>(null);
 
   const fetch = useCallback(async () => {
     setLoading(true);
@@ -102,6 +106,18 @@ export default function AdminProductos() {
     fetch();
     return () => unsub();
   }, [fetch]);
+
+  // Desde el Libro contable: "/admin/productos?nuevoCodigo=..." abre el alta con ese código ya cargado.
+  useEffect(() => {
+    const codigo = new URLSearchParams(window.location.search).get("nuevoCodigo");
+    if (!codigo) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    setForm({ ...EMPTY, codigo, precioVenta: calcVenta(EMPTY.precio, EMPTY.porcentaje) });
+    setEditId(null);
+    setImageFiles([]);
+    setPreviews([]);
+    setModal("create");
+  }, []);
 
   const isAllowed = role === "admin" || role === "tecnico" || role === "tecnicoTaller" || role === "secretaria" || role === "superadmin";
 
@@ -132,7 +148,7 @@ export default function AdminProductos() {
   const openEdit = (p: Producto) => {
     setForm({
       titulo: p.titulo, descripcion: p.descripcion, categoria: p.categoria,
-      proveedor: p.proveedor, precio: p.precio, porcentaje: p.porcentaje,
+      proveedor: p.proveedor, codigo: p.codigo || "", precio: p.precio, porcentaje: p.porcentaje,
       precioVenta: p.precioVenta, stock: p.stock ?? 0, activo: p.activo,
       imagenes: p.imagenes || [],
       slug: p.slug || "",
@@ -146,6 +162,9 @@ export default function AdminProductos() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.titulo.trim()) { showToast("El título es obligatorio.", "error"); return; }
+    const codigo = (form.codigo || "").trim();
+    const repetido = codigo && productos.find(p => p.id !== editId && normalizarCodigo(p.codigo) === normalizarCodigo(codigo));
+    if (repetido) { showToast(`Ese código ya lo tiene "${repetido.titulo}".`, "error"); return; }
     setSaving(true);
     try {
       // 1. Upload new files
@@ -171,6 +190,7 @@ export default function AdminProductos() {
 
       const payload = {
         ...form,
+        codigo,
         imagenes: finalImages,
         precio: Number(form.precio),
         porcentaje: Number(form.porcentaje),
@@ -218,7 +238,9 @@ export default function AdminProductos() {
   const visible = productos
     .filter(p => {
       const matchCat = filtroCat === "Todas" || p.categoria === filtroCat;
-      const matchQ = !search || p.titulo.toLowerCase().includes(search.toLowerCase()) || p.proveedor?.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      const matchQ = !search || p.titulo.toLowerCase().includes(q) || p.proveedor?.toLowerCase().includes(q)
+        || (!!p.codigo && normalizarCodigo(p.codigo).includes(normalizarCodigo(search)));
       return matchCat && matchQ;
     })
     .sort((a, b) => {
@@ -253,8 +275,12 @@ export default function AdminProductos() {
 
       <div style={{ background: "#fff", borderRadius: "10px", padding: "16px 20px", marginBottom: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", border: "1px solid #eee" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "12px", marginBottom: "12px" }}>
-          <input style={{ ...inputSt }} placeholder="🔎 Buscar por título o proveedor..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input style={{ ...inputSt }} placeholder="🔎 Buscar por título, proveedor o código..." value={search} onChange={e => setSearch(e.target.value)} />
           <div style={{ display: "flex", gap: "10px" }}>
+            <button onClick={() => setEscaner("buscar")} title="Buscar escaneando el código"
+              style={{ padding: "10px 12px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", display: "flex", alignItems: "center" }}>
+              <ScanBarcode size={18} />
+            </button>
             <button onClick={() => { setSearch(""); setFiltroCat("Todas"); }}
               style={{ padding: "10px 16px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", whiteSpace: "nowrap", fontWeight: 600 }}>
               🔄 Limpiar
@@ -300,7 +326,8 @@ export default function AdminProductos() {
                       {p.categoria}
                     </div>
                   )}
-                  <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: "10px" }}>{p.proveedor || "—"}</div>
+                  <div style={{ fontSize: "0.82rem", color: "#555", marginBottom: p.codigo ? "4px" : "10px" }}>{p.proveedor || "—"}</div>
+                  {p.codigo && <div style={{ fontSize: "0.72rem", color: "#888", fontFamily: "monospace", marginBottom: "10px" }}>#{p.codigo}</div>}
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                     <div>
                       <div style={{ fontSize: "0.85rem", fontWeight: 600 }}>{fmtPeso(p.precio)}</div>
@@ -364,6 +391,7 @@ export default function AdminProductos() {
                             {p.categoria}
                           </div>
                         )}
+                        {p.codigo && <div style={{ fontSize: "0.7rem", color: "#888", fontFamily: "monospace", marginTop: "2px" }}>#{p.codigo}</div>}
                       </div>
                     </div>
                   </td>
@@ -466,6 +494,16 @@ export default function AdminProductos() {
                   <input style={inputSt} value={form.proveedor} onChange={e => setField("proveedor", e.target.value)} />
                 </div>
               </div>
+              <div>
+                <label style={labelSt}>Código (SKU o código de barras)</label>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <input style={{ ...inputSt, fontFamily: "monospace" }} value={form.codigo || ""} onChange={e => setField("codigo", e.target.value)} placeholder="Ej: 7791234567890" />
+                  <button type="button" onClick={() => setEscaner("form")} title="Escanear con la cámara"
+                    style={{ padding: "0 14px", borderRadius: "8px", border: "1.5px solid var(--primary-blue)", background: "#fff", color: "var(--primary-blue)", cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", fontWeight: 700, whiteSpace: "nowrap" }}>
+                    <ScanBarcode size={18} /> Escanear
+                  </button>
+                </div>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "15px" }}>
                 <div>
                   <label style={labelSt}>Precio Costo ($)</label>
@@ -513,6 +551,24 @@ export default function AdminProductos() {
             </div>
           </div>
         </div>
+      )}
+      {escaner && (
+        <EscanerCodigo
+          titulo={escaner === "form" ? "Escanear código del producto" : "Buscar producto por código"}
+          onCerrar={() => setEscaner(null)}
+          onDetectado={codigo => {
+            if (escaner === "form") {
+              setField("codigo", codigo);
+            } else {
+              setSearch(codigo);
+              setFiltroCat("Todas");
+              const p = productos.find(x => normalizarCodigo(x.codigo) === normalizarCodigo(codigo));
+              if (p) openEdit(p);
+              else showToast(`No hay ningún producto con el código ${codigo}.`, "error");
+            }
+            setEscaner(null);
+          }}
+        />
       )}
       <Toast {...toast} />
     </div>

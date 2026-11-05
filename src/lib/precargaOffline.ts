@@ -10,6 +10,7 @@ import { estaOffline } from "./offline";
 // puede leer se saltean solas.
 const LISTAS_FORMULARIOS = [
   "usuarios", "configuracion", "plantillas_inspeccion", "plantillas_cliente", "textos_memoria", "certificadores",
+  "productos", // el escáner de códigos del Libro contable los busca en el dispositivo
 ];
 
 const INTERVALO_LISTAS_MS = 24 * 60 * 60 * 1000;
