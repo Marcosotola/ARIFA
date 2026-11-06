@@ -1,4 +1,4 @@
-import { AGENTES_NOMBRE, OBLEA_EMISOR, MANTENIMIENTO_ARIFA, MANTENIMIENTO_ARIFA_LEYENDA, MANTENIMIENTO_OTRA } from "./matafuegosConstants";
+import { AGENTES_NOMBRE, OBLEA_EMISOR, MANTENIMIENTO_ARIFA, MANTENIMIENTO_ARIFA_LEYENDA, MANTENIMIENTO_OTRA, RESPONSABLE_TECNICO_FICHA } from "./matafuegosConstants";
 
 export const generateMantenimientoPDF = async (ficha: any) => {
     const { default: jsPDF } = await import("jspdf");
@@ -189,13 +189,40 @@ export const generateMantenimientoPDF = async (ficha: any) => {
     if (y > 185) { pdf.addPage(); y = 40; }
 
     pdf.setTextColor(0);
-    pdf.line(W - MR - 65, y, W - MR - 5, y);
+    pdf.setDrawColor(0);
+
+    // Firma del técnico que hizo el trabajo (si firmó en la app), a la izquierda del responsable técnico.
     if (ficha.firmaTecnico) {
-      pdf.addImage(ficha.firmaTecnico, "PNG", W - MR - 60, y - 22, 50, 18);
+      const cx = W - MR - 115;
+      pdf.line(cx - 30, y, cx + 30, y);
+      pdf.addImage(ficha.firmaTecnico, "PNG", cx - 25, y - 22, 50, 18);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      pdf.text("Firma Técnico", cx, y + 5, { align: "center" });
+      if (ficha.tecnicoNombre) {
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.text(String(ficha.tecnicoNombre), cx, y + 9.5, { align: "center" });
+      }
+    }
+
+    // Responsable técnico: firma fija del Ing. Zamora en todas las fichas.
+    const rt = RESPONSABLE_TECNICO_FICHA;
+    const cxRt = W - MR - 35;
+    pdf.line(cxRt - 30, y, cxRt + 30, y);
+    const firmaRt = await cargarImagen(rt.firma);
+    if (firmaRt) {
+      const fw = Math.min(55, 22 * firmaRt.ratio);
+      const fh = fw / firmaRt.ratio;
+      pdf.addImage(firmaRt.dataUrl, "PNG", cxRt - fw / 2, y - fh - 1, fw, fh);
     }
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
-    pdf.text("Firma Responsable Técnico", W - MR - 35, y + 5, { align: "center" });
+    pdf.text(rt.nombre, cxRt, y + 5, { align: "center" });
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(8);
+    pdf.text(`${rt.titulo} - ${rt.matricula}`, cxRt, y + 9.5, { align: "center" });
+    pdf.text("Responsable Técnico", cxRt, y + 14, { align: "center" });
 
     pdf.save(`Certificado_Tecnico_FT${ftNum}.pdf`);
 };

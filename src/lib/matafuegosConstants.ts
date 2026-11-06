@@ -6,6 +6,13 @@ export const CAPACIDADES_DISPONIBLES = ["1kg", "2kg", "2.5kg", "3kg", "3.5kg", "
 export const MANTENIMIENTO_ARIFA = "ARIFA";
 export const MANTENIMIENTO_OTRA = "Otra empresa";
 // La habilitación para el mantenimiento de extintores está a nombre de Facundo; la ficha técnica lo muestra junto a ARIFA.
+// Responsable técnico que firma todas las Fichas Técnicas de extintores.
+export const RESPONSABLE_TECNICO_FICHA = {
+  firma: "/firmas/ing-zamora.png",
+  nombre: "Ing. Ramón Zamora",
+  titulo: "Ingeniero Mecánico",
+  matricula: "MP: 6852",
+};
 export const MANTENIMIENTO_ARIFA_LEYENDA = "ARIFA - FACUNDO GERMAN PEDRAZA - CUIT 20-35108395-7";
 
 // Lista para un <select>: conserva el valor ya guardado aunque no figure en el listado (datos históricos o cargados con "Otro").
