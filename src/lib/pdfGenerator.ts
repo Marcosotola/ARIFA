@@ -1,4 +1,4 @@
-import { AGENTES_NOMBRE, OBLEA_EMISOR, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA } from "./matafuegosConstants";
+import { AGENTES_NOMBRE, OBLEA_EMISOR, MANTENIMIENTO_ARIFA, MANTENIMIENTO_ARIFA_LEYENDA, MANTENIMIENTO_OTRA } from "./matafuegosConstants";
 
 export const generateMantenimientoPDF = async (ficha: any) => {
     const { default: jsPDF } = await import("jspdf");
@@ -181,8 +181,8 @@ export const generateMantenimientoPDF = async (ficha: any) => {
     const empresasMant = Array.from(new Set(ficha.items.map((it: any) =>
       it.mantenimientoPor === MANTENIMIENTO_OTRA ? (it.empresaMantenimiento || "Otra empresa") : MANTENIMIENTO_ARIFA)));
     const textoEmpresa = empresasMant.length === 1
-      ? `EMPRESA QUE REALIZÓ EL MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2: ${empresasMant[0]}`
-      : `MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2 — VER EMPRESA POR EQUIPO EN LA COLUMNA "MANT. POR"`;
+      ? `EMPRESA QUE REALIZÓ EL MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2: ${empresasMant[0] === MANTENIMIENTO_ARIFA ? MANTENIMIENTO_ARIFA_LEYENDA : empresasMant[0]}`
+      : `MANTENIMIENTO ANUAL DE EXTINTORES SEGÚN NORMA IRAM 3517-2 — VER EMPRESA POR EQUIPO EN LA COLUMNA "MANT. POR"${empresasMant.includes(MANTENIMIENTO_ARIFA) ? ` (ARIFA: FACUNDO GERMAN PEDRAZA - CUIT 20-35108395-7)` : ""}`;
     pdf.text(textoEmpresa, ML, y + 12);
 
     y += 40;
