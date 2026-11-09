@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import {
-  determinarProximoExamen, DEFAULT_CANTIDAD_PREGUNTAS_EXAMEN,
+  determinarProximoExamen, materialPendiente, previoVigente, DEFAULT_CANTIDAD_PREGUNTAS_EXAMEN,
   type IntentoExamen, type PreguntaCapacitacion,
 } from "@/lib/capacitaciones";
 
@@ -57,6 +57,13 @@ export async function POST(req: NextRequest) {
     const resultado = determinarProximoExamen(intentosDelTema);
     if (!resultado.disponible) {
       return NextResponse.json({ error: resultado.motivo }, { status: 400 });
+    }
+
+    if (resultado.tipo === "posterior") {
+      const leido = previoVigente(intentosDelTema)?.materialLeido || [];
+      if (materialPendiente(tema.archivos || [], leido).length > 0) {
+        return NextResponse.json({ error: "Antes del examen final tenés que ver todo el material y marcarlo como leído." }, { status: 400 });
+      }
     }
 
     const preguntasSnap = await adminDb.collection("capacitaciones_preguntas").where("temaId", "==", temaId).get();

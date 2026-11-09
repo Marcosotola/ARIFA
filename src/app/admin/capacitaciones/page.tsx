@@ -57,6 +57,26 @@ function celdaIntento(i?: IntentoExamen) {
   );
 }
 
+function celdaMaterial(previo: IntentoExamen | undefined, tema: CapacitacionTema | undefined) {
+  const total = tema?.archivos?.length || 0;
+  if (!previo || total === 0) return <span style={{ color: "#ccc" }}>—</span>;
+  const leidos = (previo.materialLeido || []).filter(url => tema!.archivos.some(a => a.url === url)).length;
+  if (leidos >= total) {
+    const fecha = previo.materialCompletoEn?.seconds ? new Date(previo.materialCompletoEn.seconds * 1000).toLocaleDateString("es-AR") : "";
+    return (
+      <div>
+        <span style={{ fontWeight: 800, color: "#15803d" }}>✓ Leído</span>
+        <div style={{ fontSize: "0.7rem", color: "#999" }}>{fecha}</div>
+      </div>
+    );
+  }
+  return <span style={{ fontWeight: 700, color: "#b45309" }}>{leidos}/{total}</span>;
+}
+
+function linkCapacitacion(t: { id: string; nombre: string }) {
+  return `${SITE_URL}/capacitaciones/examen?tema=${t.id}&nombre=${encodeURIComponent(t.nombre)}`;
+}
+
 export default function AdminCapacitaciones() {
   const [temas, setTemas] = useState<CapacitacionTema[]>([]);
   const [loading, setLoading] = useState(true);
@@ -106,7 +126,7 @@ export default function AdminCapacitaciones() {
   const [resultadosPersonal, setResultadosPersonal] = useState<Record<string, PersonalCapacitacion>>({});
   const [intentos, setIntentos] = useState<IntentoExamen[]>([]);
   const [intentosLoading, setIntentosLoading] = useState(false);
-  const [habilitarConfirm, setHabilitarConfirm] = useState<{ posterior1Id?: string; posterior2Id?: string } | null>(null);
+  const [habilitarConfirm, setHabilitarConfirm] = useState<{ previoId?: string; posterior1Id?: string; posterior2Id?: string } | null>(null);
 
   const fetchTemas = useCallback(async () => {
     setLoading(true);
@@ -529,6 +549,10 @@ export default function AdminCapacitaciones() {
     try {
       const ids = [habilitarConfirm.posterior1Id, habilitarConfirm.posterior2Id].filter(Boolean) as string[];
       await Promise.all(ids.map(id => updateDoc(doc(db, "capacitaciones_intentos", id), { excluido: true })));
+      // Recapacitar = volver a ver el material: se reinicia la lectura guardada en el examen previo.
+      if (habilitarConfirm.previoId) {
+        await updateDoc(doc(db, "capacitaciones_intentos", habilitarConfirm.previoId), { materialLeido: [], materialCompletoEn: null });
+      }
       showToast("Recapacitación habilitada. La persona ya puede rendir un nuevo examen posterior.", "success");
       setHabilitarConfirm(null);
       if (resultadosEmpresa) await fetchResultados(resultadosEmpresa.id);
@@ -626,7 +650,7 @@ export default function AdminCapacitaciones() {
                       {t.activo ? "✓ Activo" : "✕ Inactivo"}
                     </button>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <CopyLinkButton variant="icon" url={`${SITE_URL}/capacitaciones/${t.id}`} label="Copiar enlace del tema" />
+                      <CopyLinkButton variant="icon" url={linkCapacitacion(t)} label="Copiar enlace de la capacitación" />
                       {canManage && (
                         <>
                           <button onClick={() => openEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", color: "#666" }}><Pencil size={16} /></button>
@@ -677,7 +701,7 @@ export default function AdminCapacitaciones() {
                     </td>
                     <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <CopyLinkButton variant="icon" url={`${SITE_URL}/capacitaciones/${t.id}`} label="Copiar enlace del tema" />
+                        <CopyLinkButton variant="icon" url={linkCapacitacion(t)} label="Copiar enlace de la capacitación" />
                         {canManage && (
                           <>
                             <button onClick={() => openEdit(t)} style={{ background: "none", border: "none", cursor: "pointer", color: "#666" }}><Pencil size={16} /></button>
@@ -945,10 +969,10 @@ export default function AdminCapacitaciones() {
                 <div style={{ textAlign: "center", padding: "40px", color: "#bbb" }}>Todavía no hay exámenes rendidos para esta empresa.</div>
               ) : (
                 <div className="admin-table-wrap">
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "760px" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "860px" }}>
                     <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
                       <tr>
-                        {["Persona", "Tema", "Previo", "Posterior 1", "Posterior 2", "Estado Final", "Acciones"].map(h => (
+                        {["Persona", "Tema", "Previo", "Material", "Final 1", "Final 2", "Estado Final", "Acciones"].map(h => (
                           <th key={h} style={{ textAlign: "left", padding: "13px 16px", fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -959,6 +983,7 @@ export default function AdminCapacitaciones() {
                           <td style={{ padding: "13px 16px", fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.88rem" }}>{f.personaNombre}</td>
                           <td style={{ padding: "13px 16px", fontSize: "0.85rem", color: "#555" }}>{f.temaNombre}</td>
                           <td style={{ padding: "13px 16px" }}>{celdaIntento(f.previo)}</td>
+                          <td style={{ padding: "13px 16px" }}>{celdaMaterial(f.previo, temas.find(t => t.id === f.temaId))}</td>
                           <td style={{ padding: "13px 16px" }}>{celdaIntento(f.posterior1)}</td>
                           <td style={{ padding: "13px 16px" }}>{celdaIntento(f.posterior2)}</td>
                           <td style={{ padding: "13px 16px" }}>
@@ -973,7 +998,7 @@ export default function AdminCapacitaciones() {
                           <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
                             {canManage && f.estadoFinal === "requiere_recapacitacion" && (
                               <button
-                                onClick={() => setHabilitarConfirm({ posterior1Id: f.posterior1?.id, posterior2Id: f.posterior2?.id })}
+                                onClick={() => setHabilitarConfirm({ previoId: f.previo?.id, posterior1Id: f.posterior1?.id, posterior2Id: f.posterior2?.id })}
                                 className="btn-blue" style={{ padding: "6px 12px", fontSize: "0.75rem" }}>
                                 Habilitar nueva capacitación
                               </button>
@@ -1222,7 +1247,7 @@ export default function AdminCapacitaciones() {
           <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "380px", width: "100%", textAlign: "center" }}>
             <div style={{ fontSize: "3rem", marginBottom: "15px" }}>⚠️</div>
             <h3 style={{ fontWeight: 800, marginBottom: "10px" }}>¿Habilitar nueva capacitación?</h3>
-            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "24px" }}>La persona va a poder rendir un nuevo examen posterior (intento 1 de 2) para este tema.</p>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "24px" }}>La persona va a tener que volver a ver y marcar todo el material, y después rinde un nuevo examen final (intento 1 de 2).</p>
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => setHabilitarConfirm(null)} style={{ flex: 1, padding: "12px", borderRadius: "8px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
               <button onClick={handleHabilitarRecapacitacion} className="btn-red" style={{ flex: 1 }}>Habilitar</button>

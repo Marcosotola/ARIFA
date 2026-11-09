@@ -75,6 +75,9 @@ export interface IntentoExamen {
   puntajeMaximo?: number;
   porcentaje?: number;
   aprobado?: boolean;
+  /** Solo en el examen previo: URLs del material del tema que la persona marcó como leído. */
+  materialLeido?: string[];
+  materialCompletoEn?: any;
   iniciadoEn?: any;
   finalizadoEn?: any;
 }
@@ -93,6 +96,19 @@ export function determinarProximoExamen(intentos: IntentoExamen[]): ProximoExame
   if (posteriores.length === 0) return { disponible: true, tipo: "posterior", numeroIntento: 1 };
   if (posteriores.length === 1) return { disponible: true, tipo: "posterior", numeroIntento: 2 };
   return { disponible: false, motivo: "Debés recapacitarte antes de un nuevo intento. Contactá a tu empresa o al administrador." };
+}
+
+/** Fase en la que está una persona dentro del circuito de un tema. */
+export type FaseCapacitacion = "previo" | "material" | "final" | "aprobado" | "recapacitar";
+
+/** Material del tema que la persona todavía no marcó como leído. */
+export function materialPendiente(archivos: { url: string }[], leidos: string[] = []): string[] {
+  return archivos.map(a => a.url).filter(url => !leidos.includes(url));
+}
+
+/** El examen previo vigente (finalizado y no excluido), donde se guarda la lectura del material. */
+export function previoVigente(intentos: IntentoExamen[]): IntentoExamen | undefined {
+  return intentos.find(i => i.tipo === "previo" && i.estado === "finalizado" && !i.excluido);
 }
 
 export function detectarTipoArchivo(file: File): TipoArchivo {

@@ -40,6 +40,10 @@ async function getTemas(): Promise<TemaResumen[]> {
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 
+function linkCapacitacion(t: { id: string; nombre: string }) {
+  return `/capacitaciones/examen?tema=${t.id}&nombre=${encodeURIComponent(t.nombre)}`;
+}
+
 export default async function CapacitacionesPage() {
   const temas = await getTemas();
 
@@ -62,13 +66,13 @@ export default async function CapacitacionesPage() {
             <h2>Material de Capacitación</h2>
             <div className="section-line"></div>
             <p style={{ marginTop: "15px" }}>
-              Recursos disponibles para la formación del personal en seguridad e higiene laboral. Elegí un tema para ver el material.
+              Recursos disponibles para la formación del personal en seguridad e higiene laboral. Elegí un tema y tocá &quot;Hacer la capacitación&quot;: rendís un examen previo, ves el material y terminás con el examen final.
             </p>
           </div>
           <div style={{ display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap", marginBottom: "40px" }}>
             <CopyLinkButton url={`${SITE_URL}/capacitaciones`} label="Copiar enlace de esta biblioteca" />
             <Link href="/capacitaciones/examen" className="btn-red" style={{ padding: "8px 14px", fontWeight: 700, fontSize: "0.82rem" }}>
-              Rendir examen de capacitación
+              Continuar mi capacitación
             </Link>
           </div>
 
@@ -80,9 +84,8 @@ export default async function CapacitacionesPage() {
           ) : (
             <div className="grid-3">
               {temas.map(t => (
-                <Link
+                <div
                   key={t.id}
-                  href={`/capacitaciones/${t.id}`}
                   style={{
                     background: "#fff",
                     borderRadius: "16px",
@@ -100,18 +103,24 @@ export default async function CapacitacionesPage() {
                       <GraduationCap size={40} color="var(--primary-blue)" />
                     )}
                   </div>
-                  <div style={{ padding: "20px" }}>
+                  <div style={{ padding: "20px", flex: 1, display: "flex", flexDirection: "column" }}>
                     <h3 style={{ fontSize: "1rem", fontWeight: 800, color: "var(--primary-blue)", marginBottom: "8px" }}>{t.nombre}</h3>
                     {t.descripcion && (
                       <p style={{ fontSize: "0.85rem", color: "var(--text-muted)", lineHeight: 1.5, marginBottom: "10px", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" } as any}>
                         {t.descripcion}
                       </p>
                     )}
-                    <div style={{ fontSize: "0.75rem", color: "var(--primary-red)", fontWeight: 700 }}>
+                    <div style={{ fontSize: "0.75rem", color: "var(--primary-red)", fontWeight: 700, marginBottom: "16px" }}>
                       {t.archivosCount} material{t.archivosCount !== 1 ? "es" : ""}
                     </div>
+                    <Link href={linkCapacitacion(t)} className="btn-red" style={{ display: "block", marginTop: "auto", textAlign: "center", padding: "10px 14px", fontWeight: 700, fontSize: "0.85rem" }}>
+                      Hacer la capacitación
+                    </Link>
+                    <Link href={`/capacitaciones/${t.id}`} style={{ display: "block", textAlign: "center", marginTop: "10px", fontSize: "0.8rem", fontWeight: 700, color: "var(--primary-blue)" }}>
+                      Solo ver el material
+                    </Link>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}
