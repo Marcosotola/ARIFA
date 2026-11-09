@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { GraduationCap } from "lucide-react";
 import CopyLinkButton from "@/components/CopyLinkButton";
@@ -20,6 +21,9 @@ interface TemaResumen {
 }
 
 async function getTemas(): Promise<TemaResumen[]> {
+  // Leer siempre de Firestore en cada visita: sin esto Next genera la página al publicar el sitio
+  // y los temas creados o activados después no aparecen hasta el próximo deploy.
+  await connection();
   const snap = await adminDb.collection("capacitaciones_temas").where("activo", "==", true).get();
   return snap.docs
     .map(d => {
