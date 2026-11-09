@@ -1622,7 +1622,7 @@ export const generateCertificadoCapacitacionPDF = async (
   y += 10;
   y = texto(c.tema, y, 18, { bold: true, color: NAVY });
   y += 3;
-  texto(`el ${fecha}, con una calificación del ${c.porcentaje}%.`, y, 12);
+  texto(`el ${fecha}.`, y, 12);
 
   // Firma
   const yf = 172;
