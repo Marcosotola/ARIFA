@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import type { PreguntaCapacitacion } from "@/lib/capacitaciones";
+import { enviarCertificado } from "@/lib/capacitacionesServer";
+import { emailConfigurado } from "@/lib/email";
 
 function buildDetalle(preguntas: PreguntaCapacitacion[], opcionesOrden: Record<string, string[]>, respuestas: Record<string, string>) {
   return preguntas.map(p => {
@@ -52,6 +54,9 @@ export async function POST(req: NextRequest) {
         puntajeMaximo: intento.puntajeMaximo,
         porcentaje: intento.porcentaje,
         aprobado: intento.aprobado,
+        certificado: intento.tipo === "posterior" && intento.aprobado
+          ? { codigo: intentoId, email: intento.certificadoEnviadoA || "", enviado: !!intento.certificadoEnviadoA, mailActivo: emailConfigurado() }
+          : undefined,
         detalle: buildDetalle(preguntas, intento.opcionesOrden || {}, intento.respuestas || {}),
         estadoFinal: calcularEstadoFinal(intento.tipo, !!intento.aprobado, intento.numeroIntento),
       });
@@ -80,11 +85,21 @@ export async function POST(req: NextRequest) {
       finalizadoEn: FieldValue.serverTimestamp(),
     });
 
+    // Examen final aprobado: si la persona tiene email cargado, se le manda el certificado.
+    let certificado: { codigo: string; email: string; enviado: boolean; mailActivo: boolean } | undefined;
+    if (intento.tipo === "posterior" && aprobado) {
+      const personaSnap = await adminDb.collection("capacitaciones_personal").doc(intento.personalId).get();
+      const email: string = personaSnap.data()?.email || "";
+      const enviado = email ? await enviarCertificado(intentoId, email).catch(() => false) : false;
+      certificado = { codigo: intentoId, email, enviado, mailActivo: emailConfigurado() };
+    }
+
     return NextResponse.json({
       puntajeObtenido,
       puntajeMaximo,
       porcentaje,
       aprobado,
+      certificado,
       detalle: buildDetalle(preguntas, intento.opcionesOrden || {}, respuestasFinal),
       estadoFinal: calcularEstadoFinal(intento.tipo, aprobado, intento.numeroIntento),
     });

@@ -1571,3 +1571,74 @@ export const generateObleasPDF = async (ficha: any, inscripcionMunicipal?: strin
   res.pdf.save(`Obleas_FT${String(ficha.numeroFicha || "").padStart(5, "0")}.pdf`);
   return res.cantidad;
 };
+
+// ── Certificado de aprobación de una capacitación (A4 apaisado) ──
+export const generateCertificadoCapacitacionPDF = async (
+  c: import("./capacitaciones").CertificadoCapacitacion,
+): Promise<void> => {
+  const { FIRMANTE_CERTIFICADO_CAPACITACION: firmante } = await import("./capacitaciones");
+  const { default: jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const W = 297; const H = 210; const cx = W / 2;
+  const NAVY: [number, number, number] = [0, 34, 68];
+  const RED: [number, number, number] = [163, 31, 29];
+
+  // Marco
+  pdf.setDrawColor(...NAVY); pdf.setLineWidth(1.6); pdf.rect(8, 8, W - 16, H - 16);
+  pdf.setDrawColor(...RED); pdf.setLineWidth(0.5); pdf.rect(12, 12, W - 24, H - 24);
+
+  const [logo, firma] = await Promise.all([
+    cargarImagen("/logos/logoFondoTransparente.svg", true),
+    cargarImagen(firmante.firma),
+  ]);
+  if (logo) {
+    const lh = 24; const lw = Math.min(70, lh * logo.ratio);
+    pdf.addImage(logo.dataUrl, "PNG", cx - lw / 2, 18, lw, lw / logo.ratio);
+  }
+
+  const texto = (t: string, y: number, size: number, opts: { bold?: boolean; color?: [number, number, number] } = {}) => {
+    pdf.setFont("helvetica", opts.bold ? "bold" : "normal");
+    pdf.setFontSize(size);
+    pdf.setTextColor(...(opts.color || [60, 60, 60]));
+    const lineas = pdf.splitTextToSize(t, W - 60);
+    pdf.text(lineas, cx, y, { align: "center" });
+    return y + lineas.length * size * 0.42;
+  };
+
+  const fecha = new Date(c.fecha).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+  const deDonde = [c.empresa, c.sede].filter(Boolean).join(" – ");
+
+  let y = 56;
+  texto("CERTIFICADO DE APROBACIÓN", y, 26, { bold: true, color: NAVY });
+  pdf.setDrawColor(...RED); pdf.setLineWidth(0.8); pdf.line(cx - 25, y + 5, cx + 25, y + 5);
+  y += 18;
+  texto("ARIFA certifica que", y, 13);
+  y += 12;
+  texto(`${c.nombre} ${c.apellido}`.trim().toUpperCase(), y, 24, { bold: true, color: RED });
+  y += 9;
+  y = texto(`DNI ${c.dni}${deDonde ? `  ·  ${deDonde}` : ""}`, y, 11);
+  y += 5;
+  texto("aprobó la capacitación", y, 13);
+  y += 10;
+  y = texto(c.tema, y, 18, { bold: true, color: NAVY });
+  y += 3;
+  texto(`el ${fecha}, con una calificación del ${c.porcentaje}%.`, y, 12);
+
+  // Firma
+  const yf = 172;
+  if (firma) {
+    const fh = 20; const fw = Math.min(60, fh * firma.ratio);
+    pdf.addImage(firma.dataUrl, "PNG", cx - fw / 2, yf - fw / firma.ratio - 1, fw, fw / firma.ratio);
+  }
+  pdf.setDrawColor(0); pdf.setLineWidth(0.3); pdf.line(cx - 35, yf, cx + 35, yf);
+  texto(firmante.nombre, yf + 5, 10, { bold: true, color: [0, 0, 0] });
+  texto([firmante.titulo, firmante.matricula].filter(Boolean).join(" – "), yf + 9.5, 8.5);
+  texto("ARIFA – Seguridad e Higiene Laboral", yf + 13.5, 8.5);
+
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(7); pdf.setTextColor(140);
+  pdf.text(`Código de verificación: ${c.codigo}`, 18, H - 16);
+  pdf.text("www.arifa.com.ar", W - 18, H - 16, { align: "right" });
+
+  const archivo = `${c.apellido}_${c.nombre}_${c.tema}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "_");
+  pdf.save(`Certificado_${archivo}.pdf`);
+};

@@ -22,6 +22,28 @@ export interface CapacitacionTema {
 }
 
 export const DEFAULT_PUNTAJE_MINIMO = 70;
+
+// Quien firma los certificados de aprobación de capacitación.
+// La firma es una imagen PNG con fondo transparente; si el archivo no está, el certificado sale sin imagen (solo la línea).
+export const FIRMANTE_CERTIFICADO_CAPACITACION = {
+  firma: "/firmas/facundo-pedraza.png",
+  nombre: "Lic. Facundo Germán Pedraza",
+  titulo: "Lic. en Higiene y Seguridad Laboral",
+  matricula: "",
+};
+
+/** Datos que se imprimen en el certificado de aprobación (los devuelve /api/capacitaciones/certificado). */
+export interface CertificadoCapacitacion {
+  codigo: string; // id del intento aprobado, sirve como código de verificación
+  nombre: string;
+  apellido: string;
+  dni: string;
+  empresa: string;
+  sede: string;
+  tema: string;
+  fecha: string; // ISO
+  porcentaje: number;
+}
 export const DEFAULT_CANTIDAD_PREGUNTAS_EXAMEN = 10;
 
 export interface PersonalCapacitacion {

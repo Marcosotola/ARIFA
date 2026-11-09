@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     const personal = snap.docs
       .map(d => ({ id: d.id, ...d.data() } as any))
       .filter(p => p.activo === true)
-      .map(p => ({ id: p.id, nombre: p.nombre || "", apellido: p.apellido || "" }))
+      .map(p => ({ id: p.id, nombre: p.nombre || "", apellido: p.apellido || "", sedeId: p.sedeId || "", sedeNombre: p.sedeNombre || "" }))
       .sort((a, b) => a.apellido.localeCompare(b.apellido));
     return NextResponse.json({ personal });
   } catch (err) {

@@ -73,8 +73,8 @@ function celdaMaterial(previo: IntentoExamen | undefined, tema: CapacitacionTema
   return <span style={{ fontWeight: 700, color: "#b45309" }}>{leidos}/{total}</span>;
 }
 
-function linkCapacitacion(t: { id: string; nombre: string }) {
-  return `${SITE_URL}/capacitaciones/examen?tema=${t.id}&nombre=${encodeURIComponent(t.nombre)}`;
+function linkCapacitacion(t: { id: string; nombre: string }, empresaId?: string) {
+  return `${SITE_URL}/capacitaciones/examen?${empresaId ? `empresa=${empresaId}&` : ""}tema=${t.id}&nombre=${encodeURIComponent(t.nombre)}`;
 }
 
 export default function AdminCapacitaciones() {
@@ -514,7 +514,7 @@ export default function AdminCapacitaciones() {
   };
 
   interface FilaResultado {
-    personalId: string; temaId: string; personaNombre: string; temaNombre: string;
+    personalId: string; temaId: string; personaNombre: string; personaEmail: string; sedeNombre: string; temaNombre: string;
     previo?: IntentoExamen; posterior1?: IntentoExamen; posterior2?: IntentoExamen;
     estadoFinal: "en_curso" | "aprobado" | "requiere_recapacitacion";
   }
@@ -537,12 +537,36 @@ export default function AdminCapacitaciones() {
       return {
         personalId, temaId,
         personaNombre: persona ? `${persona.nombre} ${persona.apellido}` : "—",
+        personaEmail: persona?.email || "",
+        sedeNombre: persona?.sedeNombre || "",
         temaNombre: tema?.nombre || "—",
         previo, posterior1: posteriores[0], posterior2: posteriores[1],
         estadoFinal: aprobado ? "aprobado" as const : requiereRecapacitacion ? "requiere_recapacitacion" as const : "en_curso" as const,
       };
     }).sort((a, b) => a.personaNombre.localeCompare(b.personaNombre) || a.temaNombre.localeCompare(b.temaNombre));
   })();
+
+  const [descargandoCert, setDescargandoCert] = useState("");
+  const descargarCertificado = async (f: FilaResultado) => {
+    const aprobado = [f.posterior1, f.posterior2].find(i => i?.aprobado);
+    const persona = resultadosPersonal[f.personalId];
+    if (!aprobado || !persona) return;
+    setDescargandoCert(aprobado.id);
+    try {
+      const { generateCertificadoCapacitacionPDF } = await import("@/lib/pdfGenerator");
+      const emp = resultadosEmpresa || {};
+      await generateCertificadoCapacitacionPDF({
+        codigo: aprobado.id,
+        nombre: persona.nombre, apellido: persona.apellido, dni: persona.dni,
+        empresa: emp.empresa || `${emp.nombre || ""} ${emp.apellido || ""}`.trim(),
+        sede: persona.sedeNombre || "",
+        tema: f.temaNombre,
+        fecha: (aprobado.finalizadoEn?.seconds ? new Date(aprobado.finalizadoEn.seconds * 1000) : new Date()).toISOString(),
+        porcentaje: aprobado.porcentaje ?? 0,
+      });
+    } catch (e) { console.error(e); showToast("No se pudo generar el certificado.", "error"); }
+    finally { setDescargandoCert(""); }
+  };
 
   const handleHabilitarRecapacitacion = async () => {
     if (!habilitarConfirm) return;
@@ -794,6 +818,20 @@ export default function AdminCapacitaciones() {
                 )}
               </div>
 
+              {(empresaSeleccionada.temasAsignados || []).length > 0 && (
+                <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #eee", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", padding: "16px 20px", marginBottom: "20px" }}>
+                  <h3 style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "0.95rem", marginBottom: "4px" }}>Link para mandar al personal</h3>
+                  <p style={{ fontSize: "0.8rem", color: "#888", marginBottom: "12px" }}>
+                    Un solo link por capacitación: entra directo a esta empresa, elige su edificio/sede, su nombre y su DNI.
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
+                    {temas.filter(t => (empresaSeleccionada.temasAsignados || []).includes(t.id)).map(t => (
+                      <CopyLinkButton key={t.id} url={linkCapacitacion(t, empresaSeleccionada.id)} label={`Copiar link: ${t.nombre}`} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div style={{ background: "#fff", borderRadius: "12px", border: "1px solid #eee", boxShadow: "0 4px 15px rgba(0,0,0,0.04)", overflow: "hidden" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid #f0f0f0" }}>
                   <h3 style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "0.95rem" }}>Personal a Capacitar</h3>
@@ -969,10 +1007,10 @@ export default function AdminCapacitaciones() {
                 <div style={{ textAlign: "center", padding: "40px", color: "#bbb" }}>Todavía no hay exámenes rendidos para esta empresa.</div>
               ) : (
                 <div className="admin-table-wrap">
-                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "860px" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "980px" }}>
                     <thead style={{ background: "#fafafa", borderBottom: "1.5px solid #eee" }}>
                       <tr>
-                        {["Persona", "Tema", "Previo", "Material", "Final 1", "Final 2", "Estado Final", "Acciones"].map(h => (
+                        {["Persona", "Sede", "Tema", "Previo", "Material", "Final 1", "Final 2", "Estado Final", "Acciones"].map(h => (
                           <th key={h} style={{ textAlign: "left", padding: "13px 16px", fontSize: "0.7rem", color: "#999", textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                         ))}
                       </tr>
@@ -980,7 +1018,11 @@ export default function AdminCapacitaciones() {
                     <tbody>
                       {filasResultados.map(f => (
                         <tr key={`${f.personalId}|${f.temaId}`} style={{ borderBottom: "1px solid #f5f5f5" }}>
-                          <td style={{ padding: "13px 16px", fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.88rem" }}>{f.personaNombre}</td>
+                          <td style={{ padding: "13px 16px", fontWeight: 700, color: "var(--primary-blue)", fontSize: "0.88rem" }}>
+                            {f.personaNombre}
+                            {f.personaEmail && <div style={{ fontSize: "0.7rem", color: "#999", fontWeight: 400 }}>{f.personaEmail}</div>}
+                          </td>
+                          <td style={{ padding: "13px 16px", fontSize: "0.85rem", color: "#555" }}>{f.sedeNombre || "—"}</td>
                           <td style={{ padding: "13px 16px", fontSize: "0.85rem", color: "#555" }}>{f.temaNombre}</td>
                           <td style={{ padding: "13px 16px" }}>{celdaIntento(f.previo)}</td>
                           <td style={{ padding: "13px 16px" }}>{celdaMaterial(f.previo, temas.find(t => t.id === f.temaId))}</td>
@@ -996,6 +1038,12 @@ export default function AdminCapacitaciones() {
                             </span>
                           </td>
                           <td style={{ padding: "13px 16px", whiteSpace: "nowrap" }}>
+                            {f.estadoFinal === "aprobado" && (
+                              <button onClick={() => descargarCertificado(f)} disabled={!!descargandoCert}
+                                className="btn-blue" style={{ padding: "6px 12px", fontSize: "0.75rem" }}>
+                                {descargandoCert && descargandoCert === [f.posterior1, f.posterior2].find(i => i?.aprobado)?.id ? "Generando..." : "Certificado"}
+                              </button>
+                            )}
                             {canManage && f.estadoFinal === "requiere_recapacitacion" && (
                               <button
                                 onClick={() => setHabilitarConfirm({ previoId: f.previo?.id, posterior1Id: f.posterior1?.id, posterior2Id: f.posterior2?.id })}
