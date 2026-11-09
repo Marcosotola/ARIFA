@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
+import { emailConfigurado } from "@/lib/email";
 import {
   determinarProximoExamen, materialPendiente, previoVigente,
   type ArchivoTema, type FaseCapacitacion, type IntentoExamen,
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
         nombre: tema.nombre || "",
         descripcion: tema.descripcion || "",
         fase,
+        certificadoCodigo: intentosDelTema.find(i => i.tipo === "posterior" && i.aprobado && i.estado === "finalizado" && !i.excluido)?.id || "",
         archivos,
         materialLeido,
         ...(resultado.disponible
@@ -80,6 +82,8 @@ export async function POST(req: NextRequest) {
       ok: true,
       empresaNombre: empresaSnap.exists ? (empresaSnap.data()!.empresa || "") : "",
       personaNombre: `${persona.nombre} ${persona.apellido}`,
+      personaEmail: persona.email || "",
+      mailActivo: emailConfigurado(),
       temas,
     });
   } catch (err) {

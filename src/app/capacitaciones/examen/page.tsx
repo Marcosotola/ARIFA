@@ -1,18 +1,20 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { CheckCircle2, XCircle, GraduationCap, ArrowLeft, Lock } from "lucide-react";
+import { CheckCircle2, XCircle, GraduationCap, ArrowLeft, Lock, Award } from "lucide-react";
 import MaterialCapacitacion from "@/components/MaterialCapacitacion";
 import type { ArchivoTema, FaseCapacitacion } from "@/lib/capacitaciones";
 
-type Step = "empresa" | "persona" | "dni" | "tema" | "panel" | "examen" | "resultado";
+type Step = "empresa" | "sede" | "persona" | "dni" | "tema" | "panel" | "examen" | "resultado";
 
 interface EmpresaResultado { id: string; nombre: string; apellido: string; empresa: string; }
-interface PersonaItem { id: string; nombre: string; apellido: string; }
+interface PersonaItem { id: string; nombre: string; apellido: string; sedeId: string; sedeNombre: string; }
+interface Certificado { codigo: string; email: string; enviado: boolean; mailActivo: boolean; }
+const SIN_SEDE = "__sin_sede__";
 interface TemaEstado {
   id: string; nombre: string; descripcion: string; disponible: boolean;
   tipo?: "previo" | "posterior"; numeroIntento?: number; motivo?: string;
-  fase: FaseCapacitacion; archivos: ArchivoTema[]; materialLeido: string[];
+  fase: FaseCapacitacion; archivos: ArchivoTema[]; materialLeido: string[]; certificadoCodigo?: string;
 }
 
 const FASE_LABEL: Record<FaseCapacitacion, string> = {
@@ -52,6 +54,89 @@ interface DetalleItem {
 interface ResultadoExamen {
   puntajeObtenido: number; puntajeMaximo: number; porcentaje: number; aprobado: boolean;
   detalle: DetalleItem[]; estadoFinal: "aprobado" | "reprobado_reintentar" | "reprobado_recapacitar" | "informativo";
+  certificado?: Certificado;
+}
+
+async function descargarCertificado(codigo: string) {
+  const res = await fetch(`/api/capacitaciones/certificado?codigo=${encodeURIComponent(codigo)}`);
+  const data = await res.json();
+  if (!data.certificado) throw new Error(data.error || "Certificado no disponible");
+  const { generateCertificadoCapacitacionPDF } = await import("@/lib/pdfGenerator");
+  await generateCertificadoCapacitacionPDF(data.certificado);
+}
+
+/** Descarga del certificado + envío por mail (pide el email si la persona no tiene uno cargado). */
+function BloqueCertificado({ codigo, emailInicial, enviadoInicial, mailActivo, personalId, dni }: {
+  codigo: string; emailInicial: string; enviadoInicial: boolean; mailActivo: boolean; personalId: string; dni: string;
+}) {
+  const [email, setEmail] = useState(emailInicial);
+  const [enviadoA, setEnviadoA] = useState(enviadoInicial ? emailInicial : "");
+  const [guardado, setGuardado] = useState(false);
+  const [editando, setEditando] = useState(!emailInicial);
+  const [cargando, setCargando] = useState(false);
+  const [descargando, setDescargando] = useState(false);
+  const [err, setErr] = useState("");
+
+  const guardarEmail = async (ev: React.FormEvent) => {
+    ev.preventDefault();
+    setErr(""); setCargando(true);
+    try {
+      const res = await fetch("/api/capacitaciones/email", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personalId, dni, codigo, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErr(data.error || "No se pudo guardar el email."); return; }
+      setEmail(data.email); setGuardado(true); setEditando(false);
+      setEnviadoA(data.enviado ? data.email : "");
+    } catch { setErr("Error de conexión. Intentá de nuevo."); }
+    finally { setCargando(false); }
+  };
+
+  const descargar = async () => {
+    setErr(""); setDescargando(true);
+    try { await descargarCertificado(codigo); }
+    catch (e: any) { setErr(e?.message || "No se pudo generar el certificado."); }
+    finally { setDescargando(false); }
+  };
+
+  return (
+    <div style={{ padding: "20px", borderRadius: "12px", background: "#f0fdf4", border: "1.5px solid #bbf7d0", marginBottom: "24px", textAlign: "left" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+        <Award size={22} color="#15803d" />
+        <span style={{ fontWeight: 800, color: "#15803d" }}>Tu certificado de aprobación</span>
+      </div>
+      <button onClick={descargar} disabled={descargando} className="btn-red" style={{ padding: "11px 20px", width: "100%", marginBottom: "14px" }}>
+        {descargando ? "Generando..." : "Descargar certificado (PDF)"}
+      </button>
+      {enviadoA && !editando && (
+        <p style={{ fontSize: "0.85rem", color: "#15803d", fontWeight: 600 }}>
+          ✓ También te lo mandamos a <b>{enviadoA}</b>.{" "}
+          <button onClick={() => setEditando(true)} style={{ background: "none", border: "none", color: "var(--primary-blue)", cursor: "pointer", fontWeight: 700, padding: 0 }}>Cambiar</button>
+        </p>
+      )}
+      {!enviadoA && !editando && (
+        <p style={{ fontSize: "0.85rem", color: "#555" }}>
+          {guardado || !mailActivo ? `Guardamos tu email (${email}).` : `Tu email: ${email}.`}{" "}
+          {!mailActivo && "El envío por mail todavía no está activo: descargá el certificado desde acá."}{" "}
+          <button onClick={() => setEditando(true)} style={{ background: "none", border: "none", color: "var(--primary-blue)", cursor: "pointer", fontWeight: 700, padding: 0 }}>Cambiar</button>
+        </p>
+      )}
+      {editando && (
+        <form onSubmit={guardarEmail}>
+          <label style={{ fontSize: "0.85rem", color: "#555", display: "block", marginBottom: "8px" }}>¿A qué email te mandamos el certificado?</label>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com"
+              style={{ ...inputSt, flex: 1, minWidth: "200px", padding: "10px 12px" }} />
+            <button type="submit" disabled={cargando} className="btn-blue" style={{ padding: "10px 18px" }}>
+              {cargando ? "Enviando..." : "Enviar"}
+            </button>
+          </div>
+        </form>
+      )}
+      {err && <ErrorBox msg={err} />}
+    </div>
+  );
 }
 
 const inputSt: React.CSSProperties = {
@@ -91,6 +176,10 @@ export default function ExamenCapacitacionPage() {
   const [personal, setPersonal] = useState<PersonaItem[]>([]);
   const [personalFiltro, setPersonalFiltro] = useState("");
   const [personaSeleccionada, setPersonaSeleccionada] = useState<PersonaItem | null>(null);
+  const [sedeSeleccionada, setSedeSeleccionada] = useState("");
+  const [empresaPreset, setEmpresaPreset] = useState(false);
+  const [personaEmail, setPersonaEmail] = useState("");
+  const [mailActivo, setMailActivo] = useState(false);
 
   const [dni, setDni] = useState("");
 
@@ -118,7 +207,28 @@ export default function ExamenCapacitacionPage() {
     const params = new URLSearchParams(window.location.search);
     setTemaPresetId(params.get("tema") || "");
     setTemaPresetNombre(params.get("nombre") || "");
+    // Link de una administración (?empresa=ID): se saltea la búsqueda de empresa.
+    const empresaId = params.get("empresa");
+    if (empresaId) {
+      setEmpresaPreset(true);
+      setLoading(true);
+      fetch(`/api/capacitaciones/empresas?id=${encodeURIComponent(empresaId)}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.empresas?.[0]) seleccionarEmpresa(d.empresas[0]);
+          else { setEmpresaPreset(false); setError("El link no corresponde a ninguna empresa. Buscala por nombre."); setLoading(false); }
+        })
+        .catch(() => { setEmpresaPreset(false); setLoading(false); });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Sedes (edificios) que tienen personal cargado; si hay más de una, la persona elige la suya primero.
+  const sedes = Array.from(new Map(personal.map(p => [p.sedeId || SIN_SEDE, p.sedeNombre || "Otros"])).entries())
+    .map(([id, nombre]) => ({ id, nombre }))
+    .sort((a, b) => (a.id === SIN_SEDE ? 1 : b.id === SIN_SEDE ? -1 : a.nombre.localeCompare(b.nombre)));
+  const personalDeSede = sedes.length > 1 ? personal.filter(p => (p.sedeId || SIN_SEDE) === sedeSeleccionada) : personal;
+  const sedeNombre = sedes.find(s => s.id === sedeSeleccionada)?.nombre || ""; 
 
   const temaActivo = temasEstado.find(t => t.id === temaActivoId) || null;
 
@@ -140,6 +250,8 @@ export default function ExamenCapacitacionPage() {
     if (!data.ok) { setError(data.error || "No se pudo verificar el DNI."); return null; }
     setEmpresaNombre(data.empresaNombre || "");
     setPersonaNombre(data.personaNombre || "");
+    setPersonaEmail(data.personaEmail || "");
+    setMailActivo(!!data.mailActivo);
     setTemasEstado(data.temas || []);
     return data.temas || [];
   };
@@ -184,9 +296,13 @@ export default function ExamenCapacitacionPage() {
     try {
       const res = await fetch(`/api/capacitaciones/personal?empresaId=${e.id}`);
       const data = await res.json();
-      setPersonal(data.personal || []);
-      setStep("persona");
-    } catch { setError("Error al cargar el personal. Intentá de nuevo."); }
+      const lista: PersonaItem[] = data.personal || [];
+      setPersonal(lista);
+      setPersonalFiltro("");
+      setSedeSeleccionada("");
+      const cantSedes = new Set(lista.map(p => p.sedeId || SIN_SEDE)).size;
+      setStep(cantSedes > 1 ? "sede" : "persona");
+    } catch { setEmpresaPreset(false); setError("Error al cargar el personal. Intentá de nuevo."); }
     finally { setLoading(false); }
   };
 
@@ -270,8 +386,8 @@ export default function ExamenCapacitacionPage() {
   };
 
   const personalFiltrado = personalFiltro.trim().length === 0
-    ? personal
-    : personal.filter(p => `${p.nombre} ${p.apellido}`.toLowerCase().includes(personalFiltro.toLowerCase()));
+    ? personalDeSede
+    : personalDeSede.filter(p => `${p.nombre} ${p.apellido}`.toLowerCase().includes(personalFiltro.toLowerCase()));
 
   return (
     <>
@@ -291,7 +407,11 @@ export default function ExamenCapacitacionPage() {
       <section className="section-padding">
         <div className="container" style={{ maxWidth: "720px" }}>
 
-          {step === "empresa" && (
+          {step === "empresa" && empresaPreset && (
+            <div style={{ ...cardSt, textAlign: "center", color: "var(--text-muted)" }}>Cargando...</div>
+          )}
+
+          {step === "empresa" && !empresaPreset && (
             <div style={cardSt}>
               {temaPresetNombre && (
                 <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--primary-red)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
@@ -321,14 +441,38 @@ export default function ExamenCapacitacionPage() {
             </div>
           )}
 
-          {step === "persona" && (
+          {step === "sede" && (
             <div style={cardSt}>
-              <BackLink onClick={() => setStep("empresa")} />
-              <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "8px" }}>Elegí tu nombre</h2>
+              {!empresaPreset && <BackLink onClick={() => setStep("empresa")} />}
+              {temaPresetNombre && (
+                <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--primary-red)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                  Capacitación: {temaPresetNombre}
+                </div>
+              )}
+              <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "8px" }}>Elegí tu edificio o sede</h2>
               <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "16px" }}>
                 {empresaSeleccionada?.empresa || `${empresaSeleccionada?.nombre} ${empresaSeleccionada?.apellido}`}
               </p>
-              {personal.length > 5 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", maxHeight: "400px", overflowY: "auto" }}>
+                {sedes.map(s => (
+                  <button key={s.id} onClick={() => { setSedeSeleccionada(s.id); setPersonalFiltro(""); setStep("persona"); }}
+                    style={{ textAlign: "left", padding: "14px 16px", borderRadius: "10px", border: "1.5px solid #e2e8f0", background: "#fafafa", cursor: "pointer", fontWeight: 700, color: "var(--primary-blue)" }}>
+                    {s.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {step === "persona" && (
+            <div style={cardSt}>
+              {(sedes.length > 1 || !empresaPreset) && <BackLink onClick={() => setStep(sedes.length > 1 ? "sede" : "empresa")} />}
+              <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "8px" }}>Elegí tu nombre</h2>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "16px" }}>
+                {empresaSeleccionada?.empresa || `${empresaSeleccionada?.nombre} ${empresaSeleccionada?.apellido}`}
+                {sedes.length > 1 && sedeNombre ? ` · ${sedeNombre}` : ""}
+              </p>
+              {personalDeSede.length > 5 && (
                 <input style={{ ...inputSt, marginBottom: "14px" }} value={personalFiltro} onChange={e => setPersonalFiltro(e.target.value)} placeholder="Filtrar por nombre..." />
               )}
               {personal.length === 0 ? (
@@ -462,7 +606,11 @@ export default function ExamenCapacitacionPage() {
                 {t.fase === "aprobado" && (
                   <div style={{ textAlign: "center", padding: "10px 0" }}>
                     <CheckCircle2 size={44} color="#16a34a" style={{ marginBottom: "8px" }} />
-                    <p style={{ fontWeight: 700, color: "#15803d" }}>Ya aprobaste esta capacitación.</p>
+                    <p style={{ fontWeight: 700, color: "#15803d", marginBottom: "16px" }}>Ya aprobaste esta capacitación.</p>
+                    {t.certificadoCodigo && personaSeleccionada && (
+                      <BloqueCertificado codigo={t.certificadoCodigo} emailInicial={personaEmail} enviadoInicial={false}
+                        mailActivo={mailActivo} personalId={personaSeleccionada.id} dni={dni} />
+                    )}
                   </div>
                 )}
 
@@ -530,6 +678,12 @@ export default function ExamenCapacitacionPage() {
                   {resultado.estadoFinal === "reprobado_recapacitar" && "No alcanzaste el puntaje mínimo en los 2 intentos. Necesitás recapacitación antes de un nuevo intento. Contactá a tu empresa o al administrador."}
                 </p>
               </div>
+
+              {resultado.certificado && personaSeleccionada && (
+                <BloqueCertificado codigo={resultado.certificado.codigo} emailInicial={resultado.certificado.email}
+                  enviadoInicial={resultado.certificado.enviado} mailActivo={resultado.certificado.mailActivo}
+                  personalId={personaSeleccionada.id} dni={dni} />
+              )}
 
               <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 {resultado.detalle.map((d, idx) => (
