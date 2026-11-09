@@ -1,15 +1,48 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { CheckCircle2, XCircle, GraduationCap, ArrowLeft } from "lucide-react";
+import { CheckCircle2, XCircle, GraduationCap, ArrowLeft, Lock } from "lucide-react";
+import MaterialCapacitacion from "@/components/MaterialCapacitacion";
+import type { ArchivoTema, FaseCapacitacion } from "@/lib/capacitaciones";
 
-type Step = "empresa" | "persona" | "dni" | "tema" | "examen" | "resultado";
+type Step = "empresa" | "persona" | "dni" | "tema" | "panel" | "examen" | "resultado";
 
 interface EmpresaResultado { id: string; nombre: string; apellido: string; empresa: string; }
 interface PersonaItem { id: string; nombre: string; apellido: string; }
 interface TemaEstado {
   id: string; nombre: string; descripcion: string; disponible: boolean;
   tipo?: "previo" | "posterior"; numeroIntento?: number; motivo?: string;
+  fase: FaseCapacitacion; archivos: ArchivoTema[]; materialLeido: string[];
+}
+
+const FASE_LABEL: Record<FaseCapacitacion, string> = {
+  previo: "Paso 1: examen previo",
+  material: "Paso 2: ver el material",
+  final: "Paso 3: examen final",
+  aprobado: "✓ Aprobado",
+  recapacitar: "Requiere recapacitación",
+};
+
+const PASOS = ["Examen previo", "Material", "Examen final"];
+
+function Pasos({ fase }: { fase: FaseCapacitacion }) {
+  const actual = fase === "previo" ? 0 : fase === "material" ? 1 : fase === "final" ? 2 : 3;
+  return (
+    <div style={{ display: "flex", gap: "6px", marginBottom: "22px" }}>
+      {PASOS.map((p, i) => {
+        const hecho = i < actual;
+        const activo = i === actual;
+        return (
+          <div key={p} style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ height: "6px", borderRadius: "3px", background: hecho ? "#16a34a" : activo ? "var(--primary-red)" : "#e2e8f0", marginBottom: "6px" }} />
+            <span style={{ fontSize: "0.72rem", fontWeight: 700, color: hecho ? "#16a34a" : activo ? "var(--primary-red)" : "#94a3b8" }}>
+              {hecho ? "✓ " : `${i + 1}. `}{p}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 interface PreguntaExamen { id: string; enunciado: string; opciones: { id: string; texto: string }[]; }
 interface DetalleItem {
@@ -74,6 +107,64 @@ export default function ExamenCapacitacionPage() {
 
   const [resultado, setResultado] = useState<ResultadoExamen | null>(null);
 
+  // Tema elegido desde la biblioteca (/capacitaciones/examen?tema=ID) y tema abierto en el circuito.
+  const [temaPresetId, setTemaPresetId] = useState("");
+  const [temaPresetNombre, setTemaPresetNombre] = useState("");
+  const [temaActivoId, setTemaActivoId] = useState("");
+  const [verMaterial, setVerMaterial] = useState(false);
+  const [marcando, setMarcando] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setTemaPresetId(params.get("tema") || "");
+    setTemaPresetNombre(params.get("nombre") || "");
+  }, []);
+
+  const temaActivo = temasEstado.find(t => t.id === temaActivoId) || null;
+
+  const abrirTema = (t: TemaEstado) => {
+    setTemaActivoId(t.id);
+    setVerMaterial(false);
+    setError("");
+    setStep("panel");
+    window.scrollTo({ top: 0 });
+  };
+
+  const cargarEstado = async (): Promise<TemaEstado[] | null> => {
+    if (!personaSeleccionada) return null;
+    const res = await fetch("/api/capacitaciones/estado", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ personalId: personaSeleccionada.id, dni }),
+    });
+    const data = await res.json();
+    if (!data.ok) { setError(data.error || "No se pudo verificar el DNI."); return null; }
+    setEmpresaNombre(data.empresaNombre || "");
+    setPersonaNombre(data.personaNombre || "");
+    setTemasEstado(data.temas || []);
+    return data.temas || [];
+  };
+
+  const marcarLeido = async (url: string) => {
+    if (!personaSeleccionada || !temaActivo) return;
+    setError("");
+    setMarcando(url);
+    try {
+      const res = await fetch("/api/capacitaciones/lectura", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ personalId: personaSeleccionada.id, dni, temaId: temaActivo.id, url }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || "No se pudo marcar el material."); return; }
+      const leidos: string[] = data.materialLeido || [];
+      setTemasEstado(prev => prev.map(t => {
+        if (t.id !== temaActivo.id) return t;
+        const completo = t.archivos.every(a => leidos.includes(a.url));
+        return { ...t, materialLeido: leidos, fase: t.fase === "material" && completo ? "final" : t.fase };
+      }));
+    } catch { setError("Error de conexión. Intentá de nuevo."); }
+    finally { setMarcando(""); }
+  };
+
   useEffect(() => {
     if (empresaQuery.trim().length < 2) { setEmpresaResultados([]); return; }
     const t = setTimeout(async () => {
@@ -112,15 +203,11 @@ export default function ExamenCapacitacionPage() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/capacitaciones/estado", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personalId: personaSeleccionada.id, dni }),
-      });
-      const data = await res.json();
-      if (!data.ok) { setError(data.error || "No se pudo verificar el DNI."); return; }
-      setEmpresaNombre(data.empresaNombre || "");
-      setPersonaNombre(data.personaNombre || "");
-      setTemasEstado(data.temas || []);
+      const temas = await cargarEstado();
+      if (!temas) return;
+      const preset = temaPresetId ? temas.find(t => t.id === temaPresetId) : undefined;
+      if (preset) { abrirTema(preset); return; }
+      if (temaPresetId) setError("Ese tema no está asignado a tu empresa. Estos son los temas que tenés asignados.");
       setStep("tema");
     } catch { setError("Error de conexión. Intentá de nuevo."); }
     finally { setLoading(false); }
@@ -169,19 +256,15 @@ export default function ExamenCapacitacionPage() {
     finally { setLoading(false); }
   };
 
-  const volverATemas = async () => {
-    if (!personaSeleccionada) return;
+  const continuarCircuito = async () => {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("/api/capacitaciones/estado", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personalId: personaSeleccionada.id, dni }),
-      });
-      const data = await res.json();
-      if (data.ok) setTemasEstado(data.temas || []);
+      await cargarEstado();
       setResultado(null);
-      setStep("tema");
+      setVerMaterial(false);
+      setStep(temaActivoId ? "panel" : "tema");
+      window.scrollTo({ top: 0 });
     } catch { setError("Error de conexión."); }
     finally { setLoading(false); }
   };
@@ -194,13 +277,13 @@ export default function ExamenCapacitacionPage() {
     <>
       <div className="page-banner">
         <div className="container">
-          <h1>Examen de Capacitación</h1>
+          <h1>Capacitación</h1>
           <div className="breadcrumb">
             <Link href="/">Inicio</Link>
             <span className="breadcrumb-sep">/</span>
             <Link href="/capacitaciones">Capacitaciones</Link>
             <span className="breadcrumb-sep">/</span>
-            <span>Examen</span>
+            <span>Hacer la capacitación</span>
           </div>
         </div>
       </div>
@@ -210,6 +293,11 @@ export default function ExamenCapacitacionPage() {
 
           {step === "empresa" && (
             <div style={cardSt}>
+              {temaPresetNombre && (
+                <div style={{ fontSize: "0.75rem", fontWeight: 800, color: "var(--primary-red)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>
+                  Capacitación: {temaPresetNombre}
+                </div>
+              )}
               <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "8px" }}>Buscá tu empresa</h2>
               <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "16px" }}>
                 Escribí el nombre de la empresa o del contacto para encontrarla.
@@ -279,7 +367,7 @@ export default function ExamenCapacitacionPage() {
             <div style={cardSt}>
               <BackLink onClick={() => setStep("dni")} />
               <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "4px" }}>Hola, {personaNombre}</h2>
-              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "20px" }}>{empresaNombre}. Elegí el tema que querés rendir.</p>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "20px" }}>{empresaNombre}. Elegí la capacitación.</p>
               {error && <ErrorBox msg={error} />}
               {temasEstado.length === 0 ? (
                 <p style={{ color: "#999", fontSize: "0.9rem" }}>No tenés temas de capacitación asignados todavía.</p>
@@ -290,18 +378,12 @@ export default function ExamenCapacitacionPage() {
                       <div style={{ fontWeight: 800, color: "var(--primary-blue)" }}>{t.nombre}</div>
                       {t.descripcion && <div style={{ fontSize: "0.82rem", color: "#888", marginTop: "4px" }}>{t.descripcion}</div>}
                       <div style={{ marginTop: "12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
-                        {t.disponible ? (
-                          <>
-                            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#2563eb" }}>
-                              Examen {t.tipo === "previo" ? "previo" : `posterior — intento ${t.numeroIntento}`}
-                            </span>
-                            <button onClick={() => iniciarExamen(t)} disabled={loading} className="btn-red" style={{ padding: "8px 18px", fontSize: "0.85rem" }}>
-                              Rendir examen
-                            </button>
-                          </>
-                        ) : (
-                          <span style={{ fontSize: "0.8rem", color: "#999" }}>{t.motivo}</span>
-                        )}
+                        <span style={{ fontSize: "0.75rem", fontWeight: 700, color: t.fase === "aprobado" ? "#16a34a" : t.fase === "recapacitar" ? "#dc2626" : "#2563eb" }}>
+                          {FASE_LABEL[t.fase]}
+                        </span>
+                        <button onClick={() => abrirTema(t)} className="btn-red" style={{ padding: "8px 18px", fontSize: "0.85rem" }}>
+                          {t.fase === "aprobado" || t.fase === "recapacitar" ? "Ver" : "Continuar"}
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -310,12 +392,96 @@ export default function ExamenCapacitacionPage() {
             </div>
           )}
 
+          {step === "panel" && temaActivo && (() => {
+            const t = temaActivo;
+            const leidos = t.materialLeido || [];
+            const pendientes = t.archivos.filter(a => !leidos.includes(a.url)).length;
+            const mostrarMaterial = t.fase === "material" || ((t.fase === "final" || t.fase === "aprobado") && verMaterial);
+            return (
+              <div style={cardSt}>
+                {temasEstado.length > 1 && <BackLink onClick={() => { setError(""); setStep("tema"); }} />}
+                <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "4px" }}>{personaNombre} · {empresaNombre}</div>
+                <h2 style={{ fontWeight: 800, color: "var(--primary-blue)", marginBottom: "16px" }}>{t.nombre}</h2>
+                <Pasos fase={t.fase} />
+                {error && <ErrorBox msg={error} />}
+
+                {t.fase === "previo" && (
+                  <div>
+                    <p style={{ color: "#555", fontSize: "0.92rem", lineHeight: 1.6, marginBottom: "18px" }}>
+                      Antes de ver el material vas a responder un <b>examen previo</b>. Es solo para saber qué conocimientos tenés: no se aprueba ni se desaprueba.
+                      Después vas a ver el material y al final rendís el examen final.
+                    </p>
+                    <button onClick={() => iniciarExamen(t)} disabled={loading} className="btn-red" style={{ padding: "12px 24px", width: "100%" }}>
+                      {loading ? "Cargando..." : "Comenzar examen previo"}
+                    </button>
+                  </div>
+                )}
+
+                {t.fase === "material" && (
+                  <p style={{ color: "#555", fontSize: "0.92rem", lineHeight: 1.6, marginBottom: "18px" }}>
+                    Mirá cada material y marcalo como leído. Cuando termines se habilita el <b>examen final</b>
+                    {pendientes > 0 && <> (te falta{pendientes !== 1 ? "n" : ""} {pendientes})</>}.
+                  </p>
+                )}
+
+                {(t.fase === "final" || t.fase === "aprobado") && t.archivos.length > 0 && (
+                  <button onClick={() => setVerMaterial(v => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--primary-blue)", fontWeight: 700, fontSize: "0.85rem", marginBottom: "16px" }}>
+                    {verMaterial ? "Ocultar el material" : "Volver a ver el material"}
+                  </button>
+                )}
+
+                {mostrarMaterial && (
+                  <div style={{ marginTop: "4px" }}>
+                    {t.archivos.map(a => {
+                      const leido = leidos.includes(a.url);
+                      return (
+                        <MaterialCapacitacion key={a.url} archivo={a} pie={
+                          leido ? (
+                            <span style={{ display: "flex", alignItems: "center", gap: "6px", color: "#16a34a", fontWeight: 700, fontSize: "0.85rem" }}>
+                              <CheckCircle2 size={16} /> Leído
+                            </span>
+                          ) : (
+                            <button onClick={() => marcarLeido(a.url)} disabled={!!marcando} className="btn-blue" style={{ padding: "8px 16px", fontSize: "0.85rem", width: "100%" }}>
+                              {marcando === a.url ? "Guardando..." : "✓ Leí este material"}
+                            </button>
+                          )
+                        } />
+                      );
+                    })}
+                  </div>
+                )}
+
+                {(t.fase === "material" || t.fase === "final") && (
+                  <button onClick={() => iniciarExamen(t)} disabled={loading || t.fase !== "final"} className="btn-red"
+                    style={{ padding: "12px 24px", width: "100%", marginTop: "8px", opacity: t.fase !== "final" ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+                    {t.fase !== "final" && <Lock size={16} />}
+                    {loading ? "Cargando..." : `Rendir examen final${t.numeroIntento === 2 ? " (2º intento)" : ""}`}
+                  </button>
+                )}
+
+                {t.fase === "aprobado" && (
+                  <div style={{ textAlign: "center", padding: "10px 0" }}>
+                    <CheckCircle2 size={44} color="#16a34a" style={{ marginBottom: "8px" }} />
+                    <p style={{ fontWeight: 700, color: "#15803d" }}>Ya aprobaste esta capacitación.</p>
+                  </div>
+                )}
+
+                {t.fase === "recapacitar" && (
+                  <div style={{ textAlign: "center", padding: "10px 0" }}>
+                    <XCircle size={44} color="#dc2626" style={{ marginBottom: "8px" }} />
+                    <p style={{ color: "#555", fontSize: "0.9rem" }}>{t.motivo}</p>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {step === "examen" && (
             <div style={cardSt}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
                 <h2 style={{ fontWeight: 800, color: "var(--primary-blue)" }}>{temaNombreActual}</h2>
                 <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#2563eb", background: "#eff6ff", padding: "4px 12px", borderRadius: "20px" }}>
-                  {tipoExamen === "previo" ? "Examen previo" : `Examen posterior — intento ${numeroIntento}`}
+                  {tipoExamen === "previo" ? "Examen previo" : `Examen final — intento ${numeroIntento}`}
                 </span>
               </div>
               <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "20px" }}>
@@ -358,9 +524,9 @@ export default function ExamenCapacitacionPage() {
                   {resultado.puntajeObtenido} / {resultado.puntajeMaximo} puntos ({resultado.porcentaje}%)
                 </h2>
                 <p style={{ marginTop: "10px", color: "#555", fontSize: "0.9rem", maxWidth: "440px", marginLeft: "auto", marginRight: "auto" }}>
-                  {resultado.estadoFinal === "informativo" && "Este examen previo es solo informativo, no bloquea nada."}
+                  {resultado.estadoFinal === "informativo" && "Listo el examen previo. Es solo informativo. Ahora seguí con el material de la capacitación."}
                   {resultado.estadoFinal === "aprobado" && "¡Felicitaciones, aprobaste este tema!"}
-                  {resultado.estadoFinal === "reprobado_reintentar" && "No alcanzaste el puntaje mínimo. Te queda un intento más disponible."}
+                  {resultado.estadoFinal === "reprobado_reintentar" && "No alcanzaste el puntaje mínimo. Podés repasar el material y te queda un intento más."}
                   {resultado.estadoFinal === "reprobado_recapacitar" && "No alcanzaste el puntaje mínimo en los 2 intentos. Necesitás recapacitación antes de un nuevo intento. Contactá a tu empresa o al administrador."}
                 </p>
               </div>
@@ -383,7 +549,9 @@ export default function ExamenCapacitacionPage() {
               </div>
 
               <div style={{ display: "flex", gap: "12px", marginTop: "28px" }}>
-                <button onClick={volverATemas} className="btn-blue" style={{ flex: 1, padding: "12px" }}>Volver a los temas</button>
+                <button onClick={continuarCircuito} disabled={loading} className="btn-blue" style={{ flex: 1, padding: "12px" }}>
+                  {resultado.estadoFinal === "informativo" ? "Continuar con el material" : "Continuar"}
+                </button>
                 <Link href="/capacitaciones" className="btn-white" style={{ flex: 1, padding: "12px", border: "1px solid #ddd", textAlign: "center" }}>Salir</Link>
               </div>
             </div>

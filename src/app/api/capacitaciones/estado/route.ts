@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { determinarProximoExamen, type IntentoExamen } from "@/lib/capacitaciones";
+import {
+  determinarProximoExamen, materialPendiente, previoVigente,
+  type ArchivoTema, type FaseCapacitacion, type IntentoExamen,
+} from "@/lib/capacitaciones";
 
 function normalizarDni(v: string) {
   return (v || "").replace(/\D/g, "");
@@ -45,11 +48,28 @@ export async function POST(req: NextRequest) {
 
       const intentosDelTema = intentos.filter(i => i.temaId === temaId);
       const resultado = determinarProximoExamen(intentosDelTema);
+      const archivos: ArchivoTema[] = (tema.archivos || []).map((a: any) => ({
+        url: a.url, nombre: a.nombre || "", tipo: a.tipo || "otro", mimeType: a.mimeType || "",
+      }));
+      const materialLeido = previoVigente(intentosDelTema)?.materialLeido || [];
+
+      // Circuito: examen previo → leer todo el material → examen final.
+      let fase: FaseCapacitacion;
+      if (!resultado.disponible) {
+        fase = intentosDelTema.some(i => i.tipo === "posterior" && i.aprobado && !i.excluido) ? "aprobado" : "recapacitar";
+      } else if (resultado.tipo === "previo") {
+        fase = "previo";
+      } else {
+        fase = materialPendiente(archivos, materialLeido).length > 0 ? "material" : "final";
+      }
 
       temas.push({
         id: temaId,
         nombre: tema.nombre || "",
         descripcion: tema.descripcion || "",
+        fase,
+        archivos,
+        materialLeido,
         ...(resultado.disponible
           ? { disponible: true, tipo: resultado.tipo, numeroIntento: resultado.numeroIntento }
           : { disponible: false, motivo: resultado.motivo }),
