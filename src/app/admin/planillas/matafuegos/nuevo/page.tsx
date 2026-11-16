@@ -8,6 +8,7 @@ import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
 import { CAPACIDADES_DISPONIBLES, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
 import { normalizarMarca, sugerenciasMarcas, registrarMarcas } from "@/lib/marcas";
+import { opcionesAgente, resolverAgente, registrarAgentes } from "@/lib/agentes";
 import { renumerarAuto, reservarTarjetas } from "@/lib/tarjetas";
 import {
   ArrowLeft,
@@ -26,6 +27,7 @@ interface EquipoRemito {
   nroTarjeta: string; // Oblea
   tarjetaAuto?: boolean; // número asignado automáticamente (se confirma al guardar)
   tipo: string;
+  tipoOtro?: string;
   capacidad: string;
   capacidadOtro?: string;
   cantidad: string;
@@ -77,6 +79,7 @@ export default function NuevoRemitoPage() {
   const [numeroExistente, setNumeroExistente] = useState<number | null>(null);
   const [proximaOblea, setProximaOblea] = useState<number>(1);
   const [marcasUsadas, setMarcasUsadas] = useState<string[]>([]);
+  const [agentesExtra, setAgentesExtra] = useState<string[]>([]);
   const [backups, setBackups] = useState<Backup[]>([]);
   const [showNewClientModal, setShowNewClientModal] = useState(false);
   const [newClientData, setNewClientData] = useState({ 
@@ -113,6 +116,7 @@ export default function NuevoRemitoPage() {
         if (configDoc.exists()) {
           setProximaOblea(configDoc.data().proximaTarjeta || 1);
           setMarcasUsadas(configDoc.data().marcas || []);
+          setAgentesExtra(configDoc.data().agentes || []);
         }
 
         if (editId) {
@@ -226,6 +230,7 @@ export default function NuevoRemitoPage() {
     if (!nombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
     if (equipos.length === 0) { showToast("Debés agregar al menos un equipo.", "error"); return; }
     if (equipos.some(eq => !eq.cantidad)) { showToast("Todos los renglones deben tener una cantidad definida.", "error"); return; }
+    if (equipos.some(eq => eq.tipo === "Otro" && !(eq.tipoOtro || "").trim())) { showToast("Escribí el tipo de los equipos marcados como \"Otro\".", "error"); return; }
     if (!editId && !firmaDataUrl) { showToast("El cliente debe firmar el remito.", "error"); return; }
     if (!aclaracion.trim()) { showToast("Ingresá la aclaración de la firma.", "error"); return; }
 
@@ -239,8 +244,9 @@ export default function NuevoRemitoPage() {
 
       const reserva = await reservarTarjetas(equipos);
       if (reserva.reasignadas) showToast("Se reasignaron números de tarjeta porque otro usuario cargó equipos al mismo tiempo. Revisá el remito.", "info");
-      const equiposFinal = reserva.filas.map(({ tarjetaAuto, capacidadOtro, ...eq }) => ({
+      const equiposFinal = reserva.filas.map(({ tarjetaAuto, capacidadOtro, tipoOtro, ...eq }) => ({
         ...eq,
+        tipo: resolverAgente(eq.tipo, tipoOtro),
         marca: normalizarMarca(eq.marca),
         capacidad: resolverOtro(eq.capacidad, capacidadOtro),
       }));
@@ -301,6 +307,7 @@ export default function NuevoRemitoPage() {
 
       await Promise.all(updates);
       registrarMarcas(equiposFinal.map(e => e.marca)).catch(console.error);
+      registrarAgentes(equiposFinal.map(e => e.tipo)).catch(console.error);
 
       // Actualizar el inventario de backups según qué equipos de préstamo se entregaron o devolvieron
       const hoy = new Date().toISOString().split("T")[0];
@@ -525,13 +532,16 @@ export default function NuevoRemitoPage() {
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>TIPO</label>
                         <select value={eq.tipo || "ABC"} onChange={(e) => updateEquipo(idx, 'tipo', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
-                            <option value="ABC">Polvo químico seco ABC</option>
-                            <option value="CO2">Co2 BC</option>
-                            <option value="Agua">Agua A</option>
-                            <option value="Espuma">Espuma AFFF AB</option>
-                            <option value="K">Acetato de potasio K</option>
-                            <option value="HCFC">HCFC ABC</option>
+                          {opcionesAgente(agentesExtra, eq.tipo).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
+                        {eq.tipo === "Otro" && (
+                          <input
+                            value={eq.tipoOtro || ""}
+                            onChange={(e) => updateEquipo(idx, 'tipoOtro', e.target.value)}
+                            placeholder="Especifique tipo"
+                            style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
+                          />
+                        )}
                       </div>
                       <div>
                         <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>CAPAC.</label>

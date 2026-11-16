@@ -9,6 +9,7 @@ import Link from "next/link";
 import { generateMantenimientoPDF, generateRemitoPDF } from "@/lib/pdfGenerator";
 import { CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
 import { normalizarMarca, sugerenciasMarcas, registrarMarcas } from "@/lib/marcas";
+import { opcionesAgente, resolverAgente, registrarAgentes } from "@/lib/agentes";
 import { MESES } from "@/lib/libroContable";
 import { 
   Package, 
@@ -196,17 +197,22 @@ function MatafuegosUnifiedContent() {
   const handleSaveInventory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editInventory) return;
+    if (editInventory.datosTecnicos?.agente === "Otro" && !(editInventory.datosTecnicos?.agenteOtro || "").trim()) {
+      showToast("Escribí el tipo de agente.", "error");
+      return;
+    }
     setSavingInventory(true);
     try {
       const { id, ...data } = editInventory;
       const dt = data.datosTecnicos || {};
-      const { capacidadOtro, ...restDatosTecnicos } = dt;
+      const { capacidadOtro, agenteOtro, ...restDatosTecnicos } = dt;
       const resolvedData = {
         ...data,
         mantenimientoPor: data.mantenimientoPor || MANTENIMIENTO_ARIFA,
         empresaMantenimiento: data.mantenimientoPor === MANTENIMIENTO_OTRA ? (data.empresaMantenimiento || "").trim() : "",
         datosTecnicos: {
           ...restDatosTecnicos,
+          agente: resolverAgente(dt.agente || "", agenteOtro),
           marca: normalizarMarca(dt.marca),
           capacidad: resolverOtro(dt.capacidad || "", capacidadOtro),
         }
@@ -216,6 +222,7 @@ function MatafuegosUnifiedContent() {
         updatedAt: serverTimestamp()
       });
       registrarMarcas([resolvedData.datosTecnicos.marca]).catch(console.error);
+      registrarAgentes([resolvedData.datosTecnicos.agente]).catch(console.error);
       setMatafuegos(prev => prev.map(m => m.id === id ? { id, ...resolvedData } : m));
       setEditInventory(null);
       showToast("Inventario actualizado correctamente", "success");
@@ -1123,13 +1130,16 @@ function MatafuegosUnifiedContent() {
                     onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, agente: e.target.value } })}
                     style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ddd" }}
                   >
-                    <option value="ABC">Polvo químico seco ABC</option>
-                    <option value="CO2">Co2 BC</option>
-                    <option value="Agua">Agua A</option>
-                    <option value="Espuma">Espuma AFFF AB</option>
-                    <option value="K">Acetato de potasio K</option>
-                    <option value="HCFC">HCFC ABC</option>
+                    {opcionesAgente(matafuegos.map(m => m.datosTecnicos?.agente).filter(Boolean), editInventory.datosTecnicos?.agente).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
+                  {editInventory.datosTecnicos?.agente === "Otro" && (
+                    <input
+                      value={editInventory.datosTecnicos?.agenteOtro || ""}
+                      onChange={e => setEditInventory({ ...editInventory, datosTecnicos: { ...editInventory.datosTecnicos, agenteOtro: e.target.value } })}
+                      placeholder="Especifique tipo"
+                      style={{ width: "100%", padding: "8px", borderRadius: "8px", border: "1px solid #ddd", marginTop: "5px", fontSize: "0.8rem" }}
+                    />
+                  )}
                 </div>
                 <div>
                   <label style={{ display: "block", fontSize: "0.7rem", fontWeight: 800, color: "#999", marginBottom: "5px", textTransform: "uppercase" }}>Capacidad</label>

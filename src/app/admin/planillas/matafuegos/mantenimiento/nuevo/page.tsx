@@ -4,6 +4,7 @@ import { useToast, Toast } from "@/components/Toast";
 import SignatureModal from "@/components/admin/SignatureModal";
 import { CAPACIDADES_DISPONIBLES, MANTENIMIENTO_ARIFA, MANTENIMIENTO_OTRA, opcionesConValor, resolverOtro } from "@/lib/matafuegosConstants";
 import { normalizarMarca, sugerenciasMarcas, registrarMarcas } from "@/lib/marcas";
+import { opcionesAgente, resolverAgente, registrarAgentes } from "@/lib/agentes";
 import { MESES } from "@/lib/libroContable";
 import { renumerarAuto, reservarTarjetas } from "@/lib/tarjetas";
 import { db, auth } from "@/lib/firebase";
@@ -32,6 +33,7 @@ interface MantenimientoItem {
   empresaMantenimiento?: string;
   sector: string;
   agente: string;
+  agenteOtro?: string;
   base: string;
   capacidad: string;
   capacidadOtro?: string;
@@ -70,6 +72,7 @@ function FichaFormContent() {
   const [showFirmaModal, setShowFirmaModal] = useState(false);
   const [proximaOblea, setProximaOblea] = useState<number>(1);
   const [marcasUsadas, setMarcasUsadas] = useState<string[]>([]);
+  const [agentesExtra, setAgentesExtra] = useState<string[]>([]);
 
   // Datos de cabecera
   const [numeroFichaExistente, setNumeroFichaExistente] = useState<number | null>(null);
@@ -130,6 +133,7 @@ function FichaFormContent() {
         if (configDoc.exists()) {
           setProximaOblea(configDoc.data().proximaTarjeta || 1);
           setMarcasUsadas(configDoc.data().marcas || []);
+          setAgentesExtra(configDoc.data().agentes || []);
         }
 
         // CARGA DESDE REMITO SI EXISTE
@@ -330,6 +334,7 @@ function FichaFormContent() {
   const handleSave = async () => {
     if (!nombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
     if (items.length === 0) { showToast("Debés agregar al menos un extintor.", "error"); return; }
+    if (items.some(it => it.agente === "Otro" && !(it.agenteOtro || "").trim())) { showToast("Escribí el tipo de los extintores marcados como \"Otro\".", "error"); return; }
     
     setSaving(true);
     try {
@@ -341,8 +346,9 @@ function FichaFormContent() {
 
       const reserva = await reservarTarjetas(items);
       if (reserva.reasignadas) showToast("Se reasignaron números de tarjeta porque otro usuario cargó equipos al mismo tiempo. Revisá la ficha.", "info");
-      const itemsFinal = reserva.filas.map(({ tarjetaAuto, capacidadOtro, ...it }) => ({
+      const itemsFinal = reserva.filas.map(({ tarjetaAuto, capacidadOtro, agenteOtro, ...it }) => ({
         ...it,
+        agente: resolverAgente(it.agente, agenteOtro),
         marca: normalizarMarca(it.marca),
         capacidad: resolverOtro(it.capacidad, capacidadOtro),
         mantenimientoPor: it.mantenimientoPor || MANTENIMIENTO_ARIFA,
@@ -411,6 +417,7 @@ function FichaFormContent() {
 
       await Promise.all(updates);
       registrarMarcas(itemsFinal.map(it => it.marca)).catch(console.error);
+      registrarAgentes(itemsFinal.map(it => it.agente)).catch(console.error);
 
       // 5. Actualizar datos del cliente en la colección 'usuarios' si cambió algo
       if (clienteSeleccionado?.id) {
@@ -673,13 +680,16 @@ function FichaFormContent() {
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>AGENTE / TIPO</label>
                 <select value={item.agente} onChange={e => updateItem(idx, 'agente', e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}>
-                  <option value="ABC">Polvo químico seco ABC</option>
-                  <option value="CO2">Co2 BC</option>
-                  <option value="Agua">Agua A</option>
-                  <option value="Espuma">Espuma AFFF AB</option>
-                  <option value="K">Acetato de potasio K</option>
-                  <option value="HCFC">HCFC ABC</option>
+                  {opcionesAgente(agentesExtra, item.agente).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
+                {item.agente === "Otro" && (
+                  <input
+                    value={item.agenteOtro || ""}
+                    onChange={e => updateItem(idx, 'agenteOtro', e.target.value)}
+                    placeholder="Especifique tipo"
+                    style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '5px', fontSize: '0.8rem' }}
+                  />
+                )}
               </div>
               <div>
                 <label style={{ display: 'block', fontWeight: 800, fontSize: '0.65rem', color: '#999', marginBottom: '5px' }}>BASE</label>
