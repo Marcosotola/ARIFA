@@ -437,6 +437,7 @@ export const generateRemitoPDF = async (remito: any) => {
     });
     y = (pdf as any).lastAutoTable.finalY + 8;
 
+    if (remito.equipos?.length) {
     pdf.setFillColor(0, 34, 68);
     pdf.rect(ML, y, TW, 7, "F");
     pdf.setFontSize(8); pdf.setTextColor(255);
@@ -452,7 +453,7 @@ export const generateRemitoPDF = async (remito: any) => {
         eq.id || "-",
         eq.tipo,
         eq.capacidad,
-        eq.estado.toUpperCase(),
+        (eq.estado || "").toUpperCase(),
         eq.esPrestamo ? "EQUIPO DE PRÉSTAMO" : "PROPIO"
       ]),
       headStyles: { fillColor: [0, 34, 68], fontSize: 8 },
@@ -465,6 +466,27 @@ export const generateRemitoPDF = async (remito: any) => {
       }
     });
     y = (pdf as any).lastAutoTable.finalY + 15;
+    }
+
+    // Otros productos (gabinetes, baldes de arena, etc.)
+    if (remito.productos?.length) {
+      if (y > 250) { pdf.addPage(); y = 20; }
+      pdf.setFillColor(0, 34, 68);
+      pdf.rect(ML, y, TW, 7, "F");
+      pdf.setFontSize(8); pdf.setTextColor(255);
+      pdf.text("OTROS PRODUCTOS", ML + 3, y + 5);
+      y += 7;
+      autoTable(pdf, {
+        startY: y,
+        margin: { left: ML, right: MR },
+        head: [["Cant.", "Producto"]],
+        body: remito.productos.map((p: any) => [String(p.cantidad || 1), p.titulo || "-"]),
+        headStyles: { fillColor: [0, 34, 68], fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        columnStyles: { 0: { cellWidth: 20, halign: "center" } },
+      });
+      y = (pdf as any).lastAutoTable.finalY + 15;
+    }
 
     if (y > 240) { pdf.addPage(); y = 50; }
     

@@ -39,6 +39,7 @@ interface Remito {
   sedeNombre?: string;
   tecnicoNombre: string;
   equipos?: any[];
+  productos?: any[];
   createdAt: any;
 }
 
@@ -596,7 +597,7 @@ function MatafuegosUnifiedContent() {
                       <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{r.clienteNombre}</div>
                       <div style={{ fontSize: "0.75rem", color: "#888" }}>{r.clienteEmpresa}</div>
                     </div>
-                    <div style={{ fontSize: "0.82rem", fontWeight: 600, marginBottom: "12px" }}>{r.equipos?.length || 0} equipos</div>
+                    <div style={{ fontSize: "0.82rem", fontWeight: 600, marginBottom: "12px" }}>{r.equipos?.length || 0} equipos{r.productos?.length ? ` · ${r.productos.length} productos` : ""}</div>
                     <div style={{ display: "flex", gap: "8px", borderTop: "1px solid #f0f0f0", paddingTop: "12px" }}>
                       <Link title="Ver Vista Previa" href={`/admin/planillas/matafuegos/${r.id}?view=true`}
                         style={{ flex: 1, padding: "9px", borderRadius: "8px", background: "#f0fdf4", color: "#16a34a", display: "flex", alignItems: "center", justifyContent: "center", textDecoration: "none" }}>
@@ -699,7 +700,7 @@ function MatafuegosUnifiedContent() {
                           <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{r.clienteNombre}</div>
                           <div style={{ fontSize: "0.75rem", color: "#888" }}>{r.clienteEmpresa}</div>
                         </td>
-                        <td style={{ padding: "14px 16px", fontSize: "0.85rem", fontWeight: 600 }}>{r.equipos?.length || 0} u.</td>
+                        <td style={{ padding: "14px 16px", fontSize: "0.85rem", fontWeight: 600 }}>{r.equipos?.length || 0} u.{r.productos?.length ? ` + ${r.productos.length} prod.` : ""}</td>
                         <td style={{ padding: "14px 16px", textAlign: "right" }}>
                           <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                             <Link title="Ver Vista Previa" href={`/admin/planillas/matafuegos/${r.id}?view=true`} 

@@ -19,7 +19,8 @@ import {
   Package,
   PenTool,
   Check,
-  RotateCcw
+  RotateCcw,
+  ShoppingBag
 } from "lucide-react";
 
 interface EquipoRemito {
@@ -35,6 +36,20 @@ interface EquipoRemito {
   esPrestamo: boolean;
   nroBackup?: string;
   estado: "bueno" | "malo" | "recarga";
+}
+
+// Producto del catálogo (colección "productos") entregado junto con los matafuegos: gabinetes, baldes de arena, etc.
+interface ProductoRemito {
+  key: string;
+  productoId: string;
+  titulo: string;
+  cantidad: string;
+}
+
+interface ProductoCatalogo {
+  id: string;
+  titulo: string;
+  stock?: number;
 }
 
 interface Backup {
@@ -74,6 +89,8 @@ export default function NuevoRemitoPage() {
   const [clienteSearch, setClienteSearch] = useState("");
 
   const [equipos, setEquipos] = useState<EquipoRemito[]>([]);
+  const [productosRemito, setProductosRemito] = useState<ProductoRemito[]>([]);
+  const [catalogo, setCatalogo] = useState<ProductoCatalogo[]>([]);
   const [tecnico, setTecnico] = useState<any>(null);
   const [aclaracion, setAclaracion] = useState("");
   const [numeroExistente, setNumeroExistente] = useState<number | null>(null);
@@ -99,11 +116,17 @@ export default function NuevoRemitoPage() {
       if (!u) { router.push("/login"); return; }
       
       try {
-        const [userDoc, clientsSnap, backupsSnap] = await Promise.all([
+        const [userDoc, clientsSnap, backupsSnap, productosSnap] = await Promise.all([
           getDoc(doc(db, "usuarios", u.uid)),
           getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente"))),
           getDocs(collection(db, "matafuegos_backup")),
+          getDocs(query(collection(db, "productos"), where("activo", "==", true))).catch(() => null),
         ]);
+        if (productosSnap) {
+          setCatalogo(productosSnap.docs
+            .map(d => ({ id: d.id, titulo: d.data().titulo || "Sin nombre", stock: d.data().stock }))
+            .sort((a, b) => a.titulo.localeCompare(b.titulo, "es")));
+        }
 
         const tecnicoData = { uid: u.uid, nombre: userDoc.exists() ? userDoc.data().nombre || u.email : u.email };
         setTecnico(tecnicoData);
@@ -130,6 +153,12 @@ export default function NuevoRemitoPage() {
             setDireccion(r.clienteDireccion || "");
             setTelefono(r.clienteTelefono || "");
             setEquipos((r.equipos || []).map((e: any) => e.marca === "Otro" ? { ...e, marca: e.marcaOtro || "" } : e));
+            setProductosRemito((r.productos || []).map((p: any) => ({
+              key: crypto.randomUUID(),
+              productoId: p.productoId || "",
+              titulo: p.titulo || "",
+              cantidad: String(p.cantidad || 1),
+            })));
             setAclaracion(r.aclaracion || "");
             setNumeroExistente(r.numero || 0);
             setSedeId(r.sedeId || "");
@@ -226,9 +255,25 @@ export default function NuevoRemitoPage() {
     setEquipos(field === 'nroTarjeta' ? renumerarAuto(n, proximaOblea) : n);
   };
 
+  const agregarProducto = () =>
+    setProductosRemito(prev => [...prev, { key: crypto.randomUUID(), productoId: "", titulo: "", cantidad: "1" }]);
+
+  const elegirProducto = (key: string, productoId: string) => {
+    const p = catalogo.find(x => x.id === productoId);
+    setProductosRemito(prev => prev.map(it => it.key === key ? { ...it, productoId, titulo: p?.titulo || "" } : it));
+  };
+
+  const updateProducto = (key: string, cantidad: string) =>
+    setProductosRemito(prev => prev.map(it => it.key === key ? { ...it, cantidad } : it));
+
+  const eliminarProducto = (key: string) =>
+    setProductosRemito(prev => prev.filter(it => it.key !== key));
+
   const handleSave = async () => {
     if (!nombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
-    if (equipos.length === 0) { showToast("Debés agregar al menos un equipo.", "error"); return; }
+    if (equipos.length === 0 && productosRemito.length === 0) { showToast("Debés agregar al menos un equipo o un producto.", "error"); return; }
+    if (productosRemito.some(p => !p.productoId)) { showToast("Elegí el producto en cada renglón de \"Otros productos\" o borrá el renglón.", "error"); return; }
+    if (productosRemito.some(p => !(Number(p.cantidad) >= 1))) { showToast("Cada producto tiene que tener una cantidad de al menos 1.", "error"); return; }
     if (equipos.some(eq => !eq.cantidad)) { showToast("Todos los renglones deben tener una cantidad definida.", "error"); return; }
     if (equipos.some(eq => eq.tipo === "Otro" && !(eq.tipoOtro || "").trim())) { showToast("Escribí el tipo de los equipos marcados como \"Otro\".", "error"); return; }
     if (!editId && !firmaDataUrl) { showToast("El cliente debe firmar el remito.", "error"); return; }
@@ -267,6 +312,11 @@ export default function NuevoRemitoPage() {
         tecnicoId: tecnico.uid,
         tecnicoNombre: tecnico.nombre,
         equipos: equiposFinal,
+        productos: productosRemito.map(p => ({
+          productoId: p.productoId,
+          titulo: p.titulo,
+          cantidad: Math.floor(Number(p.cantidad)),
+        })),
         aclaracion,
         updatedAt: serverTimestamp()
       };
@@ -591,6 +641,58 @@ export default function NuevoRemitoPage() {
       <datalist id="marcas-sugeridas">
         {sugerenciasMarcas(marcasUsadas).map(m => <option key={m} value={m} />)}
       </datalist>
+
+      {/* SECCION 2B: OTROS PRODUCTOS (catálogo de Productos) */}
+      <div style={{ background: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', marginBottom: '25px', border: '1px solid #eee' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', gap: '10px', flexWrap: 'wrap' }}>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--primary-blue)', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+              <ShoppingBag size={20} /> Otros Productos
+            </h3>
+            <button onClick={agregarProducto} className="btn-blue" style={{ padding: '10px 18px', borderRadius: '10px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Plus size={18} strokeWidth={3} /> Agregar Producto
+            </button>
+        </div>
+        <p style={{ fontSize: '0.8rem', color: '#999', margin: '0 0 20px' }}>Gabinetes, baldes de arena, señalética y cualquier otro producto cargado en Productos.</p>
+        {productosRemito.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#999', padding: '20px', border: '2px dashed #eee', borderRadius: '12px', fontSize: '0.9rem' }}>Sin otros productos.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {productosRemito.map(p => (
+              <div key={p.key} className="producto-row">
+                <div className="producto-field-sel">
+                  <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>PRODUCTO</label>
+                  <select value={p.productoId} onChange={e => elegirProducto(p.key, e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff' }}>
+                    <option value="">-- Seleccionar producto --</option>
+                    {/* Si el producto ya no está activo, se muestra igual para no perderlo al editar */}
+                    {p.productoId && !catalogo.some(c => c.id === p.productoId) && <option value={p.productoId}>{p.titulo}</option>}
+                    {catalogo.map(c => <option key={c.id} value={c.id}>{c.titulo}</option>)}
+                  </select>
+                </div>
+                <div className="producto-field-cant">
+                  <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>CANT.</label>
+                  <input type="number" min={1} step={1} value={p.cantidad} onChange={e => updateProducto(p.key, e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', textAlign: 'center', fontWeight: 700 }} />
+                </div>
+                <button type="button" className="producto-field-del" onClick={() => eliminarProducto(p.key)} title="Quitar producto"
+                  style={{ height: '40px', borderRadius: '8px', border: 'none', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {catalogo.length === 0 && (
+          <div style={{ fontSize: '0.78rem', color: '#b45309', marginTop: '12px' }}>No hay productos activos cargados. Cargalos desde la sección Productos.</div>
+        )}
+        <style>{`
+          .producto-row { display: grid; grid-template-columns: 1fr 90px 40px; gap: 10px; align-items: end; padding: 12px; background: #fafafa; border: 1px solid #eee; border-radius: 12px; }
+          @media (max-width: 600px) {
+            .producto-row { grid-template-columns: 1fr 44px; grid-template-areas: "sel sel" "cant del"; }
+            .producto-field-sel { grid-area: sel; }
+            .producto-field-cant { grid-area: cant; }
+            .producto-field-del { grid-area: del; }
+          }
+        `}</style>
+      </div>
 
       {/* SECCION 3: FIRMA */}
       <div style={{ background: '#fff', padding: '30px', borderRadius: '16px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', marginBottom: '30px', border: '1px solid #eee' }}>
