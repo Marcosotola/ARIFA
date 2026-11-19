@@ -5,9 +5,11 @@ import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, addDoc, getDocs, query, where, doc,
-  getDoc, serverTimestamp, updateDoc, setDoc, orderBy,
+  getDoc, serverTimestamp, updateDoc, setDoc, onSnapshot, getDocsFromCache,
 } from "@/lib/firestore";
+import { ordenarNotas } from "@/lib/notasPresupuesto";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   ArrowLeft, Save, Plus, Trash2, User, FileText,
   Hash, Calendar, Receipt, Search, ClipboardList,
@@ -135,14 +137,19 @@ function NuevoPresupuestoContent() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
       try {
-        const [userDoc, clientsSnap] = await Promise.all([
-          getDoc(doc(db, "usuarios", u.uid)),
-          getDocs(query(collection(db, "usuarios"), where("rol", "==", "cliente"))),
-        ]);
+        // La lista de clientes puede ser grande: se carga aparte para no frenar el formulario.
+        const clientesQuery = query(collection(db, "usuarios"), where("rol", "==", "cliente"));
+        const clientesPromise: Promise<any[]> = getDocsFromCache(clientesQuery)
+          .then(snap => { if (snap.size) setClientes(snap.docs.map(d => ({ id: d.id, ...d.data() }))); })
+          .catch(() => {})
+          .then(() => getDocs(clientesQuery))
+          .then(snap => { const list = snap.docs.map(d => ({ id: d.id, ...d.data() })); setClientes(list); return list; })
+          .catch(e => { console.error(e); return []; });
+
+        const userDoc = await getDoc(doc(db, "usuarios", u.uid));
         const userData = userDoc.exists() ? userDoc.data() : {};
         if (userData.rol === "tecnico") { router.push("/admin"); return; }
         setCurrentUser({ uid: u.uid, ...userData });
-        setClientes(clientsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
         if (editId) {
           const presDoc = await getDoc(doc(db, "presupuestos", editId));
@@ -168,9 +175,10 @@ function NuevoPresupuestoContent() {
             setImpuestoValor(d.impuestoValor ?? 0);
             setNotas(d.notas || "");
             if (d.clienteId) {
-              const cList = clientsSnap.docs.map(dd => ({ id: dd.id, ...dd.data() }));
-              const c = cList.find((x: any) => x.id === d.clienteId);
-              if (c) { setClienteSeleccionado(c); setFilteredSedes((c as any).sedes || []); }
+              clientesPromise.then(cList => {
+                const c = cList.find((x: any) => x.id === d.clienteId);
+                if (c) { setClienteSeleccionado(c); setFilteredSedes((c as any).sedes || []); }
+              });
             }
           }
         } else {
@@ -192,11 +200,11 @@ function NuevoPresupuestoContent() {
     fetchAllProductos().then(setCatalogo).catch(console.error);
 
     // Notas estándar (condiciones comerciales, forma de pago...)
-    getDocs(query(collection(db, "notas_presupuesto"), orderBy("createdAt", "asc")))
-      .then(snap => { setNotasEstandar(snap.docs.map(d => ({ id: d.id, ...d.data() } as any))); setNotasEstandarError(false); })
-      .catch(e => { console.error("notas_presupuesto:", e); setNotasEstandarError(true); });
+    const unsubNotas = onSnapshot(collection(db, "notas_presupuesto"),
+      snap => { setNotasEstandar(ordenarNotas(snap.docs.map(d => ({ id: d.id, ...d.data() } as any)))); setNotasEstandarError(false); },
+      e => { console.error("notas_presupuesto:", e); setNotasEstandarError(true); });
 
-    return () => unsub();
+    return () => { unsub(); unsubNotas(); };
   }, [router, editId]);
 
   // Cargar Plan de Acción cuando cambia el cliente
@@ -699,7 +707,7 @@ function NuevoPresupuestoContent() {
             <span style={{ fontSize: "0.75rem", color: notasEstandarError ? "#b91c1c" : "#999" }}>
               {notasEstandarError
                 ? "No se pudieron cargar las notas estándar."
-                : <>Todavía no hay. Cargalas en <a href="/admin/documentos/presupuestos" style={{ color: "var(--primary-blue)", fontWeight: 700 }}>Presupuestos › Notas estándar</a>.</>}
+                : <>Todavía no hay. Cargalas en <Link href="/admin/documentos/presupuestos" style={{ color: "var(--primary-blue)", fontWeight: 700 }}>Presupuestos › Notas estándar</Link>.</>}
             </span>
           )}
           {notasEstandar.map(n => (
