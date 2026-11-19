@@ -93,6 +93,7 @@ function NuevoPresupuestoContent() {
   // Notas
   const [notas, setNotas] = useState("");
   const [notasEstandar, setNotasEstandar] = useState<{ id: string; titulo: string; contenido: string }[]>([]);
+  const [notasEstandarError, setNotasEstandarError] = useState(false);
 
   const insertarNota = (contenido: string) => {
     if (notas.includes(contenido)) { showToast("Esa nota ya está en el presupuesto.", "info"); return; }
@@ -192,8 +193,8 @@ function NuevoPresupuestoContent() {
 
     // Notas estándar (condiciones comerciales, forma de pago...)
     getDocs(query(collection(db, "notas_presupuesto"), orderBy("createdAt", "asc")))
-      .then(snap => setNotasEstandar(snap.docs.map(d => ({ id: d.id, ...d.data() } as any))))
-      .catch(() => {});
+      .then(snap => { setNotasEstandar(snap.docs.map(d => ({ id: d.id, ...d.data() } as any))); setNotasEstandarError(false); })
+      .catch(e => { console.error("notas_presupuesto:", e); setNotasEstandarError(true); });
 
     return () => unsub();
   }, [router, editId]);
@@ -516,12 +517,12 @@ function NuevoPresupuestoContent() {
 
       {/* ── SECCIÓN 3: ÍTEMS ── */}
       <div style={sectionStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h3 style={{ ...sectionTitleStyle, margin: 0 }}><FileText size={20} /> Detalle de Servicios / Productos</h3>
-          <div style={{ display: "flex", gap: "10px" }}>
+        <div className="items-toolbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "20px" }}>
+          <h3 style={{ ...sectionTitleStyle, margin: 0, flex: "1 1 240px" }}><FileText size={20} /> Detalle de Servicios / Productos</h3>
+          <div className="items-toolbar-btns" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button
               onClick={() => setShowCatalogoModal(true)}
-              style={{ padding: "8px 14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", background: "#f0f7ff", color: "var(--primary-blue)", border: "1px solid #cce3ff", fontSize: "0.8rem" }}
+              style={{ padding: "8px 14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", background: "#f0f7ff", color: "var(--primary-blue)", border: "1px solid #cce3ff", fontSize: "0.8rem", whiteSpace: "nowrap" }}
             >
               <Package size={16} /> Catálogo
             </button>
@@ -530,14 +531,14 @@ function NuevoPresupuestoContent() {
                 if (!clienteSeleccionado) { showToast("Seleccioná un cliente para ver su Plan de Acción.", "error"); return; }
                 setShowPlanAccionModal(true);
               }}
-              style={{ padding: "8px 14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", background: "#fff9f0", color: "#92400e", border: "1px solid #fef3c7", fontSize: "0.8rem" }}
+              style={{ padding: "8px 14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", background: "#fff9f0", color: "#92400e", border: "1px solid #fef3c7", fontSize: "0.8rem", whiteSpace: "nowrap" }}
             >
               <ClipboardList size={16} /> Plan Acción
             </button>
             <button
               onClick={agregarItem}
               className="btn-blue"
-              style={{ padding: "8px 14px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem" }}
+              style={{ padding: "8px 14px", borderRadius: "10px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "8px", fontSize: "0.85rem", whiteSpace: "nowrap" }}
             >
               <Plus size={16} strokeWidth={3} /> Item
             </button>
@@ -692,18 +693,23 @@ function NuevoPresupuestoContent() {
       {/* ── SECCIÓN 5: NOTAS ── */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}><FileText size={20} /> Notas / Condiciones</h3>
-        {notasEstandar.length > 0 && (
-          <div style={{ marginBottom: "12px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#666" }}>Insertar nota estándar:</span>
-            {notasEstandar.map(n => (
+        <div style={{ marginBottom: "12px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#666" }}>Insertar nota estándar:</span>
+          {notasEstandar.length === 0 && (
+            <span style={{ fontSize: "0.75rem", color: notasEstandarError ? "#b91c1c" : "#999" }}>
+              {notasEstandarError
+                ? "No se pudieron cargar las notas estándar."
+                : <>Todavía no hay. Cargalas en <a href="/admin/documentos/presupuestos" style={{ color: "var(--primary-blue)", fontWeight: 700 }}>Presupuestos › Notas estándar</a>.</>}
+            </span>
+          )}
+          {notasEstandar.map(n => (
               <button key={n.id} type="button" onClick={() => insertarNota(n.contenido)}
                 title={n.contenido}
                 style={{ padding: "5px 12px", borderRadius: "15px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", color: "var(--primary-blue)" }}>
                 + {n.titulo}
               </button>
             ))}
-          </div>
-        )}
+        </div>
         <textarea
           value={notas}
           onChange={e => setNotas(e.target.value)}
@@ -945,6 +951,11 @@ function NuevoPresupuestoContent() {
           .grid-responsive { grid-template-columns: 1fr !important; }
           .grid-2 { grid-template-columns: 1fr !important; }
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
+
+          .items-toolbar { flex-direction: column !important; align-items: stretch !important; }
+          .items-toolbar > h3 { flex: none !important; }
+          .items-toolbar-btns { width: 100%; flex-wrap: nowrap !important; }
+          .items-toolbar-btns > button { flex: 1 1 0; min-width: 0; justify-content: center; padding: 10px 6px !important; white-space: nowrap; }
 
           .items-header { display: none !important; }
           .item-row {
