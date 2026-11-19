@@ -517,9 +517,9 @@ function NuevoPresupuestoContent() {
 
       {/* ── SECCIÓN 3: ÍTEMS ── */}
       <div style={sectionStyle}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "20px" }}>
+        <div className="items-toolbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px", marginBottom: "20px" }}>
           <h3 style={{ ...sectionTitleStyle, margin: 0, flex: "1 1 240px" }}><FileText size={20} /> Detalle de Servicios / Productos</h3>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <div className="items-toolbar-btns" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button
               onClick={() => setShowCatalogoModal(true)}
               style={{ padding: "8px 14px", borderRadius: "8px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: "6px", background: "#f0f7ff", color: "var(--primary-blue)", border: "1px solid #cce3ff", fontSize: "0.8rem", whiteSpace: "nowrap" }}
@@ -951,6 +951,11 @@ function NuevoPresupuestoContent() {
           .grid-responsive { grid-template-columns: 1fr !important; }
           .grid-2 { grid-template-columns: 1fr !important; }
           .grid-2 [style*="span 2"] { grid-column: span 1 !important; }
+
+          .items-toolbar { flex-direction: column !important; align-items: stretch !important; }
+          .items-toolbar > h3 { flex: none !important; }
+          .items-toolbar-btns { width: 100%; flex-wrap: nowrap !important; }
+          .items-toolbar-btns > button { flex: 1 1 0; min-width: 0; justify-content: center; padding: 10px 6px !important; white-space: nowrap; }
 
           .items-header { display: none !important; }
           .item-row {
