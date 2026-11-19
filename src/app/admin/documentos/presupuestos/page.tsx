@@ -5,7 +5,9 @@ import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, query, orderBy, where,
   doc, getDoc, deleteDoc, updateDoc, addDoc, serverTimestamp,
+  onSnapshot, getDocsFromCache, getDocFromCache,
 } from "@/lib/firestore";
+import { ordenarNotas } from "@/lib/notasPresupuesto";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { generatePresupuestoPDF } from "@/lib/pdfGenerator";
@@ -33,6 +35,7 @@ interface NotaPresupuesto {
   id: string;
   titulo: string;
   contenido: string;
+  createdAt?: any;
 }
 
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
@@ -70,7 +73,8 @@ export default function PresupuestosPage() {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
       if (!u) { router.push("/login"); return; }
-      const userDoc = await getDoc(doc(db, "usuarios", u.uid));
+      // Primero lo guardado en el teléfono (instantáneo); si no está, se pide al servidor.
+      const userDoc = await getDocFromCache(doc(db, "usuarios", u.uid)).catch(() => getDoc(doc(db, "usuarios", u.uid)));
       const userData = userDoc.exists() ? userDoc.data() : {};
       const r = userData.rol || "cliente";
       if (r === "tecnico") { router.push("/admin"); return; }
@@ -82,16 +86,40 @@ export default function PresupuestosPage() {
     return () => unsub();
   }, [router]);
 
+  // Notas estándar en vivo: aparecen apenas se guardan, incluso antes de que confirme el servidor.
+  const [notasError, setNotasError] = useState(false);
+  useEffect(() => {
+    if (activeTab !== "notas") return;
+    return onSnapshot(collection(db, "notas_presupuesto"),
+      snap => { setNotas(ordenarNotas(snap.docs.map(d => ({ id: d.id, ...d.data() } as NotaPresupuesto)))); setNotasError(false); },
+      e => { console.error("notas_presupuesto:", e); setNotasError(true); });
+  }, [activeTab]);
+
   const isStaff = (r: string) => ["admin", "superadmin", "secretaria"].includes(r);
   const isTecnicoTaller = (r: string) => r === "tecnicoTaller";
 
   const fetchPresupuestos = async (r: string, uid: string) => {
+    const procesar = (snap: { docs: { id: string; data: () => any }[] }) => {
+      let docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Presupuesto));
+      if (isTecnicoTaller(r)) docs = docs.filter(p => p.creadoPorId === uid);
+      else if (!isStaff(r)) docs = docs.filter(p => p.clienteId === uid);
+      docs.sort((a, b) => {
+        const ts = (o: any) => o.createdAt?.seconds ?? 0;
+        return ts(b) - ts(a);
+      });
+      return docs;
+    };
     try {
       let snap;
       const filtro = isStaff(r) ? null : isTecnicoTaller(r) ? "creadoPorId" : "clienteId";
       const baseQuery = filtro
         ? query(collection(db, "presupuestos"), where(filtro, "==", uid), orderBy("createdAt", "desc"))
         : query(collection(db, "presupuestos"), orderBy("createdAt", "desc"));
+      // Mostrar al instante lo que ya está guardado en el teléfono mientras llega lo del servidor.
+      try {
+        const cached = await getDocsFromCache(baseQuery);
+        if (cached.size) { setPresupuestos(procesar(cached)); setLoading(false); }
+      } catch { /* sin caché todavía */ }
       try {
         snap = await getDocs(baseQuery);
       } catch {
@@ -101,14 +129,7 @@ export default function PresupuestosPage() {
             : collection(db, "presupuestos")
         );
       }
-      let docs = snap.docs.map(d => ({ id: d.id, ...d.data() } as Presupuesto));
-      if (isTecnicoTaller(r)) docs = docs.filter(p => p.creadoPorId === uid);
-      else if (!isStaff(r)) docs = docs.filter(p => p.clienteId === uid);
-      docs.sort((a, b) => {
-        const ts = (o: any) => o.createdAt?.seconds ?? 0;
-        return ts(b) - ts(a);
-      });
-      setPresupuestos(docs);
+      setPresupuestos(procesar(snap));
     } catch (e) { console.error(e); }
   };
 
@@ -138,13 +159,6 @@ export default function PresupuestosPage() {
     } catch { alert("Error al actualizar estado."); }
   };
 
-  const fetchNotas = async () => {
-    try {
-      const snap = await getDocs(query(collection(db, "notas_presupuesto"), orderBy("createdAt", "asc")));
-      setNotas(snap.docs.map(d => ({ id: d.id, ...d.data() } as NotaPresupuesto)));
-    } catch (e) { console.error(e); setNotas([]); }
-  };
-
   const handleSaveNota = async () => {
     if (!formNota.titulo.trim() || !formNota.contenido.trim()) { alert("Completá el nombre y el texto de la nota."); return; }
     try {
@@ -156,14 +170,12 @@ export default function PresupuestosPage() {
       }
       setNotaModal(null);
       setFormNota({ titulo: "", contenido: "", id: "" });
-      fetchNotas();
     } catch (e) { console.error(e); alert("Error al guardar la nota."); }
   };
 
   const handleDeleteNota = async (id: string) => {
     try {
       await deleteDoc(doc(db, "notas_presupuesto", id));
-      setNotas(prev => prev.filter(n => n.id !== id));
     } catch (e) { console.error(e); alert("Error al eliminar la nota."); }
     finally { setDeletingNota(null); }
   };
@@ -235,7 +247,7 @@ export default function PresupuestosPage() {
             <ClipboardList size={18} strokeWidth={2.5} /> Listado
           </button>
           <button type="button"
-            onClick={() => { setActiveTab("notas"); fetchNotas(); }}
+            onClick={() => setActiveTab("notas")}
             style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid", borderColor: activeTab === "notas" ? "#16a34a" : "#bbf7d0", background: activeTab === "notas" ? "#fff" : "#f0fdf4", fontWeight: 800, color: "#16a34a", cursor: "pointer", boxShadow: activeTab === "notas" ? "0 4px 12px rgba(22,163,74,0.15)" : "none", display: "flex", alignItems: "center", gap: "8px" }}>
             <BookText size={18} strokeWidth={2.5} /> Notas estándar
           </button>
@@ -244,7 +256,11 @@ export default function PresupuestosPage() {
 
       {activeTab === "notas" && (
         <div style={{ marginBottom: "20px" }}>
-          {notas.length === 0 ? (
+          {notasError ? (
+            <div style={{ background: "#fff5f4", border: "1px solid #ffddd9", borderRadius: "12px", padding: "20px", color: "var(--primary-red)", fontSize: "0.9rem" }}>
+              No se pudieron cargar las notas estándar. Revisá la conexión y volvé a intentar.
+            </div>
+          ) : notas.length === 0 ? (
             <div style={{ background: "#fff", borderRadius: "12px", padding: "60px", textAlign: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
               <div style={{ fontSize: "3rem", marginBottom: "12px", opacity: 0.3 }}>📝</div>
               <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
