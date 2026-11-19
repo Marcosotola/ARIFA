@@ -41,7 +41,7 @@ interface Remito {
   sedeRazonSocial?: string;
   tecnicoNombre: string;
   equipos: Equipo[];
-  productos?: { productoId: string; titulo: string; cantidad: number }[];
+  productos?: { productoId: string | null; titulo: string; cantidad: number }[];
   firma: string;
   aclaracion: string;
   createdAt: any;

@@ -41,10 +41,13 @@ interface EquipoRemito {
 // Producto del catálogo (colección "productos") entregado junto con los matafuegos: gabinetes, baldes de arena, etc.
 interface ProductoRemito {
   key: string;
-  productoId: string;
+  productoId: string; // vacío si es un ítem escrito a mano ("Otro")
   titulo: string;
   cantidad: string;
+  manual?: boolean;
 }
+
+const OPCION_OTRO = "__otro__";
 
 interface ProductoCatalogo {
   id: string;
@@ -158,6 +161,7 @@ export default function NuevoRemitoPage() {
               productoId: p.productoId || "",
               titulo: p.titulo || "",
               cantidad: String(p.cantidad || 1),
+              manual: !p.productoId,
             })));
             setAclaracion(r.aclaracion || "");
             setNumeroExistente(r.numero || 0);
@@ -259,9 +263,16 @@ export default function NuevoRemitoPage() {
     setProductosRemito(prev => [...prev, { key: crypto.randomUUID(), productoId: "", titulo: "", cantidad: "1" }]);
 
   const elegirProducto = (key: string, productoId: string) => {
+    if (productoId === OPCION_OTRO) {
+      setProductosRemito(prev => prev.map(it => it.key === key ? { ...it, productoId: "", titulo: "", manual: true } : it));
+      return;
+    }
     const p = catalogo.find(x => x.id === productoId);
-    setProductosRemito(prev => prev.map(it => it.key === key ? { ...it, productoId, titulo: p?.titulo || "" } : it));
+    setProductosRemito(prev => prev.map(it => it.key === key ? { ...it, productoId, titulo: p?.titulo || "", manual: false } : it));
   };
+
+  const escribirProducto = (key: string, titulo: string) =>
+    setProductosRemito(prev => prev.map(it => it.key === key ? { ...it, titulo } : it));
 
   const updateProducto = (key: string, cantidad: string) =>
     setProductosRemito(prev => prev.map(it => it.key === key ? { ...it, cantidad } : it));
@@ -272,7 +283,7 @@ export default function NuevoRemitoPage() {
   const handleSave = async () => {
     if (!nombre.trim()) { showToast("El nombre del cliente es obligatorio.", "error"); return; }
     if (equipos.length === 0 && productosRemito.length === 0) { showToast("Debés agregar al menos un equipo o un producto.", "error"); return; }
-    if (productosRemito.some(p => !p.productoId)) { showToast("Elegí el producto en cada renglón de \"Otros productos\" o borrá el renglón.", "error"); return; }
+    if (productosRemito.some(p => p.manual ? !p.titulo.trim() : !p.productoId)) { showToast("Elegí o escribí el producto en cada renglón de \"Otros productos\", o borrá el renglón.", "error"); return; }
     if (productosRemito.some(p => !(Number(p.cantidad) >= 1))) { showToast("Cada producto tiene que tener una cantidad de al menos 1.", "error"); return; }
     if (equipos.some(eq => !eq.cantidad)) { showToast("Todos los renglones deben tener una cantidad definida.", "error"); return; }
     if (equipos.some(eq => eq.tipo === "Otro" && !(eq.tipoOtro || "").trim())) { showToast("Escribí el tipo de los equipos marcados como \"Otro\".", "error"); return; }
@@ -313,8 +324,8 @@ export default function NuevoRemitoPage() {
         tecnicoNombre: tecnico.nombre,
         equipos: equiposFinal,
         productos: productosRemito.map(p => ({
-          productoId: p.productoId,
-          titulo: p.titulo,
+          productoId: p.manual ? null : p.productoId,
+          titulo: p.titulo.trim(),
           cantidad: Math.floor(Number(p.cantidad)),
         })),
         aclaracion,
@@ -652,7 +663,7 @@ export default function NuevoRemitoPage() {
               <Plus size={18} strokeWidth={3} /> Agregar Producto
             </button>
         </div>
-        <p style={{ fontSize: '0.8rem', color: '#999', margin: '0 0 20px' }}>Gabinetes, baldes de arena, señalética y cualquier otro producto cargado en Productos.</p>
+        <p style={{ fontSize: '0.8rem', color: '#999', margin: '0 0 20px' }}>Gabinetes, baldes de arena, señalética o cualquier producto de Productos. Si no está cargado, elegí "Otro" y escribilo a mano.</p>
         {productosRemito.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#999', padding: '20px', border: '2px dashed #eee', borderRadius: '12px', fontSize: '0.9rem' }}>Sin otros productos.</div>
         ) : (
@@ -661,12 +672,22 @@ export default function NuevoRemitoPage() {
               <div key={p.key} className="producto-row">
                 <div className="producto-field-sel">
                   <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>PRODUCTO</label>
-                  <select value={p.productoId} onChange={e => elegirProducto(p.key, e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff' }}>
+                  <select value={p.manual ? OPCION_OTRO : p.productoId} onChange={e => elegirProducto(p.key, e.target.value)} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', background: '#fff' }}>
                     <option value="">-- Seleccionar producto --</option>
                     {/* Si el producto ya no está activo, se muestra igual para no perderlo al editar */}
                     {p.productoId && !catalogo.some(c => c.id === p.productoId) && <option value={p.productoId}>{p.titulo}</option>}
                     {catalogo.map(c => <option key={c.id} value={c.id}>{c.titulo}</option>)}
+                    <option value={OPCION_OTRO}>Otro (escribir a mano)</option>
                   </select>
+                  {p.manual && (
+                    <input
+                      value={p.titulo}
+                      onChange={e => escribirProducto(p.key, e.target.value)}
+                      placeholder="Escribí el producto..."
+                      autoFocus
+                      style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd', marginTop: '6px' }}
+                    />
+                  )}
                 </div>
                 <div className="producto-field-cant">
                   <label style={{ fontSize: '0.65rem', fontWeight: 800, color: '#999', display: 'block', marginBottom: '3px' }}>CANT.</label>
@@ -681,7 +702,7 @@ export default function NuevoRemitoPage() {
           </div>
         )}
         {catalogo.length === 0 && (
-          <div style={{ fontSize: '0.78rem', color: '#b45309', marginTop: '12px' }}>No hay productos activos cargados. Cargalos desde la sección Productos.</div>
+          <div style={{ fontSize: '0.78rem', color: '#b45309', marginTop: '12px' }}>No hay productos activos cargados. Podés usar "Otro" para escribirlos a mano.</div>
         )}
         <style>{`
           .producto-row { display: grid; grid-template-columns: 1fr 90px 40px; gap: 10px; align-items: end; padding: 12px; background: #fafafa; border: 1px solid #eee; border-radius: 12px; }
