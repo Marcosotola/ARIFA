@@ -41,6 +41,7 @@ interface Remito {
   sedeRazonSocial?: string;
   tecnicoNombre: string;
   equipos: Equipo[];
+  productos?: { productoId: string | null; titulo: string; cantidad: number }[];
   firma: string;
   aclaracion: string;
   createdAt: any;
@@ -158,6 +159,7 @@ export default function DetalleRemitoPage() {
     y = (pdf as any).lastAutoTable.finalY + 8;
 
     // Equipos
+    if (r.equipos?.length) {
     pdf.setFillColor(0, 34, 68);
     pdf.rect(ML, y, TW, 7, "F");
     pdf.setFontSize(8); pdf.setTextColor(255);
@@ -173,7 +175,7 @@ export default function DetalleRemitoPage() {
         eq.id || "-",
         eq.tipo,
         eq.capacidad,
-        eq.estado.toUpperCase(),
+        (eq.estado || "").toUpperCase(),
         eq.esPrestamo ? "EQUIPO DE PRÉSTAMO" : "PROPIO"
       ]),
       headStyles: { fillColor: [0, 34, 68], fontSize: 8 },
@@ -186,6 +188,27 @@ export default function DetalleRemitoPage() {
       }
     });
     y = (pdf as any).lastAutoTable.finalY + 15;
+    }
+
+    // Otros productos (gabinetes, baldes de arena, etc.)
+    if (r.productos?.length) {
+      if (y > 250) { pdf.addPage(); y = 20; }
+      pdf.setFillColor(0, 34, 68);
+      pdf.rect(ML, y, TW, 7, "F");
+      pdf.setFontSize(8); pdf.setTextColor(255);
+      pdf.text("OTROS PRODUCTOS", ML + 3, y + 5);
+      y += 7;
+      autoTable(pdf, {
+        startY: y,
+        margin: { left: ML, right: MR },
+        head: [["Cant.", "Producto"]],
+        body: r.productos.map((p: any) => [String(p.cantidad || 1), p.titulo || "-"]),
+        headStyles: { fillColor: [0, 34, 68], fontSize: 8 },
+        bodyStyles: { fontSize: 8 },
+        columnStyles: { 0: { cellWidth: 20, halign: "center" } },
+      });
+      y = (pdf as any).lastAutoTable.finalY + 15;
+    }
 
     // Firmas (Centralizada y limpia)
     if (y > 240) { pdf.addPage(); y = 50; }
@@ -263,9 +286,9 @@ export default function DetalleRemitoPage() {
             </div>
           </div>
 
-          <h4 style={{ color: '#999', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '15px' }}>Equipos Afectados</h4>
+          {remito.equipos?.length > 0 && <h4 style={{ color: '#999', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', marginBottom: '15px' }}>Equipos Afectados</h4>}
           <div style={{ display: 'grid', gap: '10px' }}>
-            {remito.equipos.map((eq, i) => (
+            {(remito.equipos || []).map((eq, i) => (
               <div key={i} style={{ padding: '15px', background: '#f8fafc', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                   <div style={{ background: 'var(--primary-blue)', color: '#fff', padding: '8px 12px', borderRadius: '8px', fontWeight: 900 }}>{eq.cantidad}</div>
@@ -288,6 +311,20 @@ export default function DetalleRemitoPage() {
               </div>
             ))}
           </div>
+
+          {(remito.productos?.length || 0) > 0 && (
+            <>
+              <h4 style={{ color: '#999', fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', margin: '25px 0 15px' }}>Otros Productos</h4>
+              <div style={{ display: 'grid', gap: '10px' }}>
+                {remito.productos!.map((p, i) => (
+                  <div key={i} style={{ padding: '15px', background: '#f8fafc', borderRadius: '12px', display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <div style={{ background: 'var(--primary-blue)', color: '#fff', padding: '8px 12px', borderRadius: '8px', fontWeight: 900 }}>{p.cantidad}</div>
+                    <div style={{ fontWeight: 700, color: 'var(--primary-blue)' }}>{p.titulo}</div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         <div>
