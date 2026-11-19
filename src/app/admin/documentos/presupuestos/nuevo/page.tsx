@@ -5,7 +5,7 @@ import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, addDoc, getDocs, query, where, doc,
-  getDoc, serverTimestamp, updateDoc, setDoc,
+  getDoc, serverTimestamp, updateDoc, setDoc, orderBy,
 } from "@/lib/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -92,6 +92,12 @@ function NuevoPresupuestoContent() {
 
   // Notas
   const [notas, setNotas] = useState("");
+  const [notasEstandar, setNotasEstandar] = useState<{ id: string; titulo: string; contenido: string }[]>([]);
+
+  const insertarNota = (contenido: string) => {
+    if (notas.includes(contenido)) { showToast("Esa nota ya está en el presupuesto.", "info"); return; }
+    setNotas(prev => prev.trim() ? `${prev.trimEnd()}\n\n${contenido}` : contenido);
+  };
 
   // Catálogo y Plan de Acción
   const [catalogo, setCatalogo] = useState<any[]>([]);
@@ -183,6 +189,11 @@ function NuevoPresupuestoContent() {
 
     // Cargar Catálogo
     fetchAllProductos().then(setCatalogo).catch(console.error);
+
+    // Notas estándar (condiciones comerciales, forma de pago...)
+    getDocs(query(collection(db, "notas_presupuesto"), orderBy("createdAt", "asc")))
+      .then(snap => setNotasEstandar(snap.docs.map(d => ({ id: d.id, ...d.data() } as any))))
+      .catch(() => {});
 
     return () => unsub();
   }, [router, editId]);
@@ -681,11 +692,23 @@ function NuevoPresupuestoContent() {
       {/* ── SECCIÓN 5: NOTAS ── */}
       <div style={sectionStyle}>
         <h3 style={sectionTitleStyle}><FileText size={20} /> Notas / Condiciones</h3>
+        {notasEstandar.length > 0 && (
+          <div style={{ marginBottom: "12px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#666" }}>Insertar nota estándar:</span>
+            {notasEstandar.map(n => (
+              <button key={n.id} type="button" onClick={() => insertarNota(n.contenido)}
+                title={n.contenido}
+                style={{ padding: "5px 12px", borderRadius: "15px", border: "1px solid #ddd", background: "#f8f9fa", fontSize: "0.75rem", fontWeight: 700, cursor: "pointer", color: "var(--primary-blue)" }}>
+                + {n.titulo}
+              </button>
+            ))}
+          </div>
+        )}
         <textarea
           value={notas}
           onChange={e => setNotas(e.target.value)}
           placeholder="Condiciones de pago, observaciones adicionales, información relevante..."
-          rows={4}
+          rows={notas.length > 200 ? 10 : 4}
           style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
         />
       </div>

@@ -4,12 +4,12 @@ import { db, auth } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import {
   collection, getDocs, query, orderBy, where,
-  doc, getDoc, deleteDoc, updateDoc, serverTimestamp,
+  doc, getDoc, deleteDoc, updateDoc, addDoc, serverTimestamp,
 } from "@/lib/firestore";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { generatePresupuestoPDF } from "@/lib/pdfGenerator";
-import { Plus, Eye, Edit, Scroll, Trash2, ArrowLeft, Search } from "lucide-react";
+import { Plus, Eye, Edit, Scroll, Trash2, ArrowLeft, Search, ClipboardList, BookText } from "lucide-react";
 import { useViewMode } from "@/hooks/useViewMode";
 import ViewToggle from "@/components/admin/ViewToggle";
 
@@ -27,6 +27,12 @@ interface Presupuesto {
   createdAt: any;
   creadoPorId?: string;
   creadoPorNombre?: string;
+}
+
+interface NotaPresupuesto {
+  id: string;
+  titulo: string;
+  contenido: string;
 }
 
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
@@ -54,6 +60,11 @@ export default function PresupuestosPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useViewMode("presupuestos");
+  const [activeTab, setActiveTab] = useState<"listado" | "notas">("listado");
+  const [notas, setNotas] = useState<NotaPresupuesto[]>([]);
+  const [notaModal, setNotaModal] = useState<null | "create" | "edit">(null);
+  const [formNota, setFormNota] = useState({ titulo: "", contenido: "", id: "" });
+  const [deletingNota, setDeletingNota] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -127,6 +138,36 @@ export default function PresupuestosPage() {
     } catch { alert("Error al actualizar estado."); }
   };
 
+  const fetchNotas = async () => {
+    try {
+      const snap = await getDocs(query(collection(db, "notas_presupuesto"), orderBy("createdAt", "asc")));
+      setNotas(snap.docs.map(d => ({ id: d.id, ...d.data() } as NotaPresupuesto)));
+    } catch (e) { console.error(e); setNotas([]); }
+  };
+
+  const handleSaveNota = async () => {
+    if (!formNota.titulo.trim() || !formNota.contenido.trim()) { alert("Completá el nombre y el texto de la nota."); return; }
+    try {
+      const data = { titulo: formNota.titulo.trim(), contenido: formNota.contenido.trim(), updatedAt: serverTimestamp() };
+      if (formNota.id) {
+        await updateDoc(doc(db, "notas_presupuesto", formNota.id), data);
+      } else {
+        await addDoc(collection(db, "notas_presupuesto"), { ...data, createdAt: serverTimestamp() });
+      }
+      setNotaModal(null);
+      setFormNota({ titulo: "", contenido: "", id: "" });
+      fetchNotas();
+    } catch (e) { console.error(e); alert("Error al guardar la nota."); }
+  };
+
+  const handleDeleteNota = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "notas_presupuesto", id));
+      setNotas(prev => prev.filter(n => n.id !== id));
+    } catch (e) { console.error(e); alert("Error al eliminar la nota."); }
+    finally { setDeletingNota(null); }
+  };
+
   const filtered = presupuestos.filter(p => {
     const q = search.toLowerCase();
     const matchSearch =
@@ -140,6 +181,7 @@ export default function PresupuestosPage() {
 
   const isReadOnly = role === "cliente";
   const isAdmin = role === "admin" || role === "superadmin";
+  const canEditNotas = isAdmin || role === "secretaria";
 
   if (loading) return (
     <div style={{ padding: "100px", textAlign: "center", color: "var(--text-muted)" }}>Cargando presupuestos...</div>
@@ -160,10 +202,12 @@ export default function PresupuestosPage() {
             {isReadOnly ? "Mis Presupuestos" : "Presupuestos"}
           </h1>
           <p style={{ color: "var(--text-muted)", marginTop: "5px" }}>
-            Cotizaciones para clientes.
+            {activeTab === "listado"
+              ? "Cotizaciones para clientes."
+              : "Notas listas para pegar en los presupuestos (condiciones comerciales, forma de pago, etc.)."}
           </p>
         </div>
-        {!isReadOnly && (
+        {!isReadOnly && activeTab === "listado" && (
           <Link
             href="/admin/documentos/presupuestos/nuevo"
             className="btn-red"
@@ -172,8 +216,104 @@ export default function PresupuestosPage() {
             <Plus size={18} strokeWidth={3} /> Nuevo Presupuesto
           </Link>
         )}
+        {canEditNotas && activeTab === "notas" && (
+          <button
+            onClick={() => { setFormNota({ titulo: "", contenido: "", id: "" }); setNotaModal("create"); }}
+            className="btn-red"
+            style={{ padding: "12px 24px", display: "inline-flex", alignItems: "center", gap: "8px", textTransform: "uppercase", fontSize: "0.8rem", border: "none", cursor: "pointer" }}
+          >
+            <Plus size={18} strokeWidth={3} /> Nueva Nota
+          </button>
+        )}
       </header>
 
+      {canEditNotas && (
+        <div style={{ display: "flex", gap: "8px", background: "#f1f5f9", padding: "6px", borderRadius: "14px", marginBottom: "24px", width: "fit-content", flexWrap: "wrap" }}>
+          <button type="button"
+            onClick={() => setActiveTab("listado")}
+            style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid", borderColor: activeTab === "listado" ? "#3b82f6" : "#bfdbfe", background: activeTab === "listado" ? "#fff" : "#eff6ff", fontWeight: 800, color: "#3b82f6", cursor: "pointer", boxShadow: activeTab === "listado" ? "0 4px 12px rgba(59,130,246,0.15)" : "none", display: "flex", alignItems: "center", gap: "8px" }}>
+            <ClipboardList size={18} strokeWidth={2.5} /> Listado
+          </button>
+          <button type="button"
+            onClick={() => { setActiveTab("notas"); fetchNotas(); }}
+            style={{ padding: "10px 18px", borderRadius: "10px", border: "1.5px solid", borderColor: activeTab === "notas" ? "#16a34a" : "#bbf7d0", background: activeTab === "notas" ? "#fff" : "#f0fdf4", fontWeight: 800, color: "#16a34a", cursor: "pointer", boxShadow: activeTab === "notas" ? "0 4px 12px rgba(22,163,74,0.15)" : "none", display: "flex", alignItems: "center", gap: "8px" }}>
+            <BookText size={18} strokeWidth={2.5} /> Notas estándar
+          </button>
+        </div>
+      )}
+
+      {activeTab === "notas" && (
+        <div style={{ marginBottom: "20px" }}>
+          {notas.length === 0 ? (
+            <div style={{ background: "#fff", borderRadius: "12px", padding: "60px", textAlign: "center", boxShadow: "0 2px 10px rgba(0,0,0,0.03)" }}>
+              <div style={{ fontSize: "3rem", marginBottom: "12px", opacity: 0.3 }}>📝</div>
+              <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>
+                No hay notas creadas aún. Usá &quot;+ Nueva Nota&quot; para cargar, por ejemplo, las condiciones de Mantenimiento de extintores, Proyectos u Obras de extinción.
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
+              {notas.map(n => (
+                <div key={n.id} style={{ background: "#fff", borderRadius: "12px", padding: "20px", boxShadow: "0 2px 10px rgba(0,0,0,0.04)", border: "1px solid #eee" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+                    <span style={{ fontWeight: 800, color: "var(--primary-blue)", fontSize: "0.95rem" }}>{n.titulo}</span>
+                    <div style={{ display: "flex", gap: "6px", flexShrink: 0, marginLeft: "10px" }}>
+                      <button type="button" title="Editar" onClick={() => { setFormNota({ titulo: n.titulo, contenido: n.contenido, id: n.id }); setNotaModal("edit"); }} style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #ddd", background: "#f0f7ff", color: "#0061ff", cursor: "pointer", display: "flex" }}>
+                        <Edit size={14} />
+                      </button>
+                      <button type="button" title="Eliminar" onClick={() => setDeletingNota(n.id)} style={{ padding: "5px 7px", borderRadius: "6px", border: "1px solid #ffddd9", background: "#fff5f4", color: "var(--primary-red)", cursor: "pointer", display: "flex" }}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: "0.82rem", color: "#666", lineHeight: "1.6", margin: 0, whiteSpace: "pre-wrap", maxHeight: "100px", overflow: "hidden" }}>
+                    {n.contenido}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {notaModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "600px", width: "100%", maxHeight: "85vh", overflowY: "auto" }}>
+            <h3 style={{ fontWeight: 800, marginBottom: "20px", color: "var(--primary-blue)" }}>
+              {notaModal === "create" ? "Nueva nota estándar" : "Editar nota"}
+            </h3>
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Nombre (lo que se ve en el botón)</label>
+              <input value={formNota.titulo} onChange={e => setFormNota(f => ({ ...f, titulo: e.target.value }))} placeholder="Ej: Mantenimiento de extintores" style={{ width: "100%", padding: "10px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.92rem", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", fontSize: "0.78rem", fontWeight: 700, color: "#555", marginBottom: "6px", textTransform: "uppercase" }}>Texto de la nota</label>
+              <textarea value={formNota.contenido} onChange={e => setFormNota(f => ({ ...f, contenido: e.target.value }))} rows={10}
+                placeholder={"Ej:\nFORMA DE PAGO: 50% de anticipo, saldo contra entrega.\nPLAZO DE ENTREGA: 5 días hábiles.\nLos precios no incluyen IVA."}
+                style={{ width: "100%", padding: "10px 13px", borderRadius: "8px", border: "1px solid #ddd", fontSize: "0.88rem", resize: "vertical", fontFamily: "inherit", lineHeight: "1.6", boxSizing: "border-box" }} />
+            </div>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button type="button" onClick={() => { setNotaModal(null); setFormNota({ titulo: "", contenido: "", id: "" }); }} style={{ flex: 1, padding: "12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+              <button type="button" onClick={handleSaveNota} className="btn-red" style={{ flex: 1, padding: "12px" }}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingNota && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
+          <div style={{ background: "#fff", borderRadius: "12px", padding: "30px", maxWidth: "400px", width: "100%" }}>
+            <h3 style={{ fontWeight: 800, marginBottom: "12px" }}>¿Eliminar nota?</h3>
+            <p style={{ color: "var(--text-muted)", marginBottom: "25px", fontSize: "0.9rem" }}>Los presupuestos ya hechos con esta nota no cambian.</p>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button type="button" onClick={() => setDeletingNota(null)} style={{ flex: 1, padding: "12px", borderRadius: "6px", border: "1px solid #ddd", background: "#f8f9fa", cursor: "pointer", fontWeight: 600 }}>Cancelar</button>
+              <button type="button" onClick={() => handleDeleteNota(deletingNota)} className="btn-red" style={{ flex: 1, padding: "12px" }}>Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "listado" && (<>
       {/* FILTROS */}
       <div style={{ background: "#fff", padding: "18px 20px", borderRadius: "12px", boxShadow: "0 2px 10px rgba(0,0,0,0.03)", marginBottom: "20px", display: "flex", gap: "15px", flexWrap: "wrap", alignItems: "flex-end", border: "1px solid #eee" }}>
         <div style={{ flex: 1, minWidth: "220px", position: "relative" }}>
@@ -375,6 +515,7 @@ export default function PresupuestosPage() {
           </div>
         )}
       </div>
+      </>)}
 
       {/* DELETE CONFIRM */}
       {deleteConfirm && (

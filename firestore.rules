@@ -185,6 +185,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Notas estándar para pegar en presupuestos (condiciones comerciales, forma de pago...)
+    match /notas_presupuesto/{id} {
+      allow read: if request.auth != null && (isDocStaff() || isTecnicoTaller());
+      allow write: if isAdmin() || getRole() == 'secretaria';
+    }
+
     match /configuracion/presupuestos {
       allow read: if request.auth != null && (isDocStaff() || isTecnicoTaller());
       allow write: if request.auth != null && (isDocStaff() || isTecnicoTaller());
